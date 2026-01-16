@@ -1,25 +1,18 @@
 import type { FastifyInstance } from "fastify";
 import type { DraftActionType, EvidenceRecord, EvidenceResult } from "@ika/shared";
+import type { Repository } from "./repository/types";
 import {
   applyDraftAction,
   confirmMatch,
   createMatchFromQueue,
-  findUser,
-  findMatch,
-  findRuleset,
-  getActiveSeason,
-  getProfileSummary,
-  listUsers,
-  listLeaderboard,
+  markCheckin,
   openDispute,
   recordInrun,
   recordPrecheck,
   recordResult,
-  resolveDispute,
-  store,
-  transitionMatch,
-  markCheckin
-} from "./store";
+  resolveDispute
+} from "./services/matchService";
+import { getProfileSummary } from "./services/profileService";
 import { createId, now, requireArray, requireString } from "./utils";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
@@ -27,21 +20,21 @@ function sendError(reply: { code: (status: number) => { send: (payload: unknown)
   reply.code(400).send({ error: message });
 }
 
-export async function registerRoutes(app: FastifyInstance) {
+export async function registerRoutes(app: FastifyInstance, repo: Repository) {
   app.get("/health", async () => ({ status: "ok" }));
 
-  app.get("/agents", async () => store.agents);
-  app.get("/leagues", async () => store.leagues);
-  app.get("/rulesets", async () => store.rulesets);
-  app.get("/challenges", async () => store.challenges);
-  app.get("/queues", async () => store.queues);
-  app.get("/seasons/current", async () => getActiveSeason());
-  app.get("/users", async () => listUsers());
+  app.get("/agents", async () => repo.listAgents());
+  app.get("/leagues", async () => repo.listLeagues());
+  app.get("/rulesets", async () => repo.listRulesets());
+  app.get("/challenges", async () => repo.listChallenges());
+  app.get("/queues", async () => repo.listQueues());
+  app.get("/seasons/current", async () => repo.getActiveSeason());
+  app.get("/users", async () => repo.listUsers());
 
   app.get("/users/:id", async (request, reply) => {
     try {
       const userId = requireString((request.params as { id?: string }).id, "userId");
-      reply.send(findUser(userId));
+      reply.send(await repo.findUser(userId));
     } catch (error) {
       sendError(reply, error);
     }
@@ -50,7 +43,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/profiles/:id", async (request, reply) => {
     try {
       const userId = requireString((request.params as { id?: string }).id, "userId");
-      reply.send(getProfileSummary(userId));
+      reply.send(await getProfileSummary(repo, userId));
     } catch (error) {
       sendError(reply, error);
     }
@@ -59,7 +52,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/leaderboards/:leagueId", async (request, reply) => {
     try {
       const leagueId = requireString((request.params as { leagueId?: string }).leagueId, "leagueId");
-      const ratings = listLeaderboard(leagueId);
+      const ratings = await repo.listLeaderboard(leagueId);
       reply.send({ leagueId, ratings });
     } catch (error) {
       sendError(reply, error);
@@ -71,7 +64,7 @@ export async function registerRoutes(app: FastifyInstance) {
       const body = request.body as { userId?: string; queueId?: string };
       const userId = requireString(body?.userId, "userId");
       const queueId = requireString(body?.queueId, "queueId");
-      const match = createMatchFromQueue(queueId, userId);
+      const match = await createMatchFromQueue(repo, queueId, userId);
       reply.send(match);
     } catch (error) {
       sendError(reply, error);
@@ -81,7 +74,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/matches/:id", async (request, reply) => {
     try {
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
-      reply.send(findMatch(matchId));
+      reply.send(await repo.findMatch(matchId));
     } catch (error) {
       sendError(reply, error);
     }
@@ -92,8 +85,7 @@ export async function registerRoutes(app: FastifyInstance) {
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
       const body = request.body as { userId?: string };
       const userId = requireString(body?.userId, "userId");
-      const match = findMatch(matchId);
-      markCheckin(match, userId);
+      const match = await markCheckin(repo, matchId, userId);
       reply.send(match);
     } catch (error) {
       sendError(reply, error);
@@ -111,9 +103,7 @@ export async function registerRoutes(app: FastifyInstance) {
       const userId = requireString(body?.userId, "userId");
       const type = requireString(body?.type, "type") as DraftActionType;
       const agentId = requireString(body?.agentId, "agentId");
-      const match = findMatch(matchId);
-
-      applyDraftAction(match, { type, agentId, userId, timestamp: now() });
+      const match = await applyDraftAction(repo, matchId, { type, agentId, userId, timestamp: now() });
       reply.send(match);
     } catch (error) {
       sendError(reply, error);
@@ -123,8 +113,8 @@ export async function registerRoutes(app: FastifyInstance) {
   app.post("/matches/:id/verifier/session", async (request, reply) => {
     try {
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
-      const match = findMatch(matchId);
-      const ruleset = findRuleset(match.rulesetId);
+      const match = await repo.findMatch(matchId);
+      const ruleset = await repo.findRuleset(match.rulesetId);
       reply.send({
         sessionToken: createId("vsess"),
         nonce: createId("nonce"),
@@ -148,7 +138,6 @@ export async function registerRoutes(app: FastifyInstance) {
         frameHash?: string;
         cropUrl?: string;
       };
-      const match = findMatch(matchId);
       const record: EvidenceRecord = {
         id: createId("ev"),
         type: "PRECHECK",
@@ -160,7 +149,7 @@ export async function registerRoutes(app: FastifyInstance) {
         frameHash: body?.frameHash,
         cropUrl: body?.cropUrl
       };
-      recordPrecheck(match, record);
+      const match = await recordPrecheck(repo, matchId, record);
       reply.send(match);
     } catch (error) {
       sendError(reply, error);
@@ -178,7 +167,6 @@ export async function registerRoutes(app: FastifyInstance) {
         frameHash?: string;
         cropUrl?: string;
       };
-      const match = findMatch(matchId);
       const record: EvidenceRecord = {
         id: createId("ev"),
         type: "INRUN",
@@ -190,7 +178,7 @@ export async function registerRoutes(app: FastifyInstance) {
         frameHash: body?.frameHash,
         cropUrl: body?.cropUrl
       };
-      recordInrun(match, record);
+      const match = await recordInrun(repo, matchId, record);
       reply.send(match);
     } catch (error) {
       sendError(reply, error);
@@ -205,11 +193,7 @@ export async function registerRoutes(app: FastifyInstance) {
         value?: number | string;
         proofUrl?: string;
       };
-      const match = findMatch(matchId);
-      if (match.state === "IN_PROGRESS") {
-        transitionMatch(match, "AWAITING_RESULT_UPLOAD");
-      }
-      recordResult(match, {
+      const match = await recordResult(repo, matchId, {
         metricType: requireString(body?.metricType, "metricType") as "TIME_MS" | "SCORE" | "RANK_TIER",
         value: body?.value ?? 0,
         proofUrl: requireString(body?.proofUrl, "proofUrl"),
@@ -225,8 +209,7 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
       const body = request.body as { userId?: string };
-      const match = findMatch(matchId);
-      confirmMatch(match, requireString(body?.userId, "userId"));
+      const match = await confirmMatch(repo, matchId, requireString(body?.userId, "userId"));
       reply.send(match);
     } catch (error) {
       sendError(reply, error);
@@ -237,9 +220,9 @@ export async function registerRoutes(app: FastifyInstance) {
     try {
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
       const body = request.body as { userId?: string; reason?: string };
-      const match = findMatch(matchId);
-      const dispute = openDispute(
-        match,
+      const dispute = await openDispute(
+        repo,
+        matchId,
         requireString(body?.userId, "userId"),
         requireString(body?.reason, "reason")
       );
@@ -250,14 +233,18 @@ export async function registerRoutes(app: FastifyInstance) {
   });
 
   app.get("/disputes/queue", async () => {
-    return Array.from(store.disputes.values()).filter((item) => item.status === "OPEN");
+    return repo.listOpenDisputes();
   });
 
   app.post("/disputes/:id/decision", async (request, reply) => {
     try {
       const disputeId = requireString((request.params as { id?: string }).id, "disputeId");
       const body = request.body as { decision?: string };
-      const dispute = resolveDispute(disputeId, requireString(body?.decision, "decision"));
+      const dispute = await resolveDispute(
+        repo,
+        disputeId,
+        requireString(body?.decision, "decision")
+      );
       reply.send(dispute);
     } catch (error) {
       sendError(reply, error);
