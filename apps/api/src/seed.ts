@@ -207,6 +207,16 @@ export const users: User[] = [
     trustScore: 98,
     proxyLevel: 6,
     verifiedStatus: "UNVERIFIED"
+  },
+  {
+    id: "user_anby",
+    handle: "Anby",
+    displayName: "Anby",
+    region: "NA",
+    roles: ["USER"],
+    trustScore: 102,
+    proxyLevel: 7,
+    verifiedStatus: "PENDING"
   }
 ];
 
@@ -223,6 +233,20 @@ export const ratings: Rating[] = [
     leagueId: "league_standard",
     elo: 1490,
     provisionalMatches: 8,
+    updatedAt: now
+  },
+  {
+    userId: "user_nicole",
+    leagueId: "league_standard",
+    elo: 1428,
+    provisionalMatches: 9,
+    updatedAt: now
+  },
+  {
+    userId: "user_anby",
+    leagueId: "league_standard",
+    elo: 1394,
+    provisionalMatches: 10,
     updatedAt: now
   },
   {
