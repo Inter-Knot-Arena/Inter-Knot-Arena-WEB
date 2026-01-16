@@ -171,7 +171,7 @@ label {
   height: 8px;
   border-radius: 50%;
   background: var(--accent-400);
-  box-shadow: 0 0 10px rgba(242, 164, 70, 0.6);
+  box-shadow: 0 0 6px rgba(242, 164, 70, 0.4);
 }
 
 .avatar-button {
@@ -316,6 +316,11 @@ label {
   border-left: 2px solid rgba(242, 244, 247, 0.08);
 }
 
+.hero-metrics > div:first-child {
+  border-left: none;
+  padding-left: 0;
+}
+
 .metric-value {
   font-size: 22px;
   font-weight: 700;
@@ -343,8 +348,8 @@ label {
 .panel-title {
   font-size: 13px;
   color: var(--ink-500);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-transform: none;
 }
 
 .panel-value {
@@ -531,7 +536,7 @@ label {
 }
 
 .table tbody tr:hover {
-  background: rgba(42, 143, 163, 0.08);
+  background: rgba(42, 143, 163, 0.05);
 }
 
 .table-link {
