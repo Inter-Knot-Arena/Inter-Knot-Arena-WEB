@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
 
 const navItems = [
@@ -40,7 +40,9 @@ export default function Shell({ children }: ShellProps) {
           ))}
         </nav>
         <div className="nav-cta">
-          <button className="primary-button">Browse Catalog</button>
+          <Link className="primary-button" to="/agents">
+            Browse Catalog
+          </Link>
         </div>
       </header>
       <main className="app-main">{children}</main>
