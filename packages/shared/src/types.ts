@@ -164,6 +164,7 @@ export interface EvidenceRecord {
   id: string;
   type: EvidenceType;
   timestamp: number;
+  userId?: string;
   detectedAgents: string[];
   confidence: Record<string, number>;
   result: EvidenceResult;
@@ -180,6 +181,7 @@ export interface ResultProof {
 
 export interface Match {
   id: string;
+  queueId?: string;
   state: MatchState;
   leagueId: string;
   rulesetId: string;
@@ -192,6 +194,7 @@ export interface Match {
     inrun: EvidenceRecord[];
     result?: ResultProof;
   };
+  confirmedBy: string[];
   createdAt: number;
   updatedAt: number;
 }
