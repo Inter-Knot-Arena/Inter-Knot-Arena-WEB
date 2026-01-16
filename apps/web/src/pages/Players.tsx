@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import type { Rating, User } from "@ika/shared";
 import { fetchLeaderboard, fetchUsers } from "../api";
 
@@ -43,7 +44,11 @@ export default function Players() {
               const rating = ratingMap.get(user.id);
               return (
                 <tr key={user.id}>
-                  <td>{user.displayName}</td>
+                  <td>
+                    <Link className="table-link" to={`/profile/${user.id}`}>
+                      {user.displayName}
+                    </Link>
+                  </td>
                   <td>{user.region}</td>
                   <td>{user.trustScore}</td>
                   <td>{user.proxyLevel}</td>
