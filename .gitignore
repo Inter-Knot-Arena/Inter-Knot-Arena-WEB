@@ -11,3 +11,4 @@ pnpm-debug.log*
 dist
 apps/web/dist
 coverage
+package-lock.json
