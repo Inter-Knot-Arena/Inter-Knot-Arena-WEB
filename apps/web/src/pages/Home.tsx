@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import type { Agent, Rating, Ruleset, User } from "@ika/shared";
 import { fetchAgents, fetchLeaderboard, fetchRulesets, fetchUsers } from "../api";
 
@@ -29,8 +30,12 @@ export default function Home() {
             milestone.
           </p>
           <div className="hero-actions">
-            <button className="primary-button">Browse leaderboards</button>
-            <button className="ghost-button">Open catalog</button>
+            <Link className="primary-button" to="/leaderboards">
+              Browse leaderboards
+            </Link>
+            <Link className="ghost-button" to="/agents">
+              Open catalog
+            </Link>
           </div>
           <div className="hero-metrics">
             <div>
