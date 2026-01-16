@@ -10,6 +10,13 @@ import {
   users
 } from "../seed";
 
+function toJson(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return JSON.stringify(value);
+}
+
 const pool = getPool();
 const client = await pool.connect();
 
@@ -85,14 +92,14 @@ try {
         ruleset.version,
         ruleset.name,
         ruleset.description,
-        ruleset.allowedAgents ?? null,
-        ruleset.dupesPolicy ?? null,
-        ruleset.signaturePolicy ?? null,
-        ruleset.levelCaps ?? null,
-        ruleset.gearCaps ?? null,
+        toJson(ruleset.allowedAgents),
+        toJson(ruleset.dupesPolicy),
+        toJson(ruleset.signaturePolicy),
+        toJson(ruleset.levelCaps),
+        toJson(ruleset.gearCaps),
         ruleset.requireVerifier,
         ruleset.requireInrunCheck,
-        ruleset.evidencePolicy,
+        toJson(ruleset.evidencePolicy),
         ruleset.precheckFrequencySec,
         ruleset.inrunFrequencySec,
         ruleset.privacyMode
@@ -114,7 +121,7 @@ try {
         challenge.name,
         challenge.description,
         challenge.metricType,
-        challenge.allowedProofs
+        toJson(challenge.allowedProofs)
       ]
     );
   }
@@ -158,7 +165,7 @@ try {
         user.handle,
         user.displayName,
         user.region,
-        user.roles,
+        toJson(user.roles),
         user.trustScore,
         user.proxyLevel,
         user.verifiedStatus

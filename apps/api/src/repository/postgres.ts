@@ -274,6 +274,13 @@ class PostgresRepository implements Repository {
   }
 }
 
+function toJson(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  return JSON.stringify(value);
+}
+
 function mapAgent(row: Record<string, unknown>): Agent {
   return {
     id: String(row.id),
@@ -407,6 +414,11 @@ function mapDispute(row: Record<string, unknown>): Dispute {
 }
 
 function serializeMatch(match: Match) {
+  const evidence = {
+    precheck: match.evidence.precheck ?? [],
+    inrun: match.evidence.inrun ?? [],
+    result: match.evidence.result ?? null
+  };
   return {
     id: match.id,
     queueId: match.queueId ?? null,
@@ -415,14 +427,10 @@ function serializeMatch(match: Match) {
     rulesetId: match.rulesetId,
     challengeId: match.challengeId,
     seasonId: match.seasonId,
-    players: match.players ?? [],
-    draft: match.draft,
-    evidence: {
-      precheck: match.evidence.precheck ?? [],
-      inrun: match.evidence.inrun ?? [],
-      result: match.evidence.result ?? null
-    },
-    confirmedBy: match.confirmedBy ?? [],
+    players: toJson(match.players ?? []),
+    draft: toJson(match.draft),
+    evidence: toJson(evidence),
+    confirmedBy: toJson(match.confirmedBy ?? []),
     createdAt: match.createdAt,
     updatedAt: match.updatedAt
   };

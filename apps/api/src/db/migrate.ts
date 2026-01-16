@@ -2,7 +2,8 @@
 import { closePool, getPool } from "./pool";
 
 const schemaPath = new URL("./schema.sql", import.meta.url);
-const schema = await readFile(schemaPath, "utf-8");
+const schemaRaw = await readFile(schemaPath, "utf-8");
+const schema = schemaRaw.replace(/^\uFEFF/, "");
 
 const pool = getPool();
 try {
