@@ -7,7 +7,6 @@ const navItems = [
   { to: "/players", label: "Players" },
   { to: "/agents", label: "Agents" },
   { to: "/rulesets", label: "Rulesets" },
-  { to: "/profile/user_ellen", label: "Profile" },
   { to: "/admin", label: "Admin" }
 ];
 
@@ -39,9 +38,13 @@ export default function Shell({ children }: ShellProps) {
             </NavLink>
           ))}
         </nav>
-        <div className="nav-cta">
-          <Link className="primary-button" to="/agents">
-            Browse Catalog
+        <div className="header-actions">
+          <div className="status-pill">
+            <span className="status-dot" />
+            Season 01
+          </div>
+          <Link className="avatar-button" to="/profile/user_ellen" title="Open profile">
+            <span className="avatar-initials">E</span>
           </Link>
         </div>
       </header>
