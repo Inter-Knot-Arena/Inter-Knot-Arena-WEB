@@ -96,8 +96,8 @@ label {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
 }
 
 .brand-logo {
@@ -833,6 +833,11 @@ input::placeholder {
 @media (max-width: 600px) {
   .app-header {
     padding: 18px 5vw;
+  }
+
+  .brand-mark {
+    width: 64px;
+    height: 64px;
   }
 
   .app-main {
