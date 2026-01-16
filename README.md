@@ -43,6 +43,40 @@ npm run dev:api
 
 You can also force the in-memory repository by setting `IKA_REPOSITORY=memory`.
 
+## Storage (S3-compatible)
+
+The API can generate pre-signed upload URLs for S3-compatible storage.
+
+Required environment variables:
+
+- `S3_BUCKET`
+- `S3_REGION`
+- `S3_ACCESS_KEY_ID`
+- `S3_SECRET_ACCESS_KEY`
+
+Optional:
+
+- `S3_ENDPOINT` (for MinIO/other S3-compatible providers)
+- `S3_FORCE_PATH_STYLE=true`
+- `S3_PUBLIC_URL` (base public URL or CDN origin)
+- `S3_PRESIGN_EXPIRES_SEC` (default 900)
+- `IKA_STORAGE=s3` (force S3 storage)
+
+Example:
+
+```bash
+export IKA_STORAGE=s3
+export S3_BUCKET="ika-prod"
+export S3_REGION="us-east-1"
+export S3_ACCESS_KEY_ID="..."
+export S3_SECRET_ACCESS_KEY="..."
+export S3_ENDPOINT="https://s3.example.com"
+export S3_FORCE_PATH_STYLE=true
+export S3_PUBLIC_URL="https://cdn.example.com/ika"
+```
+
+Use `POST /uploads/presign` to get a pre-signed PUT URL.
+
 ## Scripts
 
 - `npm run dev:api`: start API dev server

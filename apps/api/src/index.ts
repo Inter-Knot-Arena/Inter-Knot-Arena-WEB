@@ -2,6 +2,7 @@ import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { registerRoutes } from "./routes";
 import { createRepository } from "./repository";
+import { createStorage } from "./storage";
 
 const app = Fastify({ logger: true });
 
@@ -10,7 +11,8 @@ await app.register(cors, {
 });
 
 const repo = await createRepository();
-await registerRoutes(app, repo);
+const storage = createStorage();
+await registerRoutes(app, repo, storage);
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";

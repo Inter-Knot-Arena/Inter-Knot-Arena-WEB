@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { DraftActionType, EvidenceRecord, EvidenceResult } from "@ika/shared";
 import type { Repository } from "./repository/types";
+import type { StorageClient } from "./storage/types";
 import {
   applyDraftAction,
   confirmMatch,
@@ -20,8 +21,30 @@ function sendError(reply: { code: (status: number) => { send: (payload: unknown)
   reply.code(400).send({ error: message });
 }
 
-export async function registerRoutes(app: FastifyInstance, repo: Repository) {
+export async function registerRoutes(
+  app: FastifyInstance,
+  repo: Repository,
+  storage: StorageClient
+) {
   app.get("/health", async () => ({ status: "ok" }));
+
+  app.post("/uploads/presign", async (request, reply) => {
+    try {
+      const body = request.body as {
+        purpose?: string;
+        contentType?: string;
+        extension?: string;
+      };
+      const key = buildUploadKey(body?.purpose, body?.extension);
+      const presign = await storage.getPresignedUpload({
+        key,
+        contentType: body?.contentType
+      });
+      reply.send(presign);
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
 
   app.get("/agents", async () => repo.listAgents());
   app.get("/leagues", async () => repo.listLeagues());
@@ -250,4 +273,27 @@ export async function registerRoutes(app: FastifyInstance, repo: Repository) {
       sendError(reply, error);
     }
   });
+}
+
+function buildUploadKey(purpose?: string, extension?: string): string {
+  const safePurpose = sanitizeSegment(purpose ?? "uploads");
+  const safeExtension = sanitizeExtension(extension);
+  return `${safePurpose}/${createId("obj")}${safeExtension}`;
+}
+
+function sanitizeSegment(value: string): string {
+  const cleaned = value
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return cleaned || "uploads";
+}
+
+function sanitizeExtension(value?: string): string {
+  if (!value) {
+    return "";
+  }
+  const cleaned = value.toLowerCase().replace(/^\./, "").replace(/[^a-z0-9]/g, "");
+  return cleaned ? `.${cleaned}` : "";
 }

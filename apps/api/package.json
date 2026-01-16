@@ -13,6 +13,8 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.540.0",
+    "@aws-sdk/s3-request-presigner": "^3.540.0",
     "@fastify/cors": "^8.4.0",
     "fastify": "^4.26.0",
     "pg": "^8.11.5"
