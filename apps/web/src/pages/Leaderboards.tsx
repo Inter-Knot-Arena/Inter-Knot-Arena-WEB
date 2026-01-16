@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
-import type { Rating } from "@ika/shared";
-import { fetchLeaderboard } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import type { Rating, User } from "@ika/shared";
+import { fetchLeaderboard, fetchUsers } from "../api";
 
 const leagueOptions = [
   { id: "league_f2p", label: "F2P" },
@@ -11,10 +11,17 @@ const leagueOptions = [
 export default function Leaderboards() {
   const [leagueId, setLeagueId] = useState("league_standard");
   const [ratings, setRatings] = useState<Rating[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
     fetchLeaderboard(leagueId).then(setRatings);
   }, [leagueId]);
+
+  useEffect(() => {
+    fetchUsers().then(setUsers);
+  }, []);
+
+  const userMap = useMemo(() => new Map(users.map((user) => [user.id, user.displayName])), [users]);
 
   return (
     <div className="page">
@@ -52,7 +59,7 @@ export default function Leaderboards() {
             {ratings.map((rating, index) => (
               <tr key={`${rating.userId}-${index}`}>
                 <td>{index + 1}</td>
-                <td>{rating.userId}</td>
+                <td>{userMap.get(rating.userId) ?? rating.userId}</td>
                 <td>{rating.elo}</td>
                 <td>
                   {rating.provisionalMatches < 10 ? (
