@@ -1,5 +1,9 @@
 @import url("https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --bg-900: #0b0f14;
   --bg-800: #111720;
