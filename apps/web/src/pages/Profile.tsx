@@ -40,7 +40,7 @@ export default function Profile() {
         </div>
         <div className="profile-badges">
           <span className="badge">Trust {user.trustScore}</span>
-          <span className="badge-outline">Proxy Lv {user.proxyLevel}</span>
+          <span className="badge-outline">Honor Lv {user.proxyLevel}</span>
         </div>
       </section>
 
@@ -64,6 +64,10 @@ export default function Profile() {
         </div>
         <div className="card">
           <div className="stack">
+            <div className="row">
+              <span>Honor level</span>
+              <span className="badge-outline">{user.proxyLevel} / 60</span>
+            </div>
             <div className="row">
               <span>Roles</span>
               <span className="badge-outline">{user.roles.join(", ")}</span>
