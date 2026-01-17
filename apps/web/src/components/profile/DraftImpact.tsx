@@ -1,4 +1,4 @@
-﻿import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
 interface DraftImpactProps {
   yourBans: string[];
@@ -11,7 +11,7 @@ export function DraftImpact({ yourBans, bansAgainst, winrateDelta, pickSuccess }
   return (
     <Card className="border-border bg-ika-800/70">
       <CardHeader>
-        <CardTitle className="text-lg text-ink-900">Draft impact</CardTitle>
+        <CardTitle className="text-lg font-sans text-ink-900">Draft impact</CardTitle>
         <p className="text-sm text-ink-500">How draft decisions shape match outcomes.</p>
       </CardHeader>
       <CardContent className="grid gap-6 lg:grid-cols-[1fr,1fr,0.6fr]">

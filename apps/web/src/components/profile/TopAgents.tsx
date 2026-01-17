@@ -1,4 +1,4 @@
-﻿import { Pie, PieChart, ResponsiveContainer } from "recharts";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip as ReTooltip } from "recharts";
 import { Badge } from "../ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
@@ -20,13 +20,16 @@ export function TopAgents({ agents }: TopAgentsProps) {
   return (
     <Card className="border-border bg-ika-800/70">
       <CardHeader>
-        <CardTitle className="text-lg text-ink-900">Top agents</CardTitle>
+        <CardTitle className="text-lg font-sans text-ink-900">Top agents</CardTitle>
         <p className="text-sm text-ink-500">Most played agents this season.</p>
       </CardHeader>
       <CardContent className="grid gap-6 lg:grid-cols-[1.1fr,0.9fr]">
         <div className="grid gap-3">
-          {agents.map((agent, index) => (
-            <div key={agent.name} className="flex items-center justify-between rounded-lg border border-border bg-ika-700/40 px-4 py-3">
+          {agents.map((agent) => (
+            <div
+              key={agent.name}
+              className="flex items-center justify-between rounded-lg border border-border bg-ika-700/40 px-4 py-3"
+            >
               <div>
                 <div className="text-sm font-semibold text-ink-900">{agent.name}</div>
                 <div className="text-xs text-ink-500">{agent.matches} matches</div>
@@ -49,10 +52,19 @@ export function TopAgents({ agents }: TopAgentsProps) {
                 outerRadius={80}
                 paddingAngle={4}
               >
-                {agents.map((_, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                {agents.map((agent, index) => (
+                  <Cell key={`cell-${agent.name}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
+              <ReTooltip
+                contentStyle={{
+                  background: "#111720",
+                  border: "1px solid rgba(242, 244, 247, 0.08)",
+                  borderRadius: 10,
+                  color: "#f2f4f7",
+                  fontSize: 12
+                }}
+              />
             </PieChart>
           </ResponsiveContainer>
           <div className="mt-2 flex justify-between text-xs text-ink-500">

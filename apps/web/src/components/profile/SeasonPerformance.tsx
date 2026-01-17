@@ -1,8 +1,8 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 import { Button } from "../ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 
 interface SeriesPoint {
   day: string;
@@ -32,7 +32,7 @@ export function SeasonPerformance({
     <Card className="border-border bg-ika-800/70">
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div>
-          <CardTitle className="text-lg text-ink-900">Season performance</CardTitle>
+          <CardTitle className="text-lg font-sans text-ink-900">Season performance</CardTitle>
           <p className="text-sm text-ink-500">ELO movement over the last 30 days.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -64,7 +64,7 @@ export function SeasonPerformance({
                 tick={{ fill: "#8c96a8", fontSize: 11 }}
               />
               <ReTooltip
-                cursor={{ stroke: "#f2a65a", strokeDasharray: "3 3" }}
+                cursor={{ stroke: "#6bb6c5", strokeDasharray: "3 3" }}
                 contentStyle={{
                   background: "#111720",
                   border: "1px solid rgba(242, 244, 247, 0.08)",
@@ -73,13 +73,7 @@ export function SeasonPerformance({
                   fontSize: 12
                 }}
               />
-              <Line
-                type="monotone"
-                dataKey="elo"
-                stroke="#6bb6c5"
-                strokeWidth={2.5}
-                dot={false}
-              />
+              <Line type="monotone" dataKey="elo" stroke="#6bb6c5" strokeWidth={2.5} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
