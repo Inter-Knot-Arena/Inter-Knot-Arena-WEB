@@ -4,11 +4,65 @@ import { useEffect, useRef, useState } from "react";
 import SearchBar from "./SearchBar";
 
 const navItems = [
-  { to: "/matchmaking", label: "Matchmaking" },
-  { to: "/leaderboards", label: "Leaderboards" },
-  { to: "/agents", label: "Agents" },
-  { to: "/rulesets", label: "Rulesets" },
-  { to: "/admin", label: "Admin" }
+  {
+    to: "/matchmaking",
+    label: "Matchmaking",
+    icon: (
+      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <circle cx="12" cy="12" r="7" strokeWidth="2" />
+        <path d="M12 5v3M12 16v3M5 12h3M16 12h3" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  {
+    to: "/leaderboards",
+    label: "Leaderboards",
+    icon: (
+      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M5 19V9M12 19V5M19 19v-8" strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  {
+    to: "/agents",
+    label: "Agents",
+    icon: (
+      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <circle cx="12" cy="8" r="3" strokeWidth="2" />
+        <path
+          d="M5 19c1.5-3 4-5 7-5s5.5 2 7 5"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </svg>
+    )
+  },
+  {
+    to: "/rulesets",
+    label: "Rulesets",
+    icon: (
+      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="9" cy="6" r="2" strokeWidth="2" />
+        <circle cx="15" cy="12" r="2" strokeWidth="2" />
+        <circle cx="7" cy="18" r="2" strokeWidth="2" />
+      </svg>
+    )
+  },
+  {
+    to: "/admin",
+    label: "Admin",
+    icon: (
+      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path
+          d="M12 3l7 3v6c0 5-3.5 9-7 10-3.5-1-7-5-7-10V6l7-3z"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )
+  }
 ];
 
 interface ShellProps {
@@ -63,6 +117,9 @@ export default function Shell({ children }: ShellProps) {
                 isActive ? "nav-link nav-link-active" : "nav-link"
               }
             >
+              <span className="nav-icon" aria-hidden>
+                {item.icon}
+              </span>
               {item.label}
             </NavLink>
           ))}
