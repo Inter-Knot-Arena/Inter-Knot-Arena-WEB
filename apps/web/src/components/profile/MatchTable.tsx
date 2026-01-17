@@ -3,7 +3,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  FileCheck2,
+  FileCheck,
   FileWarning,
   ShieldAlert
 } from "lucide-react";
@@ -243,7 +243,7 @@ export function MatchTable({ matches, isLoading = false }: MatchTableProps) {
                         </td>
                         <td className="px-3 py-3">
                           <Badge className={evidenceStyles[match.evidenceStatus]}>
-                            {match.evidenceStatus === "Verified" && <FileCheck2 className="mr-1 h-3 w-3" />}
+                            {match.evidenceStatus === "Verified" && <FileCheck className="mr-1 h-3 w-3" />}
                             {match.evidenceStatus === "Pending" && <Clock className="mr-1 h-3 w-3" />}
                             {match.evidenceStatus === "Missing" && <FileWarning className="mr-1 h-3 w-3" />}
                             {match.evidenceStatus}
