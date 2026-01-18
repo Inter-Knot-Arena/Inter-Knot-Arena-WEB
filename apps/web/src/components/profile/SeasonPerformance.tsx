@@ -26,7 +26,7 @@ export function SeasonPerformance({ standard, f2p }: SeasonPerformanceProps) {
 
   const meta = useMemo(() => (active === "standard" ? standard : f2p), [active, standard, f2p]);
   const hasSeries = meta.series.length > 0;
-  const kFactorLabel = meta.kFactor ?? "—";
+  const kFactorLabel = meta.kFactor ?? "--";
 
   return (
     <Card className="border-border bg-ika-800/70">

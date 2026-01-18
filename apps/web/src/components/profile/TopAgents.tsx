@@ -83,7 +83,7 @@ export function TopAgents({ agents }: TopAgentsProps) {
           )}
           <div className="mt-2 flex justify-between text-xs text-ink-500">
             <span>Usage share</span>
-            <span>{hasAgents ? `Top ${agents.length}` : "Top —"}</span>
+            <span>{hasAgents ? `Top ${agents.length}` : "Top --"}</span>
           </div>
         </div>
       </CardContent>

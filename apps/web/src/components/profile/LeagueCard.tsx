@@ -29,13 +29,13 @@ const toneMap = {
 export function LeagueCard({ data }: LeagueCardProps) {
   const eloLabel = data.elo !== null ? data.elo.toString() : "Unrated";
   const deltaLabel =
-    data.delta10 === null ? "—" : data.delta10 >= 0 ? `+${data.delta10}` : `${data.delta10}`;
+    data.delta10 === null ? "--" : data.delta10 >= 0 ? `+${data.delta10}` : `${data.delta10}`;
   const tone = data.tone ?? "accent";
-  const deltaValue = data.elo === null ? "—" : deltaLabel;
+  const deltaValue = data.elo === null ? "--" : deltaLabel;
   const recordLabel =
-    data.wins === null || data.losses === null ? "—" : `${data.wins}W - ${data.losses}L`;
-  const winrateLabel = data.winrate === null ? "—" : `${data.winrate}%`;
-  const streakLabel = data.streak ?? "—";
+    data.wins === null || data.losses === null ? "--" : `${data.wins}W - ${data.losses}L`;
+  const winrateLabel = data.winrate === null ? "--" : `${data.winrate}%`;
+  const streakLabel = data.streak ?? "--";
   const hasTrend = data.trend.length > 0;
 
   return (

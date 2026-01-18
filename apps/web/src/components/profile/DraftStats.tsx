@@ -41,10 +41,10 @@ export function DraftStats({
     bansAgainst.length > 0 ||
     sequences.length > 0;
   const delta = draftWinrate - matchWinrate;
-  const deltaLabel = hasData ? (delta >= 0 ? `+${delta}%` : `${delta}%`) : "—";
-  const draftWinrateLabel = hasData ? `${draftWinrate}%` : "—";
-  const matchWinrateLabel = hasData ? `${matchWinrate}%` : "—";
-  const pickSuccessLabel = pickSuccess === "-" ? "—" : pickSuccess;
+  const deltaLabel = hasData ? (delta >= 0 ? `+${delta}%` : `${delta}%`) : "--";
+  const draftWinrateLabel = hasData ? `${draftWinrate}%` : "--";
+  const matchWinrateLabel = hasData ? `${matchWinrate}%` : "--";
+  const pickSuccessLabel = pickSuccess === "-" ? "--" : pickSuccess;
 
   return (
     <Card className="border-border bg-ika-800/70">
@@ -57,14 +57,14 @@ export function DraftStats({
           <div className="rounded-lg border border-border bg-ika-700/40 p-4">
             <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Ban frequency</div>
             <div className="mt-2 text-2xl font-semibold text-ink-900">
-              {banFrequency === "-" ? "—" : banFrequency}
+              {banFrequency === "-" ? "--" : banFrequency}
             </div>
             <p className="text-xs text-ink-500">Average bans per draft.</p>
           </div>
           <div className="rounded-lg border border-border bg-ika-700/40 p-4">
             <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Pick frequency</div>
             <div className="mt-2 text-2xl font-semibold text-ink-900">
-              {pickFrequency === "-" ? "—" : pickFrequency}
+              {pickFrequency === "-" ? "--" : pickFrequency}
             </div>
             <p className="text-xs text-ink-500">Average picks per draft.</p>
           </div>

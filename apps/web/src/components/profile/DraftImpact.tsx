@@ -10,8 +10,8 @@ interface DraftImpactProps {
 export function DraftImpact({ yourBans, bansAgainst, winrateDelta, pickSuccess }: DraftImpactProps) {
   const hasYourBans = yourBans.length > 0;
   const hasBansAgainst = bansAgainst.length > 0;
-  const pickSuccessLabel = pickSuccess === "-" ? "—" : pickSuccess;
-  const winrateDeltaLabel = winrateDelta === "-" ? "—" : winrateDelta;
+  const pickSuccessLabel = pickSuccess === "-" ? "--" : pickSuccess;
+  const winrateDeltaLabel = winrateDelta === "-" ? "--" : winrateDelta;
 
   return (
     <Card className="border-border bg-ika-800/70">
