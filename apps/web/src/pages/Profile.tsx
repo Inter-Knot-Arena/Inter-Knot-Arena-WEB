@@ -268,43 +268,64 @@ export default function Profile() {
 
   const rankedEligible = profileUser?.verification.status === "VERIFIED";
   const avatarInitials = profileUser ? initialsForName(profileUser.displayName) : "??";
+  const displayName = profileUser?.displayName ?? "Player";
+  const regionLabel = profileUser?.region ?? "NA";
+  const verificationStatus = profileUser?.verification.status ?? "UNVERIFIED";
+  const uidLabel = profileUser?.verification.uid ? "UID verified" : "UID pending";
 
   return (
     <TooltipProvider>
       <div className="mx-auto w-full max-w-[1440px] px-6 pb-16 pt-8">
+        {loadError ? (
+          <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            {loadError}
+          </div>
+        ) : null}
         <section className="rounded-2xl border border-border bg-gradient-to-br from-[#141b24] via-[#0f141b] to-[#0b0f14] p-6 shadow-none">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               <Avatar className="h-20 w-20 border border-border">
+                {profileUser?.avatarUrl ? (
+                  <AvatarImage src={profileUser.avatarUrl} alt={displayName} />
+                ) : null}
                 <AvatarFallback className="bg-gradient-to-br from-accent-500/30 via-ika-700 to-cool-500/30 text-ink-900">
-                  EL
+                  {avatarInitials}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-3xl font-display text-ink-900">Ellen</h1>
-                  <Badge className="border border-emerald-500/40 bg-emerald-500/10 text-emerald-300">
-                    Verified
+                  <h1 className="text-3xl font-display text-ink-900">{displayName}</h1>
+                  <Badge
+                    className={
+                      rankedEligible
+                        ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                        : "border border-rose-500/40 bg-rose-500/10 text-rose-200"
+                    }
+                  >
+                    {verificationStatus}
                   </Badge>
-                  <Badge className="border border-border bg-ika-700/70 text-ink-700">UID verified</Badge>
+                  <Badge className="border border-border bg-ika-700/70 text-ink-700">{uidLabel}</Badge>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-ink-500">
                   <span className="flex items-center gap-1">
                     <MapPin className="h-4 w-4" />
-                    NA
+                    {regionLabel}
                   </span>
                   <span className="flex items-center gap-1">
                     <ShieldCheck className="h-4 w-4" />
-                    UID verified
+                    {uidLabel}
                   </span>
                   <span className="flex items-center gap-1">
                     <Globe className="h-4 w-4" />
-                    Region NA
+                    Region {regionLabel}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Badge className="border border-border bg-ika-700/70 text-ink-700">USER</Badge>
-                  <Badge className="border border-border bg-ika-700/70 text-ink-700">VERIFIED</Badge>
+                  {profileUser?.roles.map((role) => (
+                    <Badge key={role} className="border border-border bg-ika-700/70 text-ink-700">
+                      {role}
+                    </Badge>
+                  ))}
                 </div>
               </div>
             </div>
@@ -342,7 +363,9 @@ export default function Profile() {
                     Trust score
                   </div>
                   <div className="mt-2 text-xl font-semibold text-ink-900">{trustScore}</div>
-                  <div className="text-xs text-ink-500">High trust tier</div>
+                  <div className="text-xs text-ink-500">
+                    {rankedEligible ? "Verified account" : "Verification pending"}
+                  </div>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
@@ -364,7 +387,9 @@ export default function Profile() {
                     <span>
                       {proxyLevel}/{proxyCap}
                     </span>
-                    <span className="text-xs text-ink-500">Next: 15</span>
+                    <span className="text-xs text-ink-500">
+                      Next: {profileUser?.proxyLevel.nextXp ?? "--"} XP
+                    </span>
                   </div>
                   <div className="mt-2">
                     <Progress value={proxyProgress} />
@@ -379,8 +404,12 @@ export default function Profile() {
                 <CheckCircle2 className="h-4 w-4" />
                 Ranked eligibility
               </div>
-              <div className="mt-2 text-xl font-semibold text-ink-900">Eligible</div>
-              <div className="text-xs text-ink-500">UID verified and verifier ready</div>
+              <div className="mt-2 text-xl font-semibold text-ink-900">
+                {rankedEligible ? "Eligible" : "Locked"}
+              </div>
+              <div className="text-xs text-ink-500">
+                {rankedEligible ? "UID verified and verifier ready" : "Verify UID to unlock ranked"}
+              </div>
             </div>
 
             <Tooltip>
