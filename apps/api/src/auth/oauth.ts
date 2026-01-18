@@ -1,5 +1,5 @@
 import type { OAuthAccount } from "@ika/shared";
-import { now } from "../utils";
+import { now } from "../utils.js";
 
 export interface OAuthAccountRecord extends OAuthAccount {
   createdAt: number;

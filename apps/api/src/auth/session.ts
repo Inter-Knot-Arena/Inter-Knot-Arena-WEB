@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { Session } from "@ika/shared";
-import { createId, now } from "../utils";
+import { createId, now } from "../utils.js";
 
 export const SESSION_COOKIE_NAME = "ika_session";
 

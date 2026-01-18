@@ -1,4 +1,4 @@
-import type { MatchState } from "./types";
+import type { MatchState } from "./types.js";
 
 export const matchStateTransitions: Record<MatchState, MatchState[]> = {
   CREATED: ["CHECKIN", "CANCELED"],

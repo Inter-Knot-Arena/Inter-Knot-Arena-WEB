@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import type { Repository } from "../repository/types";
+import type { Repository } from "../repository/types.js";
 import type { Region, User } from "@ika/shared";
-import { getProfileSummary } from "../services/profileService";
-import { now, requireString } from "../utils";
-import { getAuthUser, type AuthContext } from "../auth/context";
+import { getProfileSummary } from "../services/profileService.js";
+import { now, requireString } from "../utils.js";
+import { getAuthUser, type AuthContext } from "../auth/context.js";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";

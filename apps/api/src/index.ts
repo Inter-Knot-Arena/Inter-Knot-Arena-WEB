@@ -1,12 +1,12 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
-import { registerRoutes } from "./routes";
-import { createRepository } from "./repository";
-import { createStorage } from "./storage";
-import { registerAuthRoutes } from "./routes/auth";
-import { registerUserRoutes } from "./routes/users";
-import { createAuthContext } from "./auth/context";
+import { registerRoutes } from "./routes.js";
+import { createRepository } from "./repository/index.js";
+import { createStorage } from "./storage/index.js";
+import { registerAuthRoutes } from "./routes/auth.js";
+import { registerUserRoutes } from "./routes/users.js";
+import { createAuthContext } from "./auth/context.js";
 
 const app = Fastify({ logger: true });
 

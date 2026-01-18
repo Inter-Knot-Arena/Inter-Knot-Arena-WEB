@@ -1,4 +1,4 @@
-﻿import { closePool, getPool } from "./pool";
+﻿import { closePool, getPool } from "./pool.js";
 import {
   agents,
   challenges,
@@ -8,7 +8,7 @@ import {
   rulesets,
   seasons,
   users
-} from "../seed";
+} from "../seed.js";
 
 function toJson(value: unknown): string | null {
   if (value === undefined || value === null) {

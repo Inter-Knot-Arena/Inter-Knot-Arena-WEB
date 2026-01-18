@@ -12,8 +12,8 @@
   User
 } from "@ika/shared";
 import type { Pool } from "pg";
-import { getPool } from "../db/pool";
-import type { MatchmakingEntry, Repository } from "./types";
+import { getPool } from "../db/pool.js";
+import type { MatchmakingEntry, Repository } from "./types.js";
 
 export function createPostgresRepository(): Repository {
   return new PostgresRepository(getPool());

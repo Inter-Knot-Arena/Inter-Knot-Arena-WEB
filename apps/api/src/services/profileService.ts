@@ -1,5 +1,5 @@
 ﻿import type { ProfileSummary } from "@ika/shared";
-import type { Repository } from "../repository/types";
+import type { Repository } from "../repository/types.js";
 
 export async function getProfileSummary(
   repo: Repository,

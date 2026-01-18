@@ -1,7 +1,7 @@
 ﻿import type { Match, MatchState } from "@ika/shared";
-import type { MatchmakingEntry, Repository } from "../repository/types";
-import { createId, now } from "../utils";
-import { createMatchFromQueue } from "./matchService";
+import type { MatchmakingEntry, Repository } from "../repository/types.js";
+import { createId, now } from "../utils.js";
+import { createMatchFromQueue } from "./matchService.js";
 
 export interface MatchmakingSearchResponse {
   status: "SEARCHING" | "MATCH_FOUND";

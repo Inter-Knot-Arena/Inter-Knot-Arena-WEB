@@ -6,8 +6,8 @@ import {
   listDraftAgents,
   nextDraftAction
 } from "@ika/shared";
-import type { Repository } from "../repository/types";
-import { createId, now } from "../utils";
+import type { Repository } from "../repository/types.js";
+import { createId, now } from "../utils.js";
 
 export async function createMatchFromQueue(
   repo: Repository,

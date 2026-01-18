@@ -8,8 +8,8 @@ import {
   rulesets,
   seasons,
   users
-} from "../seed";
-import type { MatchmakingEntry, Repository } from "./types";
+} from "../seed.js";
+import type { MatchmakingEntry, Repository } from "./types.js";
 
 interface MemoryState {
   agents: typeof agents;

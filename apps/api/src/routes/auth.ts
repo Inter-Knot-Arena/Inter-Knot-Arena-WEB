@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import type { Repository } from "../repository/types";
-import { createId, now, requireString } from "../utils";
+import type { Repository } from "../repository/types.js";
+import { createId, now, requireString } from "../utils.js";
 import {
   buildDefaultUser,
   ensureAuthReady,
@@ -8,20 +8,20 @@ import {
   getAuthUser,
   resolveRedirect,
   type AuthContext
-} from "../auth/context";
+} from "../auth/context.js";
 import {
   buildGoogleAuthUrl,
   createCodeChallenge,
   exchangeCodeForTokens,
   fetchGoogleProfile,
   parseIdTokenPayload
-} from "../auth/google";
+} from "../auth/google.js";
 import {
   SESSION_COOKIE_NAME,
   createCodeVerifier,
   getSessionFromRequest,
   setSessionCookie
-} from "../auth/session";
+} from "../auth/session.js";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
@@ -109,6 +109,8 @@ export async function registerAuthRoutes(
         throw new Error("Google account has no email");
       }
 
+      const nameFromEmail = profile.email.split("@")[0] ?? profile.email;
+      const displayName = profile.name ?? nameFromEmail;
       const existingAccount = auth.oauthStore.findByProviderAccountId("google", profile.sub);
       let user = null as Awaited<ReturnType<typeof repo.findUser>> | null;
       if (existingAccount) {
@@ -125,12 +127,13 @@ export async function registerAuthRoutes(
         }
       }
 
+      let resolvedUser: Awaited<ReturnType<typeof repo.findUser>>;
       if (!user) {
         const base = buildDefaultUser();
-        user = {
+        const createdUser = {
           id: createId("user"),
           email: profile.email,
-          displayName: profile.name || profile.email.split("@")[0],
+          displayName,
           avatarUrl: profile.picture ?? null,
           region: base.region,
           createdAt: base.createdAt,
@@ -141,34 +144,36 @@ export async function registerAuthRoutes(
           verification: base.verification,
           privacy: base.privacy
         };
-        await repo.createUser(user);
+        await repo.createUser(createdUser);
+        resolvedUser = createdUser;
       } else {
-        user = {
+        const updatedUser = {
           ...user,
           email: profile.email,
-          displayName: profile.name || user.displayName,
+          displayName: profile.name ?? user.displayName,
           avatarUrl: profile.picture ?? user.avatarUrl,
           updatedAt: now()
         };
-        await repo.saveUser(user);
+        await repo.saveUser(updatedUser);
+        resolvedUser = updatedUser;
       }
 
       auth.oauthStore.save({
         provider: "google",
         providerAccountId: profile.sub,
-        userId: user.id,
+        userId: resolvedUser.id,
         email: profile.email,
         createdAt: now(),
         updatedAt: now()
       });
 
-      const session = auth.sessionStore.createSession(user.id);
+      const session = auth.sessionStore.createSession(resolvedUser.id);
       setSessionCookie(reply, session.id, auth.config.sessionSecret, {
         secure: process.env.NODE_ENV === "production",
         ttlMs: auth.config.sessionTtlMs
       });
 
-      reply.redirect(stored.redirectTo || `${auth.config.webOrigin}/profile/${user.id}`);
+      reply.redirect(stored.redirectTo || `${auth.config.webOrigin}/profile/${resolvedUser.id}`);
     } catch (error) {
       sendError(reply, error);
     }

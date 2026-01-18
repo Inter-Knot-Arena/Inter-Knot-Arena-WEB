@@ -1,4 +1,4 @@
-import type { PresignedUpload, PresignOptions, StorageClient } from "./types";
+import type { PresignedUpload, PresignOptions, StorageClient } from "./types.js";
 
 export function createLocalStorage(): StorageClient {
   return {

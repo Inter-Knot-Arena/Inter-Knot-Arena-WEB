@@ -1,4 +1,4 @@
-import type { DraftAction, DraftActionType, DraftState } from "./types";
+import type { DraftAction, DraftActionType, DraftState } from "./types.js";
 
 export interface DraftTemplate {
   id: string;

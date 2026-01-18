@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { now } from "../utils";
+import { now } from "../utils.js";
 
 export interface GoogleAuthState {
   codeVerifier: string;
@@ -123,8 +123,12 @@ export function parseIdTokenPayload(idToken: string): Record<string, unknown> | 
   if (parts.length < 2) {
     return null;
   }
+  const payload = parts[1];
+  if (!payload) {
+    return null;
+  }
   try {
-    const json = Buffer.from(parts[1], "base64url").toString("utf8");
+    const json = Buffer.from(payload, "base64url").toString("utf8");
     return JSON.parse(json) as Record<string, unknown>;
   } catch {
     return null;

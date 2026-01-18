@@ -1,6 +1,6 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import type { PresignedUpload, PresignOptions, StorageClient } from "./types";
+import type { PresignedUpload, PresignOptions, StorageClient } from "./types.js";
 
 interface S3Config {
   bucket: string;

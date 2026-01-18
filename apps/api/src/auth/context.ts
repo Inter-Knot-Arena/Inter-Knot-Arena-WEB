@@ -1,10 +1,10 @@
 import type { FastifyRequest } from "fastify";
 import type { User } from "@ika/shared";
-import type { Repository } from "../repository/types";
-import { now } from "../utils";
-import { createGoogleAuthStateStore } from "./google";
-import { createOAuthAccountStore } from "./oauth";
-import { createSessionStore, getSessionFromRequest } from "./session";
+import type { Repository } from "../repository/types.js";
+import { now } from "../utils.js";
+import { createGoogleAuthStateStore } from "./google.js";
+import { createOAuthAccountStore } from "./oauth.js";
+import { createSessionStore, getSessionFromRequest } from "./session.js";
 
 export interface AuthConfig {
   webOrigin: string;

@@ -19,8 +19,8 @@ import {
   listDraftAgents,
   nextDraftAction
 } from "@ika/shared";
-import { agents, challenges, leagues, queues, ratings, rulesets, seasons, users } from "./seed";
-import { createId, now } from "./utils";
+import { agents, challenges, leagues, queues, ratings, rulesets, seasons, users } from "./seed.js";
+import { createId, now } from "./utils.js";
 
 export interface Store {
   agents: typeof agents;

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import type { DraftActionType, EvidenceRecord, EvidenceResult } from "@ika/shared";
-import type { Repository } from "./repository/types";
-import type { StorageClient } from "./storage/types";
+import type { Repository } from "./repository/types.js";
+import type { StorageClient } from "./storage/types.js";
 import {
   applyDraftAction,
   confirmMatch,
@@ -12,14 +12,14 @@ import {
   recordPrecheck,
   recordResult,
   resolveDispute
-} from "./services/matchService";
+} from "./services/matchService.js";
 import {
   cancelMatchmaking,
   getLobbyStats,
   getMatchmakingStatus,
   searchMatch
-} from "./services/matchmakingService";
-import { createId, now, requireArray, requireString } from "./utils";
+} from "./services/matchmakingService.js";
+import { createId, now, requireArray, requireString } from "./utils.js";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
