@@ -197,7 +197,7 @@ export default function Settings() {
     try {
       const updated = await updateMe(payload);
       setUser(updated);
-      setToast({ type: "success", message: "Saved ✓" });
+      setToast({ type: "success", message: "Saved." });
       setSaveState("saved");
     } catch {
       setUser(previous);
