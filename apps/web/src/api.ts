@@ -1,10 +1,13 @@
 import type {
   Agent,
+  AgentCatalog,
   Dispute,
   DraftActionType,
   EvidenceResult,
   League,
   Match,
+  PlayerRosterImportSummary,
+  PlayerRosterView,
   ProfileSummary,
   QueueConfig,
   Rating,
@@ -311,4 +314,44 @@ export async function updateMe(payload: {
   privacy?: { showUidPublicly?: boolean; showMatchHistoryPublicly?: boolean };
 }): Promise<User> {
   return patchJsonWithCredentials<User>("/users/me", payload);
+}
+
+export function fetchAgentCatalog(): Promise<AgentCatalog> {
+  return safeFetch<AgentCatalog>("/catalog/agents", { catalogVersion: "unknown", agents: [] });
+}
+
+export async function fetchPlayerRoster(options: {
+  uid: string;
+  region?: string;
+  rulesetId?: string;
+}): Promise<PlayerRosterView> {
+  const url = new URL(`${API_BASE}/players/${options.uid}/roster`, window.location.origin);
+  if (options.region) {
+    url.searchParams.set("region", options.region);
+  }
+  if (options.rulesetId) {
+    url.searchParams.set("rulesetId", options.rulesetId);
+  }
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Roster fetch failed (${response.status})`);
+  }
+  return (await response.json()) as PlayerRosterView;
+}
+
+export async function importRosterFromEnka(payload: {
+  uid: string;
+  region: string;
+  force?: boolean;
+}): Promise<PlayerRosterImportSummary> {
+  const response = await fetch(`${API_BASE}/players/${payload.uid}/import/enka`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ region: payload.region, force: payload.force })
+  });
+  if (!response.ok) {
+    throw new Error(`Enka import failed (${response.status})`);
+  }
+  return (await response.json()) as PlayerRosterImportSummary;
 }
