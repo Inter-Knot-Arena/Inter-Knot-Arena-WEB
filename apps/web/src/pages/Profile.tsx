@@ -206,23 +206,47 @@ export default function Profile() {
     });
   }, [leagues, ratingByType]);
 
-  const standardSeries = useMemo(() => buildEloSeries(ratingByType.STANDARD?.elo), [ratingByType]);
-  const f2pSeries = useMemo(() => buildEloSeries(ratingByType.F2P?.elo), [ratingByType]);
+  const standardMeta = useMemo(() => {
+    if (!ratingByType.STANDARD) {
+      return {
+        series: [],
+        kFactor: null,
+        provisional: "No matches yet",
+        expectedWinrate: "-"
+      };
+    }
+    const rating = ratingByType.STANDARD;
+    return {
+      series: buildEloSeries(rating.elo),
+      kFactor: resolveK(rating.elo, rating.provisionalMatches, defaultEloConfig),
+      provisional:
+        rating.provisionalMatches < defaultEloConfig.provisionalMatches
+          ? `Provisional (${rating.provisionalMatches}/${defaultEloConfig.provisionalMatches})`
+          : "Not provisional",
+      expectedWinrate: "-"
+    };
+  }, [ratingByType]);
 
-  const kFactor = ratingByType.STANDARD
-    ? resolveK(
-        ratingByType.STANDARD.elo,
-        ratingByType.STANDARD.provisionalMatches,
-        defaultEloConfig
-      )
-    : null;
-  const provisionalLabel = ratingByType.STANDARD
-    ? ratingByType.STANDARD.provisionalMatches < defaultEloConfig.provisionalMatches
-      ? `Provisional (${ratingByType.STANDARD.provisionalMatches}/${defaultEloConfig.provisionalMatches})`
-      : "Not provisional"
-    : "No matches yet";
-  const expectedWinrate = ratingByType.STANDARD ? "—" : "—";
-
+  const f2pMeta = useMemo(() => {
+    if (!ratingByType.F2P) {
+      return {
+        series: [],
+        kFactor: null,
+        provisional: "No matches yet",
+        expectedWinrate: "-"
+      };
+    }
+    const rating = ratingByType.F2P;
+    return {
+      series: buildEloSeries(rating.elo),
+      kFactor: resolveK(rating.elo, rating.provisionalMatches, defaultEloConfig),
+      provisional:
+        rating.provisionalMatches < defaultEloConfig.provisionalMatches
+          ? `Provisional (${rating.provisionalMatches}/${defaultEloConfig.provisionalMatches})`
+          : "Not provisional",
+      expectedWinrate: "-"
+    };
+  }, [ratingByType]);
   const proxyLevel = profileUser?.proxyLevel.level ?? 0;
   const proxyCap = 60;
   const proxyProgress = profileUser
@@ -473,25 +497,14 @@ export default function Profile() {
               </div>
 
               <div className="col-span-12">
-                <SeasonPerformance
-                  standard={standardSeries}
-                  f2p={f2pSeries}
-                  kFactor={25}
-                  provisional="Not provisional"
-                  expectedWinrate="62%"
-                />
+                <SeasonPerformance standard={standardMeta} f2p={f2pMeta} />
               </div>
 
               <div className="col-span-12 xl:col-span-7">
                 <TopAgents agents={topAgents} />
               </div>
               <div className="col-span-12 xl:col-span-5">
-                <DraftImpact
-                  yourBans={["Ellen", "Lycaon", "Nicole"]}
-                  bansAgainst={["Ellen", "Anby", "Nicole"]}
-                  pickSuccess="62%"
-                  winrateDelta="+6%"
-                />
+                <DraftImpact yourBans={[]} bansAgainst={[]} pickSuccess="-" winrateDelta="-" />
               </div>
 
               <div className="col-span-12">
@@ -504,51 +517,36 @@ export default function Profile() {
             <MatchTable matches={matchHistory} />
           </TabsContent>
 
-          <TabsContent value="draft">
-            <DraftStats
-              banFrequency="2.4 per match"
-              pickFrequency="2.8 per match"
-              draftWinrate={62}
-              matchWinrate={68}
-              pickSuccess="62%"
-              bans={[
-                { name: "Ellen", count: 18 },
-                { name: "Lycaon", count: 14 },
-                { name: "Nicole", count: 9 },
-                { name: "Anby", count: 7 }
-              ]}
-              bansAgainst={[
-                { name: "Ellen", count: 22 },
-                { name: "Anby", count: 13 },
-                { name: "Nicole", count: 11 },
-                { name: "Grace", count: 6 }
-              ]}
-              sequences={[
-                { sequence: "BAN Ellen -> BAN Lycaon", count: 12 },
-                { sequence: "BAN Nicole -> BAN Anby", count: 9 },
-                { sequence: "BAN Lycaon -> BAN Nicole", count: 7 },
-                { sequence: "BAN Ellen -> BAN Anby", count: 6 }
-              ]}
-            />
-          </TabsContent>
+            <TabsContent value="draft">
+              <DraftStats
+                banFrequency="-"
+                pickFrequency="-"
+                draftWinrate={0}
+                matchWinrate={0}
+                pickSuccess="-"
+                bans={[]}
+                bansAgainst={[]}
+                sequences={[]}
+              />
+            </TabsContent>
 
           <TabsContent value="agents">
             <AgentGrid agents={rosterAgents} />
           </TabsContent>
 
-          <TabsContent value="tournaments">
-            <TournamentsPanel upcoming={[]} past={pastTournaments} />
-          </TabsContent>
+            <TabsContent value="tournaments">
+              <TournamentsPanel upcoming={upcomingTournaments} past={pastTournaments} />
+            </TabsContent>
 
-          <TabsContent value="evidence">
-            <EvidencePanel
-              verifierRequired={["Standard", "F2P"]}
-              lastPrecheck="2026-01-16 21:42 UTC"
-              inrunViolations={0}
-              evidenceItems={evidenceItems}
-              retentionInfo="Crops retained 14 days. Result proof retained 30 days."
-            />
-          </TabsContent>
+            <TabsContent value="evidence">
+              <EvidencePanel
+                verifierRequired={["Standard", "F2P"]}
+                lastPrecheck="No checks yet"
+                inrunViolations={0}
+                evidenceItems={evidenceItems}
+                retentionInfo="Crops retained 14 days. Result proof retained 30 days."
+              />
+            </TabsContent>
         </Tabs>
       </div>
     </TooltipProvider>
