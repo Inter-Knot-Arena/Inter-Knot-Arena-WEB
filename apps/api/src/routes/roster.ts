@@ -1,0 +1,191 @@
+import type { FastifyInstance } from "fastify";
+import type { Repository } from "../repository/types.js";
+import type { CatalogStore } from "../catalog/store.js";
+import type { CacheClient } from "../cache/types.js";
+import type { PlayerAgentStateStore } from "../roster/types.js";
+import { computeEligibility } from "@ika/shared";
+import type {
+  PlayerRosterImportSummary,
+  PlayerRosterView,
+  Region,
+  Ruleset
+} from "@ika/shared";
+import { normalizeEnkaPayload } from "../enka/normalize.js";
+
+function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
+  const message = error instanceof Error ? error.message : "Unknown error";
+  reply.code(400).send({ error: message });
+}
+
+const REGIONS: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
+const rateLimitMap = new Map<string, number>();
+
+function validateUid(uid: string): boolean {
+  return /^\d{6,12}$/.test(uid);
+}
+
+function parseRegion(value: unknown): Region | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  return REGIONS.includes(value as Region) ? (value as Region) : null;
+}
+
+function buildEnkaUrl(uid: string, region: Region): string {
+  const base = process.env.ENKA_BASE_URL ?? "https://enka.network/api/zzz/uid";
+  const trimmed = base.replace(/\/+$/, "");
+  const url = new URL(`${trimmed}/${uid}`);
+  if (region && region !== "OTHER") {
+    url.searchParams.set("region", region);
+  }
+  return url.toString();
+}
+
+async function fetchJsonWithRetry(url: string, timeoutMs: number): Promise<unknown> {
+  const attempts = 2;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Enka request failed (${response.status})`);
+      }
+      return (await response.json()) as unknown;
+    } catch (error) {
+      lastError = error;
+      if (attempt < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw lastError;
+}
+
+async function resolveRuleset(repo: Repository, rulesetId?: string): Promise<Ruleset> {
+  if (rulesetId) {
+    return repo.findRuleset(rulesetId);
+  }
+  const rulesets = await repo.listRulesets();
+  const resolved = rulesets.find((item) => item.id === "ruleset_standard_v1") ?? rulesets[0];
+  if (!resolved) {
+    throw new Error("No rulesets available");
+  }
+  return resolved;
+}
+
+export async function registerRosterRoutes(
+  app: FastifyInstance,
+  repo: Repository,
+  catalog: CatalogStore,
+  rosterStore: PlayerAgentStateStore,
+  cache: CacheClient,
+  cacheTtlMs: number
+) {
+  app.get("/players/:uid/roster", async (request, reply) => {
+    try {
+      const params = request.params as { uid?: string };
+      const uid = params.uid ?? "";
+      if (!validateUid(uid)) {
+        throw new Error("Invalid UID");
+      }
+
+      const query = request.query as { region?: string; rulesetId?: string };
+      const parsedRegion = parseRegion(query?.region);
+      if (query?.region && !parsedRegion) {
+        throw new Error("Invalid region");
+      }
+      const region = parsedRegion ?? "OTHER";
+      const ruleset = await resolveRuleset(repo, query?.rulesetId);
+      const catalogData = catalog.getCatalog();
+      const states = await rosterStore.listStates(uid, region);
+      const stateMap = new Map(states.map((state) => [state.agentId, state]));
+      const lastImport = await rosterStore.getImportSummary(uid, region);
+
+      const roster: PlayerRosterView = {
+        uid,
+        region,
+        catalogVersion: catalogData.catalogVersion,
+        agents: catalogData.agents.map((agent) => {
+          const state = stateMap.get(agent.agentId);
+          return {
+            agent,
+            state,
+            eligibility: computeEligibility(agent, state, ruleset)
+          };
+        }),
+        lastImport: lastImport ?? undefined
+      };
+
+      reply.send(roster);
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.post("/players/:uid/import/enka", async (request, reply) => {
+    try {
+      const params = request.params as { uid?: string };
+      const uid = params.uid ?? "";
+      if (!validateUid(uid)) {
+        throw new Error("Invalid UID");
+      }
+
+      const body = request.body as { region?: string; force?: boolean };
+      const region = parseRegion(body?.region);
+      if (!region) {
+        throw new Error("Invalid region");
+      }
+      const force = body?.force === true;
+
+      const rateLimitMs = Number(process.env.ENKA_RATE_LIMIT_MS ?? 30000);
+      const limitKey = `${region}:${uid}`;
+      const lastRequest = rateLimitMap.get(limitKey) ?? 0;
+      if (!force && Date.now() - lastRequest < rateLimitMs) {
+        reply.code(429).send({ error: "Too many requests, try again later." });
+        return;
+      }
+      rateLimitMap.set(limitKey, Date.now());
+
+      const cacheKey = `enka:${limitKey}`;
+      const cached = !force ? cache.get<{ payload: unknown; fetchedAt: string }>(cacheKey) : null;
+      const fetchedAt = cached?.fetchedAt ?? new Date().toISOString();
+
+      const payload =
+        cached?.payload ??
+        (await fetchJsonWithRetry(
+          buildEnkaUrl(uid, region),
+          Number(process.env.ENKA_TIMEOUT_MS ?? 8000)
+        ));
+
+      if (!cached) {
+        cache.set(cacheKey, { payload, fetchedAt }, cacheTtlMs);
+      }
+
+      const { agents, unknownIds } = normalizeEnkaPayload(payload, catalog.getMapping(), fetchedAt);
+      const skippedCount = unknownIds.filter((id) => id.startsWith("character:")).length;
+      const summary: PlayerRosterImportSummary = {
+        source: "ENKA_SHOWCASE",
+        importedCount: agents.length,
+        skippedCount,
+        unknownIds,
+        fetchedAt,
+        message: agents.length === 0 ? "No showcase data available." : undefined
+      };
+
+      if (agents.length > 0) {
+        await rosterStore.upsertStates(uid, region, agents);
+      }
+      await rosterStore.saveImportSummary(uid, region, summary);
+
+      reply.send(summary);
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+}
