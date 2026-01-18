@@ -1,7 +1,10 @@
 {
   "name": "inter-knot-arena",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev:api": "npm --workspace apps/api run dev",
     "dev:web": "npm --workspace apps/web run dev",
@@ -9,5 +12,8 @@
     "build:api": "npm run build:shared && npm --workspace apps/api run build",
     "build:web": "npm --workspace apps/web run build",
     "typecheck": "npm --workspace packages/shared run typecheck && npm --workspace apps/api run typecheck && npm --workspace apps/web run typecheck"
+  },
+  "devDependencies": {
+    "@esbuild/win32-x64": "^0.27.2"
   }
 }

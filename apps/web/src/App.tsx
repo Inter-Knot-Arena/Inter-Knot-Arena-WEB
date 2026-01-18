@@ -26,6 +26,7 @@ export default function App() {
         <Route path="/players" element={<Players />} />
         <Route path="/agents" element={<Agents />} />
         <Route path="/rulesets" element={<Rulesets />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="/profile/:id" element={<Profile />} />
         <Route path="/signin" element={<SignIn />} />
         <Route

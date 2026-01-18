@@ -46,6 +46,7 @@ export default function Matchmaking() {
   const { user } = useAuth();
   const fallbackUserId = useMemo(readCurrentUserId, []);
   const currentUserId = user?.id ?? fallbackUserId;
+  const isAuthed = Boolean(user);
   const pollRef = useRef<number | null>(null);
 
   const refreshLobbyStats = useCallback(() => {
@@ -103,6 +104,8 @@ export default function Matchmaking() {
   const selectedLeague = leagues.find((league) => league.id === selectedLeagueId) ?? null;
   const leagueQueue = queues.find((queue) => queue.leagueId === selectedLeagueId) ?? null;
   const leagueRating = profile?.ratings.find((rating) => rating.leagueId === selectedLeagueId) ?? null;
+  const isVerified = profile?.user.verification.status === "VERIFIED";
+  const isQueueLocked = Boolean(leagueQueue?.requireVerifier && !isVerified);
   const counters = selectedLeagueId
     ? lobbyCounters[selectedLeagueId] ?? { waiting: 0, inProgress: 0 }
     : { waiting: 0, inProgress: 0 };
@@ -110,6 +113,14 @@ export default function Matchmaking() {
   const handleFindMatch = async () => {
     if (!leagueQueue || !selectedLeagueId) {
       setStatus("Queue is not available yet.");
+      return;
+    }
+    if (!isAuthed) {
+      setStatus("Sign in to join ranked matchmaking.");
+      return;
+    }
+    if (isQueueLocked) {
+      setStatus("Verifier and UID verification are required for this league.");
       return;
     }
     setStatus("Waiting for opponent...");
@@ -189,7 +200,11 @@ export default function Matchmaking() {
                 </div>
               </div>
               <div className="lobby-actions">
-                <button className="primary-button" onClick={handleFindMatch} disabled={isSearching}>
+                <button
+                  className="primary-button"
+                  onClick={handleFindMatch}
+                  disabled={isSearching || !isAuthed || isQueueLocked}
+                >
                   {isSearching ? "Searching..." : "Find match"}
                 </button>
                 {isSearching ? (
@@ -198,6 +213,12 @@ export default function Matchmaking() {
                   </button>
                 ) : null}
                 {status ? <span className="lobby-status">{status}</span> : null}
+                {!isAuthed && !status ? (
+                  <span className="lobby-status">Sign in required for ranked matchmaking.</span>
+                ) : null}
+                {isQueueLocked && !status ? (
+                  <span className="lobby-status">UID verification required for this league.</span>
+                ) : null}
               </div>
             </div>
 

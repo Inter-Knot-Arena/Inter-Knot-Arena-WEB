@@ -13,7 +13,8 @@ import {
   buildGoogleAuthUrl,
   createCodeChallenge,
   exchangeCodeForTokens,
-  fetchGoogleProfile
+  fetchGoogleProfile,
+  parseIdTokenPayload
 } from "../auth/google";
 import {
   SESSION_COOKIE_NAME,
@@ -45,10 +46,12 @@ export async function registerAuthRoutes(
       const state = createId("state");
       const codeVerifier = createCodeVerifier();
       const codeChallenge = createCodeChallenge(codeVerifier);
+      const nonce = createId("nonce");
 
       auth.stateStore.save(state, {
         codeVerifier,
         redirectTo,
+        nonce,
         createdAt: now()
       });
 
@@ -56,7 +59,8 @@ export async function registerAuthRoutes(
         clientId: auth.config.googleClientId,
         redirectUri: auth.config.googleRedirectUri,
         state,
-        codeChallenge
+        codeChallenge,
+        nonce
       });
       reply.send({ url });
     } catch (error) {
@@ -88,6 +92,13 @@ export async function registerAuthRoutes(
         code,
         codeVerifier: stored.codeVerifier
       });
+
+      if (token.id_token) {
+        const payload = parseIdTokenPayload(token.id_token);
+        if (!payload || payload.nonce !== stored.nonce) {
+          throw new Error("Invalid OAuth nonce");
+        }
+      }
 
       if (!token.access_token) {
         throw new Error("Missing access token from Google");
