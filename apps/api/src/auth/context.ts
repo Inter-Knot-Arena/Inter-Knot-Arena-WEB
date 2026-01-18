@@ -4,6 +4,7 @@ import type { Repository } from "../repository/types.js";
 import { now } from "../utils.js";
 import { createGoogleAuthStateStore } from "./google.js";
 import { createOAuthAccountStore } from "./oauth.js";
+import { createPasswordAccountStore } from "./password.js";
 import { createSessionStore, getSessionFromRequest } from "./session.js";
 
 export interface AuthConfig {
@@ -15,6 +16,7 @@ export interface AuthConfig {
   sessionSecret: string;
   sessionTtlMs: number;
   stateTtlMs: number;
+  passwordMinLength: number;
   authDisabled: boolean;
 }
 
@@ -23,6 +25,7 @@ export interface AuthContext {
   sessionStore: ReturnType<typeof createSessionStore>;
   stateStore: ReturnType<typeof createGoogleAuthStateStore>;
   oauthStore: ReturnType<typeof createOAuthAccountStore>;
+  passwordStore: ReturnType<typeof createPasswordAccountStore>;
 }
 
 export function createAuthContext(): AuthContext {
@@ -30,6 +33,8 @@ export function createAuthContext(): AuthContext {
   const apiOrigin = process.env.API_ORIGIN ?? "http://localhost:4000";
   const sessionTtlDays = Number(process.env.SESSION_TTL_DAYS ?? 7);
   const stateTtlSec = Number(process.env.AUTH_STATE_TTL_SEC ?? 600);
+  const parsedPasswordMinLength = Number(process.env.PASSWORD_MIN_LENGTH ?? 8);
+  const passwordMinLength = Number.isFinite(parsedPasswordMinLength) ? parsedPasswordMinLength : 8;
 
   return {
     config: {
@@ -41,11 +46,13 @@ export function createAuthContext(): AuthContext {
       sessionSecret: process.env.SESSION_SECRET ?? "",
       sessionTtlMs: sessionTtlDays * 24 * 60 * 60 * 1000,
       stateTtlMs: stateTtlSec * 1000,
+      passwordMinLength,
       authDisabled: process.env.AUTH_DISABLED === "true"
     },
     sessionStore: createSessionStore(sessionTtlDays * 24 * 60 * 60 * 1000),
     stateStore: createGoogleAuthStateStore(stateTtlSec * 1000),
-    oauthStore: createOAuthAccountStore()
+    oauthStore: createOAuthAccountStore(),
+    passwordStore: createPasswordAccountStore()
   };
 }
 
