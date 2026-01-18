@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Check, CheckCircle2, Copy, Image, Info, LogOut, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Check, CheckCircle2, Info, LogOut, Pencil, ShieldAlert, ShieldCheck } from "lucide-react";
 import { updateMe } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
@@ -32,6 +32,9 @@ export default function Settings() {
   const [showAvatarOptions, setShowAvatarOptions] = useState(false);
   const [showAvatarUrlInput, setShowAvatarUrlInput] = useState(false);
   const [googleAvatarUrl, setGoogleAvatarUrl] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -52,7 +55,7 @@ export default function Settings() {
     if (!toast) {
       return;
     }
-    const timer = window.setTimeout(() => setToast(null), 3000);
+    const timer = window.setTimeout(() => setToast(null), 2000);
     return () => window.clearTimeout(timer);
   }, [toast]);
 
@@ -132,16 +135,26 @@ export default function Settings() {
     return <div className="card">Sign in required.</div>;
   }
 
-  const handleCopyAvatar = async () => {
-    if (!avatarUrl.trim()) {
+  const handleAvatarFile = (file?: File) => {
+    if (!file) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(avatarUrl.trim());
-      setToast({ type: "success", message: "Avatar URL copied." });
-    } catch {
-      setToast({ type: "error", message: "Unable to copy URL." });
+    if (!file.type.startsWith("image/")) {
+      setToast({ type: "error", message: "Please choose an image file." });
+      return;
     }
+    if (file.size > 2 * 1024 * 1024) {
+      setToast({ type: "error", message: "Image must be under 2MB." });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setAvatarUrl(reader.result);
+        setToast({ type: "success", message: "Avatar updated." });
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSave = async () => {
@@ -183,7 +196,7 @@ export default function Settings() {
     try {
       const updated = await updateMe(payload);
       setUser(updated);
-      setToast({ type: "success", message: "Profile updated." });
+      setToast({ type: "success", message: "Saved ✓" });
       setSaveState("saved");
     } catch {
       setUser(previous);
@@ -218,15 +231,69 @@ export default function Settings() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16">
-                {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt={user.displayName} /> : null}
-                <AvatarFallback>{user.displayName.slice(0, 2).toUpperCase()}</AvatarFallback>
-              </Avatar>
+              <div className="relative group">
+                <Avatar className="h-16 w-16">
+                  {avatarUrl ? <AvatarImage src={avatarUrl} alt={user.displayName} /> : null}
+                  <AvatarFallback>{user.displayName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <button
+                  type="button"
+                  className="absolute -bottom-2 -right-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-ika-800 text-ink-700 opacity-0 transition group-hover:opacity-100"
+                  aria-label="Change avatar"
+                  onClick={() => setShowAvatarOptions((prev) => !prev)}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              </div>
               <div>
                 <div className="text-sm font-semibold text-ink-900">{user.displayName}</div>
                 <div className="text-xs text-ink-500">{user.email}</div>
               </div>
             </div>
+            {showAvatarOptions ? (
+              <div className="rounded-lg border border-border bg-ika-800/70 p-3 text-xs text-ink-500">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setAvatarUrl(googleAvatarUrl ?? "")}
+                    disabled={!googleAvatarUrl}
+                  >
+                    Use account avatar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Upload image
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowAvatarUrlInput((prev) => !prev)}
+                  >
+                    Paste link
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => handleAvatarFile(event.target.files?.[0])}
+                  />
+                </div>
+                {showAvatarUrlInput ? (
+                  <div className="mt-3">
+                    <Input
+                      value={avatarUrl}
+                      onChange={(event) => setAvatarUrl(event.target.value)}
+                      placeholder="https://..."
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <div>
               <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Roles</div>
@@ -255,8 +322,10 @@ export default function Settings() {
                   <TooltipContent>Trust reflects completed matches, disputes, and verifier compliance.</TooltipContent>
                 </Tooltip>
               </div>
-              <div className="mt-2 text-2xl font-semibold text-ink-900">{user.trustScore}</div>
-              <div className="text-xs text-ink-500">Trust {trustTier}</div>
+              <div className="mt-2 flex items-center gap-2 text-2xl font-semibold text-ink-900">
+                {user.trustScore}
+                <Badge className={trustBadgeClass(trustTier)}>{trustTier}</Badge>
+              </div>
               <ul className="mt-3 space-y-1 text-xs text-ink-500">
                 <li>+ Completed matches without disputes</li>
                 <li>+ UID verification and verifier compliance</li>
@@ -339,76 +408,6 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="rounded-lg border border-border bg-ika-700/40 p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Avatar</div>
-                  <div className="text-xs text-ink-500">Use your account avatar or paste an image URL.</div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAvatarOptions((prev) => !prev)}
-                >
-                  <Image className="mr-2 h-4 w-4" />
-                  {showAvatarOptions ? "Close" : "Change avatar"}
-                </Button>
-              </div>
-              <div className="mt-4 flex items-center gap-4">
-                <Avatar className="h-14 w-14">
-                  {avatarUrl ? <AvatarImage src={avatarUrl} alt={displayName} /> : null}
-                  <AvatarFallback>{displayName.slice(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-ink-900">{displayName}</div>
-                  {avatarUrl ? (
-                    <div className="mt-1 flex items-center gap-2 text-xs text-ink-500">
-                      <span className="max-w-[220px] truncate">{avatarUrl}</span>
-                      <button
-                        type="button"
-                        className="inline-flex items-center text-ink-500 hover:text-ink-900"
-                        onClick={handleCopyAvatar}
-                        aria-label="Copy avatar URL"
-                        title="Copy avatar URL"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="mt-1 text-xs text-ink-500">No avatar set.</div>
-                  )}
-                </div>
-              </div>
-              {showAvatarOptions ? (
-                <div className="mt-4 grid gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setAvatarUrl(googleAvatarUrl ?? "")}
-                      disabled={!googleAvatarUrl}
-                    >
-                      Use account avatar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAvatarUrlInput((prev) => !prev)}
-                    >
-                      {showAvatarUrlInput ? "Hide URL" : "Paste image URL"}
-                    </Button>
-                  </div>
-                  {showAvatarUrlInput ? (
-                    <Input
-                      value={avatarUrl}
-                      onChange={(event) => setAvatarUrl(event.target.value)}
-                      placeholder="https://..."
-                    />
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-
             <div className="grid gap-3 rounded-lg border border-border bg-ika-700/40 p-4">
               <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Privacy</div>
               <ToggleRow
@@ -432,9 +431,14 @@ export default function Settings() {
                   <LogOut className="mr-2 h-4 w-4" />
                   Sign out
                 </Button>
-                <Button variant="destructive" size="sm" disabled>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-rose-500/50 text-rose-300 hover:border-rose-400/70 hover:text-rose-100"
+                  onClick={() => setDeleteOpen(true)}
+                >
                   <ShieldAlert className="mr-2 h-4 w-4" />
-                  Delete account (MVP)
+                  Delete account
                 </Button>
               </div>
               <div className="mt-2 text-xs text-ink-500">
@@ -462,11 +466,47 @@ export default function Settings() {
           </CardContent>
         </Card>
       </div>
+      {deleteOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ika-900/80 px-4">
+          <div className="w-full max-w-md rounded-xl border border-border bg-ika-800 p-5 shadow-card">
+            <div className="text-lg font-semibold text-ink-900">Delete account</div>
+            <p className="mt-2 text-sm text-ink-500">
+              Type <span className="font-semibold text-ink-900">DELETE</span> to confirm.
+            </p>
+            <Input
+              value={deleteConfirm}
+              onChange={(event) => setDeleteConfirm(event.target.value)}
+              placeholder="DELETE"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-rose-500/50 text-rose-300 hover:border-rose-400/70 hover:text-rose-100"
+                disabled={deleteConfirm !== "DELETE"}
+                onClick={() => {
+                  setDeleteOpen(false);
+                  setDeleteConfirm("");
+                  setToast({ type: "error", message: "Account deletion is not available yet." });
+                }}
+              >
+                Confirm delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 function isValidUrl(value: string): boolean {
+  if (value.startsWith("data:image/")) {
+    return true;
+  }
   try {
     const url = new URL(value);
     return url.protocol === "http:" || url.protocol === "https:";
@@ -487,13 +527,13 @@ function ToggleRow({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-start gap-3 rounded-lg bg-ika-800/40 p-3">
       <button
         type="button"
         role="switch"
         aria-checked={checked}
         onClick={() => onChange(!checked)}
-        className={`relative h-6 w-11 rounded-full border border-border transition ${
+        className={`mt-0.5 relative h-6 w-11 shrink-0 rounded-full border border-border transition ${
           checked ? "bg-accent-500/70" : "bg-ika-800/80"
         }`}
       >
@@ -509,4 +549,14 @@ function ToggleRow({
       </div>
     </div>
   );
+}
+
+function trustBadgeClass(tier: string): string {
+  if (tier === "Trusted") {
+    return "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+  }
+  if (tier === "At risk") {
+    return "border border-rose-500/30 bg-rose-500/10 text-rose-300";
+  }
+  return "border border-slate-400/30 bg-slate-500/10 text-slate-300";
 }

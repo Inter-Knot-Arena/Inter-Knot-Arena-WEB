@@ -17,6 +17,9 @@ function isValidRegion(value: string | undefined): value is Region {
 }
 
 function isValidUrl(value: string): boolean {
+  if (value.startsWith("data:image/")) {
+    return true;
+  }
   try {
     const url = new URL(value);
     return url.protocol === "http:" || url.protocol === "https:";
