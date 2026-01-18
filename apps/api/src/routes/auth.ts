@@ -18,10 +18,13 @@ import {
 } from "../auth/google.js";
 import {
   SESSION_COOKIE_NAME,
+  clearSessionCookie,
   createCodeVerifier,
   getSessionFromRequest,
   setSessionCookie
 } from "../auth/session.js";
+import { hashPassword, isValidEmail, normalizeEmail, verifyPassword } from "../auth/password.js";
+import type { Region, User } from "@ika/shared";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
@@ -33,6 +36,15 @@ export async function registerAuthRoutes(
   repo: Repository,
   auth: AuthContext
 ) {
+  const allowedRegions: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
+
+  const resolveRegion = (value: unknown, fallback: Region): Region => {
+    if (typeof value !== "string") {
+      return fallback;
+    }
+    return allowedRegions.includes(value as Region) ? (value as Region) : fallback;
+  };
+
   app.get("/auth/google/start", async (request, reply) => {
     try {
       if (auth.config.authDisabled) {
@@ -201,8 +213,135 @@ export async function registerAuthRoutes(
           auth.sessionStore.deleteSession(session.id);
         }
       }
-      reply.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+      clearSessionCookie(reply, SESSION_COOKIE_NAME);
       reply.send({ status: "ok" });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.post("/auth/register", async (request, reply) => {
+    try {
+      if (auth.config.authDisabled) {
+        reply.code(400).send({ error: "Auth is disabled" });
+        return;
+      }
+      ensureSessionSecret(auth);
+
+      const body = request.body as {
+        email?: string;
+        password?: string;
+        displayName?: string;
+        region?: string;
+      };
+      const email = normalizeEmail(requireString(body?.email, "email"));
+      const password = requireString(body?.password, "password");
+
+      if (!isValidEmail(email)) {
+        reply.code(400).send({ error: "Invalid email" });
+        return;
+      }
+      if (password.length < auth.config.passwordMinLength) {
+        reply
+          .code(400)
+          .send({ error: `Password must be at least ${auth.config.passwordMinLength} characters` });
+        return;
+      }
+
+      let user = await repo.findUserByEmail(email);
+      const existingPassword = auth.passwordStore.findByEmail(email);
+      if (existingPassword) {
+        reply.code(409).send({ error: "Email already registered" });
+        return;
+      }
+
+      if (!user) {
+        const base = buildDefaultUser();
+        const displayNameInput = typeof body?.displayName === "string" ? body.displayName.trim() : "";
+        const displayName = displayNameInput || email.split("@")[0] || "Player";
+        if (displayName.length > 24) {
+          reply.code(400).send({ error: "Display name must be 24 characters or fewer" });
+          return;
+        }
+
+        const createdUser: User = {
+          id: createId("user"),
+          email,
+          displayName,
+          avatarUrl: null,
+          region: resolveRegion(body?.region, base.region),
+          createdAt: base.createdAt,
+          updatedAt: now(),
+          roles: base.roles,
+          trustScore: base.trustScore,
+          proxyLevel: base.proxyLevel,
+          verification: base.verification,
+          privacy: base.privacy
+        };
+        await repo.createUser(createdUser);
+        user = createdUser;
+      } else if (body?.displayName && body.displayName.trim() !== user.displayName) {
+        const trimmedName = body.displayName.trim();
+        if (trimmedName.length > 24) {
+          reply.code(400).send({ error: "Display name must be 24 characters or fewer" });
+          return;
+        }
+        const updated = { ...user, displayName: trimmedName, updatedAt: now() };
+        await repo.saveUser(updated);
+        user = updated;
+      }
+
+      const { hash, salt } = hashPassword(password);
+      auth.passwordStore.save({
+        userId: user.id,
+        email,
+        passwordHash: hash,
+        passwordSalt: salt,
+        createdAt: now(),
+        updatedAt: now()
+      });
+
+      const session = auth.sessionStore.createSession(user.id);
+      setSessionCookie(reply, session.id, auth.config.sessionSecret, {
+        secure: process.env.NODE_ENV === "production",
+        ttlMs: auth.config.sessionTtlMs
+      });
+      reply.send(user);
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.post("/auth/login", async (request, reply) => {
+    try {
+      if (auth.config.authDisabled) {
+        reply.code(400).send({ error: "Auth is disabled" });
+        return;
+      }
+      ensureSessionSecret(auth);
+
+      const body = request.body as { email?: string; password?: string };
+      const email = normalizeEmail(requireString(body?.email, "email"));
+      const password = requireString(body?.password, "password");
+
+      if (!isValidEmail(email)) {
+        reply.code(400).send({ error: "Invalid email" });
+        return;
+      }
+
+      const account = auth.passwordStore.findByEmail(email);
+      if (!account || !verifyPassword(password, account.passwordSalt, account.passwordHash)) {
+        reply.code(401).send({ error: "Invalid credentials" });
+        return;
+      }
+
+      const user = await repo.findUser(account.userId);
+      const session = auth.sessionStore.createSession(user.id);
+      setSessionCookie(reply, session.id, auth.config.sessionSecret, {
+        secure: process.env.NODE_ENV === "production",
+        ttlMs: auth.config.sessionTtlMs
+      });
+      reply.send(user);
     } catch (error) {
       sendError(reply, error);
     }
