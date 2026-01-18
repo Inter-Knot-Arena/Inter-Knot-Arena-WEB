@@ -22,9 +22,14 @@ export default function UserMenu() {
 
   if (!isAuthed || !user) {
     return (
-      <Link className="ghost-button" to="/signin">
-        Sign in
-      </Link>
+      <div className="flex items-center gap-2">
+        <Link className="ghost-button" to="/signin">
+          Sign in
+        </Link>
+        <Link className="ghost-button" to="/signin?mode=register">
+          Create account
+        </Link>
+      </div>
     );
   }
 
