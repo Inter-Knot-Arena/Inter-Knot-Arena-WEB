@@ -33,7 +33,6 @@ The web app expects the API at `http://localhost:4000`. Vite proxies `/api` to t
 ## Auth (Google OAuth)
 
 The API implements Google OAuth 2.0 Authorization Code + PKCE and stores sessions in httpOnly cookies.
-Google sign-in requires an email verification code sent to the selected account.
 
 ### Quick dev mode (no Google)
 
@@ -53,18 +52,10 @@ Required environment variables (API):
 - `SESSION_SECRET` (random string)
 - `WEB_ORIGIN` (default: `http://localhost:5173`)
 - `API_ORIGIN` (default: `http://localhost:4000`)
-- `SMTP_HOST`
-- `SMTP_PORT` (default 587)
-- `SMTP_USER`
-- `SMTP_PASS`
-- `SMTP_FROM`
-
 Optional:
 
 - `SESSION_TTL_DAYS` (default 7)
 - `AUTH_STATE_TTL_SEC` (default 600)
-- `EMAIL_CODE_TTL_SEC` (default 600)
-- `SMTP_SECURE` (default false)
 - `PASSWORD_MIN_LENGTH` (default 8)
 
 Example (PowerShell):
@@ -76,11 +67,6 @@ $env:GOOGLE_REDIRECT_URI = "http://localhost:4000/auth/google/callback"
 $env:SESSION_SECRET = "change-me"
 $env:WEB_ORIGIN = "http://localhost:5173"
 $env:API_ORIGIN = "http://localhost:4000"
-$env:SMTP_HOST = "smtp.example.com"
-$env:SMTP_PORT = "587"
-$env:SMTP_USER = "apikey"
-$env:SMTP_PASS = "secret"
-$env:SMTP_FROM = "Inter-Knot Arena <no-reply@interknot.dev>"
 ```
 
 If your web app is not using the Vite proxy, set `VITE_API_URL` in `apps/web` to your API origin.

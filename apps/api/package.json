@@ -19,12 +19,10 @@
     "@fastify/cookie": "^9.3.1",
     "@fastify/cors": "^8.4.0",
     "fastify": "^4.26.0",
-    "nodemailer": "^6.9.10",
     "pg": "^8.11.5"
   },
   "devDependencies": {
     "@types/pg": "^8.11.7",
-    "@types/nodemailer": "^6.4.14",
     "@types/node": "^20.11.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0"

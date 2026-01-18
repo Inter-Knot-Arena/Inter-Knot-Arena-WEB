@@ -304,13 +304,6 @@ export async function registerWithEmail(payload: {
   return postJsonWithCredentials<User>("/auth/register", payload);
 }
 
-export async function verifyGoogleEmail(payload: { token: string; code: string }): Promise<{
-  user: User;
-  redirectTo: string;
-}> {
-  return postJsonWithCredentials("/auth/google/verify", payload);
-}
-
 export async function updateMe(payload: {
   displayName?: string;
   region?: string;

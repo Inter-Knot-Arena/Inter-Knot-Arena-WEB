@@ -16,7 +16,6 @@ import {
   fetchGoogleProfile,
   parseIdTokenPayload
 } from "../auth/google.js";
-import { sendVerificationEmail } from "../auth/email.js";
 import {
   SESSION_COOKIE_NAME,
   clearSessionCookie,
@@ -181,35 +180,13 @@ export async function registerAuthRoutes(
         updatedAt: now()
       });
 
-      const redirectTo = stored.redirectTo || `${auth.config.webOrigin}/profile/${resolvedUser.id}`;
-      const verification = auth.emailVerificationStore.create({
-        userId: resolvedUser.id,
-        email: resolvedUser.email,
-        redirectTo
+      const session = auth.sessionStore.createSession(resolvedUser.id);
+      setSessionCookie(reply, session.id, auth.config.sessionSecret, {
+        secure: process.env.NODE_ENV === "production",
+        ttlMs: auth.config.sessionTtlMs
       });
-      try {
-        await sendVerificationEmail(
-          {
-            host: auth.config.smtpHost,
-            port: auth.config.smtpPort,
-            user: auth.config.smtpUser,
-            pass: auth.config.smtpPass,
-            from: auth.config.smtpFrom,
-            secure: auth.config.smtpSecure
-          },
-          resolvedUser.email,
-          verification.code
-        );
-      } catch (sendError) {
-        auth.emailVerificationStore.delete(verification.token);
-        throw sendError;
-      }
 
-      const verifyUrl = new URL(`${auth.config.webOrigin}/signin`);
-      verifyUrl.searchParams.set("mode", "verify");
-      verifyUrl.searchParams.set("token", verification.token);
-      verifyUrl.searchParams.set("email", resolvedUser.email);
-      reply.redirect(verifyUrl.toString());
+      reply.redirect(stored.redirectTo || `${auth.config.webOrigin}/profile/${resolvedUser.id}`);
     } catch (error) {
       sendError(reply, error);
     }
@@ -239,35 +216,6 @@ export async function registerAuthRoutes(
       }
       clearSessionCookie(reply, SESSION_COOKIE_NAME);
       reply.send({ status: "ok" });
-    } catch (error) {
-      sendError(reply, error);
-    }
-  });
-
-  app.post("/auth/google/verify", async (request, reply) => {
-    try {
-      if (auth.config.authDisabled) {
-        reply.code(400).send({ error: "Auth is disabled" });
-        return;
-      }
-      ensureSessionSecret(auth);
-
-      const body = request.body as { token?: string; code?: string };
-      const token = requireString(body?.token, "token");
-      const code = requireString(body?.code, "code");
-      const record = auth.emailVerificationStore.consume(token, code);
-      if (!record) {
-        reply.code(400).send({ error: "Invalid or expired verification code" });
-        return;
-      }
-
-      const user = await repo.findUser(record.userId);
-      const session = auth.sessionStore.createSession(user.id);
-      setSessionCookie(reply, session.id, auth.config.sessionSecret, {
-        secure: process.env.NODE_ENV === "production",
-        ttlMs: auth.config.sessionTtlMs
-      });
-      reply.send({ user, redirectTo: record.redirectTo });
     } catch (error) {
       sendError(reply, error);
     }

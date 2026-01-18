@@ -2,7 +2,6 @@ import type { FastifyRequest } from "fastify";
 import type { User } from "@ika/shared";
 import type { Repository } from "../repository/types.js";
 import { now } from "../utils.js";
-import { createEmailVerificationStore } from "./email.js";
 import { createGoogleAuthStateStore } from "./google.js";
 import { createOAuthAccountStore } from "./oauth.js";
 import { createPasswordAccountStore } from "./password.js";
@@ -18,13 +17,6 @@ export interface AuthConfig {
   sessionTtlMs: number;
   stateTtlMs: number;
   passwordMinLength: number;
-  smtpHost: string;
-  smtpPort: number;
-  smtpUser: string;
-  smtpPass: string;
-  smtpFrom: string;
-  smtpSecure: boolean;
-  emailCodeTtlMs: number;
   authDisabled: boolean;
 }
 
@@ -34,7 +26,6 @@ export interface AuthContext {
   stateStore: ReturnType<typeof createGoogleAuthStateStore>;
   oauthStore: ReturnType<typeof createOAuthAccountStore>;
   passwordStore: ReturnType<typeof createPasswordAccountStore>;
-  emailVerificationStore: ReturnType<typeof createEmailVerificationStore>;
 }
 
 export function createAuthContext(): AuthContext {
@@ -42,12 +33,8 @@ export function createAuthContext(): AuthContext {
   const apiOrigin = process.env.API_ORIGIN ?? "http://localhost:4000";
   const sessionTtlDays = Number(process.env.SESSION_TTL_DAYS ?? 7);
   const stateTtlSec = Number(process.env.AUTH_STATE_TTL_SEC ?? 600);
-  const emailCodeTtlSecRaw = Number(process.env.EMAIL_CODE_TTL_SEC ?? 600);
-  const smtpPortRaw = Number(process.env.SMTP_PORT ?? 587);
   const parsedPasswordMinLength = Number(process.env.PASSWORD_MIN_LENGTH ?? 8);
   const passwordMinLength = Number.isFinite(parsedPasswordMinLength) ? parsedPasswordMinLength : 8;
-  const smtpPort = Number.isFinite(smtpPortRaw) ? smtpPortRaw : 587;
-  const emailCodeTtlSec = Number.isFinite(emailCodeTtlSecRaw) ? emailCodeTtlSecRaw : 600;
 
   return {
     config: {
@@ -60,20 +47,12 @@ export function createAuthContext(): AuthContext {
       sessionTtlMs: sessionTtlDays * 24 * 60 * 60 * 1000,
       stateTtlMs: stateTtlSec * 1000,
       passwordMinLength,
-      smtpHost: process.env.SMTP_HOST ?? "",
-      smtpPort,
-      smtpUser: process.env.SMTP_USER ?? "",
-      smtpPass: process.env.SMTP_PASS ?? "",
-      smtpFrom: process.env.SMTP_FROM ?? "",
-      smtpSecure: process.env.SMTP_SECURE === "true",
-      emailCodeTtlMs: emailCodeTtlSec * 1000,
       authDisabled: process.env.AUTH_DISABLED === "true"
     },
     sessionStore: createSessionStore(sessionTtlDays * 24 * 60 * 60 * 1000),
     stateStore: createGoogleAuthStateStore(stateTtlSec * 1000),
     oauthStore: createOAuthAccountStore(),
-    passwordStore: createPasswordAccountStore(),
-    emailVerificationStore: createEmailVerificationStore(emailCodeTtlSec * 1000)
+    passwordStore: createPasswordAccountStore()
   };
 }
 
@@ -126,9 +105,6 @@ export function ensureAuthReady(auth: AuthContext): void {
   }
   if (!auth.config.googleClientId || !auth.config.googleClientSecret || !auth.config.googleRedirectUri) {
     throw new Error("Google OAuth env vars are required");
-  }
-  if (!auth.config.smtpHost || !auth.config.smtpFrom) {
-    throw new Error("SMTP env vars are required for Google sign-in");
   }
   ensureSessionSecret(auth);
 }
