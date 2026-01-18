@@ -57,6 +57,13 @@ export interface OAuthAccount {
   email: string;
 }
 
+export interface PasswordAccount {
+  userId: string;
+  email: string;
+  passwordHash: string;
+  passwordSalt: string;
+}
+
 export interface IdentityProof {
   userId: string;
   uid: string;
