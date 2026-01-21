@@ -1,136 +1,219 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import type { Agent, Rating, Ruleset, User } from "@ika/shared";
-import { fetchAgents, fetchLeaderboard, fetchRulesets, fetchUsers } from "../api";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useAuth } from "../auth/AuthProvider";
+import { Skeleton } from "../components/ui/skeleton";
+import { TooltipProvider } from "../components/ui/tooltip";
+import { HomeHeader, type UserState } from "../components/home/HomeHeader";
+import { LeaderboardPreviewTable, type LeaderboardRow } from "../components/home/LeaderboardPreviewTable";
+import { UpdatesFeed, type UpdateItem } from "../components/home/UpdatesFeed";
 
-export default function Home() {
-  const [agents, setAgents] = useState<Agent[]>([]);
-  const [rulesets, setRulesets] = useState<Ruleset[]>([]);
-  const [leaders, setLeaders] = useState<Rating[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+const seasonInfo = {
+  name: "Season 01",
+  daysLeft: 60,
+  valueProp: "Queues, drafts, and proofs aligned for ranked play."
+};
+
+const leaderboardRows: LeaderboardRow[] = [
+  { rank: 1, player: "Ellen", elo: 1982, record: "42-18", region: "NA", league: "Standard" },
+  { rank: 2, player: "Lycaon", elo: 1910, record: "39-20", region: "EU", league: "Standard" },
+  { rank: 3, player: "Nicole", elo: 1884, record: "36-22", region: "SEA", league: "Standard" },
+  { rank: 4, player: "Anby", elo: 1801, record: "33-24", region: "ASIA", league: "Standard" },
+  { rank: 5, player: "Koleda", elo: 1768, record: "30-26", region: "NA", league: "Standard" },
+  { rank: 1, player: "Nekomata", elo: 1622, record: "19-16", region: "EU", league: "F2P" },
+  { rank: 2, player: "Billy", elo: 1580, record: "18-17", region: "NA", league: "F2P" },
+  { rank: 3, player: "Grace", elo: 1524, record: "16-18", region: "SEA", league: "F2P" },
+  { rank: 1, player: "Rina", elo: 1710, record: "12-6", region: "NA", league: "Unlimited" },
+  { rank: 2, player: "Ben", elo: 1658, record: "10-7", region: "EU", league: "Unlimited" }
+];
+
+const updates: UpdateItem[] = [
+  {
+    id: "u1",
+    title: "Verifier 0.3.2 rollout",
+    summary: "Improved pre-check detection and added retry capture shortcuts.",
+    type: "verifier",
+    date: "2 days ago"
+  },
+  {
+    id: "u2",
+    title: "Standard ruleset v1.1",
+    summary: "Adjusted roster caps and clarified proof requirements.",
+    type: "ruleset",
+    date: "5 days ago"
+  },
+  {
+    id: "u3",
+    title: "Season 01 mid-split",
+    summary: "Soft reset delayed; leaderboard badges updated.",
+    type: "season",
+    date: "1 week ago"
+  }
+];
+
+interface EloOption {
+  id: string;
+  label: string;
+  elo: number | null;
+}
+
+const eloOptions: EloOption[] = [
+  { id: "standard", label: "Standard", elo: 1684 },
+  { id: "f2p", label: "F2P", elo: 1402 },
+  { id: "unlimited", label: "Unlimited", elo: null }
+];
+
+function EloMiniTab({
+  options,
+  value,
+  onChange,
+  disabled
+}: {
+  options: EloOption[];
+  value: string;
+  onChange: (id: string) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    fetchAgents().then(setAgents);
-    fetchRulesets().then(setRulesets);
-    fetchLeaderboard("league_standard").then((ratings) => setLeaders(ratings.slice(0, 3)));
-    fetchUsers().then(setUsers);
+    const handler = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const userMap = useMemo(() => new Map(users.map((user) => [user.id, user.displayName])), [users]);
+  const selected = options.find((option) => option.id === value) ?? options[0];
+  const eloLabel = selected.elo ? `${selected.elo} ELO` : "Unrated";
 
   return (
-    <div className="page">
-      <section className="hero">
-        <div className="hero-content fade-up">
-          <p className="eyebrow">Inter-Knot Arena</p>
-          <h1>Matchmaking, draft, proofs, and disputes for competitive ZZZ.</h1>
-          <p className="lead">
-            MVP-1 adds queue-based matchmaking, draft flow, and proof handling
-            while keeping leaderboards and catalogs visible.
-          </p>
-          <div className="hero-actions">
-            <Link className="primary-button" to="/matchmaking">
-              Enter matchmaking
-            </Link>
-            <Link className="ghost-button" to="/leaderboards">
-              View leaderboards
-            </Link>
-          </div>
-          <div className="hero-metrics">
-            <div>
-              <div className="metric-value">{users.length}</div>
-              <div className="metric-label">Profiles</div>
-            </div>
-            <div>
-              <div className="metric-value">{agents.length}</div>
-              <div className="metric-label">Agents</div>
-            </div>
-            <div>
-              <div className="metric-value">{rulesets.length}</div>
-              <div className="metric-label">Rulesets</div>
-            </div>
-          </div>
+    <div ref={ref} className="flex flex-col items-end gap-2">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((prev) => !prev)}
+        className="inline-flex items-center gap-2 rounded-full border border-border bg-ika-800/70 px-3 py-1.5 text-sm font-semibold text-ink-900 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span className="text-ink-500">ELO</span>
+        <span>{disabled ? "Sign in" : eloLabel}</span>
+        <span className="text-xs text-ink-500">{selected.label}</span>
+        <ChevronDown className="h-4 w-4 text-ink-500" />
+      </button>
+      {open && !disabled ? (
+        <div className="w-56 rounded-xl border border-border bg-ika-900/95 p-2 shadow-card">
+          {options.map((option) => {
+            const optionLabel = option.elo ? `${option.elo} ELO` : "Unrated";
+            const isActive = option.id === selected.id;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => {
+                  onChange(option.id);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition ${
+                  isActive ? "bg-accent-500/10 text-ink-900" : "text-ink-700 hover:bg-ika-700/50"
+                }`}
+                role="option"
+                aria-selected={isActive}
+              >
+                <span>{option.label}</span>
+                <span className="text-xs text-ink-500">{optionLabel}</span>
+              </button>
+            );
+          })}
         </div>
-        <div className="hero-panel fade-up">
-          <div className="panel-card">
-            <div className="panel-title">Season status</div>
-            <div className="panel-value">Season 01</div>
-            <div className="panel-sub">Active - 60 days left</div>
-            <div className="panel-list">
-              <div>
-                <span className="tag">Profiles</span>
-                <span className="tag">Leaderboards</span>
-                <span className="tag">Catalog</span>
-              </div>
-              <p>Rulesets remain data-driven and versioned.</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      ) : null}
+    </div>
+  );
+}
 
-      <section className="section">
-        <div className="section-header">
-          <h2>Leaderboard snapshot</h2>
-          <p>Top standard league standings from the current season.</p>
-        </div>
-        <div className="grid">
-          {leaders.map((leader, index) => (
-            <div key={leader.userId} className="card">
-              <div className="card-header">
-                <h3>#{index + 1}</h3>
-                <span className="badge">{leader.elo} ELO</span>
-              </div>
-              <p>{userMap.get(leader.userId) ?? leader.userId}</p>
-              <div className="meta-label">Standard league</div>
-            </div>
-          ))}
-        </div>
-      </section>
+export default function Home() {
+  const { user, isLoading } = useAuth();
+  const userState: UserState = !user
+    ? "guest"
+    : user.verification.status === "VERIFIED"
+      ? "verified"
+      : "unverified";
 
-      <section className="section">
-        <div className="section-header">
-          <h2>Agents catalog</h2>
-          <p>Core roster available for drafts and ruleset checks.</p>
-        </div>
-        <div className="grid">
-          {agents.slice(0, 4).map((agent) => (
-            <div key={agent.id} className="card">
-              <div className="card-header">
-                <h3>{agent.name}</h3>
-                <span className="badge-outline">{agent.role}</span>
-              </div>
-              <div className="chip-row">
-                <span className="tag">{agent.element}</span>
-                <span className="tag">{agent.faction}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+  const headerActions = useMemo(() => {
+    if (userState === "guest") {
+      return {
+        primary: { label: "Sign in (Google)", to: "/signin", icon: "arrow" as const },
+        secondary: { label: "Browse leaderboards", to: "/leaderboards", variant: "outline" as const }
+      };
+    }
+    if (userState === "unverified") {
+      return {
+        primary: { label: "Complete profile", to: "/settings", icon: "arrow" as const },
+        secondary: { label: "Browse leaderboards", to: "/leaderboards", variant: "outline" as const }
+      };
+    }
+    return {
+      primary: { label: "Enter matchmaking", to: "/matchmaking", icon: "arrow" as const },
+      secondary: { label: "View profile", to: "/profile", variant: "outline" as const }
+    };
+  }, [userState]);
 
-      <section className="section">
-        <div className="section-header">
-          <h2>Ruleset cards</h2>
-          <p>League enforcement policy, versioned and visible.</p>
-        </div>
-        <div className="grid">
-          {rulesets.map((ruleset) => (
-            <div key={ruleset.id} className="card">
-              <div className="card-header">
-                <h3>{ruleset.name}</h3>
-                <span className={ruleset.requireVerifier ? "badge" : "badge-outline"}>
-                  {ruleset.requireVerifier ? "Verifier" : "Open"}
-                </span>
-              </div>
-              <p>{ruleset.description}</p>
-              <div className="chip-row">
-                <span className="tag">{ruleset.leagueId.replace("league_", "")}</span>
-                <span className="tag">{ruleset.version}</span>
+  const [selectedLeague, setSelectedLeague] = useState("standard");
+  const showElo = userState !== "guest";
+
+  if (isLoading) {
+    return <HomeSkeleton />;
+  }
+
+  return (
+    <TooltipProvider>
+      <div className="mx-auto w-full max-w-[1280px] px-6 pb-20 pt-10">
+        <div className="grid grid-cols-12 gap-8">
+          <div className="col-span-12">
+            <HomeHeader
+              state={userState}
+              season={seasonInfo}
+              primaryAction={headerActions.primary}
+              secondaryAction={headerActions.secondary}
+            />
+          </div>
+
+          <section className="col-span-12 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Your ELO</div>
+              <div className="mt-1 text-sm text-ink-500">
+                {showElo ? "Mini quick-switch" : "Sign in to view your rating."}
               </div>
             </div>
-          ))}
+            <EloMiniTab
+              options={eloOptions}
+              value={selectedLeague}
+              onChange={setSelectedLeague}
+              disabled={!showElo}
+            />
+          </section>
+
+          <div className="col-span-12">
+            <LeaderboardPreviewTable rows={leaderboardRows} variant="plain" />
+          </div>
+
+          <div className="col-span-12">
+            <UpdatesFeed items={updates} variant="plain" />
+          </div>
+
         </div>
-      </section>
+      </div>
+    </TooltipProvider>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-[1280px] space-y-8 px-6 pb-20 pt-10">
+      <Skeleton className="h-52 w-full rounded-2xl" />
+      <Skeleton className="h-16 w-full rounded-xl" />
+      <Skeleton className="h-60 w-full rounded-xl" />
     </div>
   );
 }
