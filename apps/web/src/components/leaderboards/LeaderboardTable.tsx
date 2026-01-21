@@ -1,4 +1,3 @@
-import { Badge } from "../ui/badge";
 import { Card } from "../ui/card";
 import { Skeleton } from "../ui/skeleton";
 import { cn } from "../../lib/utils";
@@ -7,7 +6,6 @@ export interface LeaderboardEntry {
   rank: number;
   player: string;
   elo: number;
-  provisional: boolean;
   region: string;
 }
 
@@ -61,7 +59,6 @@ export function LeaderboardTable({ entries, isLoading }: LeaderboardTableProps) 
               <th className="px-6 py-3">Rank</th>
               <th className="px-6 py-3">Player</th>
               <th className="px-6 py-3">ELO</th>
-              <th className="px-6 py-3">Status</th>
               <th className="px-6 py-3">Region</th>
             </tr>
           </thead>
@@ -83,17 +80,6 @@ export function LeaderboardTable({ entries, isLoading }: LeaderboardTableProps) 
                   </td>
                   <td className="px-6 py-4 font-medium text-ink-900">{entry.player}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-ink-900">{entry.elo}</td>
-                  <td className="px-6 py-4">
-                    {entry.provisional ? (
-                      <Badge className="border border-amber-500/40 bg-amber-500/10 text-amber-200">
-                        Provisional
-                      </Badge>
-                    ) : (
-                      <Badge className="border border-emerald-500/40 bg-emerald-500/10 text-emerald-200">
-                        Ranked
-                      </Badge>
-                    )}
-                  </td>
                   <td className="px-6 py-4 text-ink-500">{entry.region}</td>
                 </tr>
               );
