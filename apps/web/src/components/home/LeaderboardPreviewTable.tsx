@@ -20,6 +20,12 @@ interface LeaderboardPreviewTableProps {
 
 const leagues: LeaderboardRow["league"][] = ["Standard", "F2P", "Unlimited"];
 
+const rankChipStyles: Record<number, string> = {
+  1: "border-accent-400/60 bg-accent-500/15 text-ink-900",
+  2: "border-cool-400/60 bg-cool-500/15 text-ink-900",
+  3: "border-amber-400/60 bg-amber-500/15 text-ink-900"
+};
+
 export function LeaderboardPreviewTable({ rows, variant = "card" }: LeaderboardPreviewTableProps) {
   const [activeLeague, setActiveLeague] = useState<LeaderboardRow["league"]>("Standard");
 
@@ -39,7 +45,7 @@ export function LeaderboardPreviewTable({ rows, variant = "card" }: LeaderboardP
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Top of the season</div>
-          <div className="text-sm text-ink-700">Highest rated players right now</div>
+          <div className="text-sm text-ink-700">Top 5 snapshot · {activeLeague} league</div>
         </div>
         <div className="flex flex-wrap gap-3">
           {leagues.map((league) => (
@@ -69,16 +75,32 @@ export function LeaderboardPreviewTable({ rows, variant = "card" }: LeaderboardP
               <th className="px-6 py-3">Region</th>
             </tr>
           </thead>
-          <tbody>
-            {filteredRows.map((row) => (
-              <tr key={`${row.league}-${row.rank}`} className="border-b border-border last:border-0">
-                <td className="px-6 py-4 text-ink-700">#{row.rank}</td>
-                <td className="px-6 py-4 font-medium text-ink-900">{row.player}</td>
-                <td className="px-6 py-4 text-ink-700">{row.elo}</td>
-                <td className="px-6 py-4 text-ink-500">{row.record}</td>
-                <td className="px-6 py-4 text-ink-500">{row.region}</td>
-              </tr>
-            ))}
+          <tbody className="divide-y divide-border">
+            {filteredRows.map((row) => {
+              const chipClass =
+                rankChipStyles[row.rank] ?? "border-border bg-ika-700/40 text-ink-700";
+              return (
+                <tr
+                  key={`${row.league}-${row.rank}`}
+                  className="transition hover:bg-ika-700/30"
+                >
+                  <td className="px-6 py-4">
+                    <span
+                      className={cn(
+                        "inline-flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold",
+                        chipClass
+                      )}
+                    >
+                      {row.rank}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 font-medium text-ink-900">{row.player}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-ink-900">{row.elo}</td>
+                  <td className="px-6 py-4 text-ink-500">{row.record}</td>
+                  <td className="px-6 py-4 text-ink-500">{row.region}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
