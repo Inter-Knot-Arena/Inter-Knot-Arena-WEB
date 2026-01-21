@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Rating, User } from "@ika/shared";
 import { fetchLeaderboard, fetchUsers } from "../api";
+import { Badge } from "../components/ui/badge";
+import { LeaderboardTable, type LeaderboardEntry } from "../components/leaderboards/LeaderboardTable";
 
 const leagueOptions = [
   { id: "league_f2p", label: "F2P" },
@@ -12,66 +14,71 @@ export default function Leaderboards() {
   const [leagueId, setLeagueId] = useState("league_standard");
   const [ratings, setRatings] = useState<Rating[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    fetchLeaderboard(leagueId).then(setRatings);
+    setIsLoading(true);
+    fetchLeaderboard(leagueId)
+      .then(setRatings)
+      .finally(() => setIsLoading(false));
   }, [leagueId]);
 
   useEffect(() => {
     fetchUsers().then(setUsers);
   }, []);
 
-  const userMap = useMemo(() => new Map(users.map((user) => [user.id, user.displayName])), [users]);
+  const userMap = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
+  const entries = useMemo<LeaderboardEntry[]>(() => {
+    return ratings.map((rating, index) => {
+      const user = userMap.get(rating.userId);
+      return {
+        rank: index + 1,
+        player: user?.displayName ?? rating.userId,
+        elo: rating.elo,
+        provisional: rating.provisionalMatches < 10,
+        region: user?.region ?? "—"
+      };
+    });
+  }, [ratings, userMap]);
 
   return (
-    <div className="page">
-      <section className="section-header">
-        <h2>Leaderboards</h2>
-        <p>Visible ELO per league, with provisional badges.</p>
-      </section>
-      <div className="card">
-        <div className="card-header">
-          <h3>Current standings</h3>
-          <div className="segmented">
-            {leagueOptions.map((option) => (
-              <button
-                key={option.id}
-                className={
-                  leagueId === option.id ? "segment active" : "segment"
-                }
-                onClick={() => setLeagueId(option.id)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+    <div className="mx-auto w-full max-w-[1280px] px-6 pb-16 pt-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Leaderboards</div>
+          <h1 className="mt-2 text-3xl font-display text-ink-900">Season standings</h1>
+          <p className="mt-2 text-sm text-ink-500">
+            Visible ELO per league, with provisional badges.
+          </p>
         </div>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Agent</th>
-              <th>ELO</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {ratings.map((rating, index) => (
-              <tr key={`${rating.userId}-${index}`}>
-                <td>{index + 1}</td>
-                <td>{userMap.get(rating.userId) ?? rating.userId}</td>
-                <td>{rating.elo}</td>
-                <td>
-                  {rating.provisionalMatches < 10 ? (
-                    <span className="badge-outline">Provisional</span>
-                  ) : (
-                    <span className="badge">Ranked</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Badge className="border border-border bg-ika-700/70 text-ink-700">
+          Season 01 · Active
+        </Badge>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-3">
+          {leagueOptions.map((option) => (
+            <button
+              key={option.id}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
+                leagueId === option.id
+                  ? "border-accent-400 bg-accent-500/20 text-ink-900"
+                  : "border-border text-ink-500 hover:border-accent-400"
+              }`}
+              onClick={() => setLeagueId(option.id)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className="text-xs text-ink-500">
+          Provisional if fewer than 10 matches.
+        </div>
+      </div>
+
+      <div className="mt-4">
+        <LeaderboardTable entries={entries} isLoading={isLoading} />
       </div>
     </div>
   );
