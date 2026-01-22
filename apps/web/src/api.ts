@@ -351,7 +351,16 @@ export async function importRosterFromEnka(payload: {
     body: JSON.stringify({ region: payload.region, force: payload.force })
   });
   if (!response.ok) {
-    throw new Error(`Enka import failed (${response.status})`);
+    let message = `Enka import failed (${response.status})`;
+    try {
+      const data = (await response.json()) as { error?: string };
+      if (data?.error) {
+        message = data.error;
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+    throw new Error(message);
   }
   return (await response.json()) as PlayerRosterImportSummary;
 }
