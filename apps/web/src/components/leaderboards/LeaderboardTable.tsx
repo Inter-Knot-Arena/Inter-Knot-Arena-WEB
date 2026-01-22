@@ -6,6 +6,7 @@ export interface LeaderboardEntry {
   rank: number;
   player: string;
   elo: number;
+  record: string;
   region: string;
 }
 
@@ -59,6 +60,7 @@ export function LeaderboardTable({ entries, isLoading }: LeaderboardTableProps) 
               <th className="px-6 py-3">Rank</th>
               <th className="px-6 py-3">Player</th>
               <th className="px-6 py-3">ELO</th>
+              <th className="px-6 py-3">W-L</th>
               <th className="px-6 py-3">Region</th>
             </tr>
           </thead>
@@ -80,6 +82,7 @@ export function LeaderboardTable({ entries, isLoading }: LeaderboardTableProps) 
                   </td>
                   <td className="px-6 py-4 font-medium text-ink-900">{entry.player}</td>
                   <td className="px-6 py-4 text-sm font-semibold text-ink-900">{entry.elo}</td>
+                  <td className="px-6 py-4 text-ink-500">{entry.record}</td>
                   <td className="px-6 py-4 text-ink-500">{entry.region}</td>
                 </tr>
               );
