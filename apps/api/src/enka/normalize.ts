@@ -28,6 +28,55 @@ function asNumber(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function hasExplicitAgentId(record: UnknownRecord): boolean {
+  return (
+    record.characterId !== undefined ||
+    record.character_id !== undefined ||
+    record.avatarId !== undefined ||
+    record.avatar_id !== undefined
+  );
+}
+
+function hasDiscMarkers(record: UnknownRecord): boolean {
+  return (
+    record.discId !== undefined ||
+    record.diskDrive !== undefined ||
+    record.diskDrives !== undefined ||
+    record.driveDisk !== undefined ||
+    record.driveDisks !== undefined ||
+    record.mainStat !== undefined ||
+    record.subStats !== undefined ||
+    record.slot !== undefined ||
+    record.set !== undefined
+  );
+}
+
+function hasCharacterMarkers(record: UnknownRecord): boolean {
+  return (
+    record.level !== undefined ||
+    record.characterLevel !== undefined ||
+    record.rank !== undefined ||
+    record.dupes !== undefined ||
+    record.mindscape !== undefined ||
+    record.resonance !== undefined ||
+    record.weapon !== undefined ||
+    record.weaponInfo !== undefined ||
+    record.skills !== undefined ||
+    record.skillLevels !== undefined ||
+    record.skillMap !== undefined
+  );
+}
+
+function looksLikeAgentRecord(record: UnknownRecord): boolean {
+  if (hasDiscMarkers(record)) {
+    return false;
+  }
+  if (hasExplicitAgentId(record)) {
+    return true;
+  }
+  return hasCharacterMarkers(record) && extractId(record) !== null;
+}
+
 function extractShowcaseAgents(payload: unknown): unknown[] {
   const root = asRecord(payload);
   if (!root) {
@@ -36,10 +85,13 @@ function extractShowcaseAgents(payload: unknown): unknown[] {
 
   const candidates = [
     root.showcase,
+    root.showcaseInfo,
     root.showcaseAgents,
     root.data,
     root.playerInfo,
-    root.player
+    root.player,
+    root.profile,
+    root.payload
   ];
 
   for (const candidate of candidates) {
@@ -47,11 +99,49 @@ function extractShowcaseAgents(payload: unknown): unknown[] {
     if (!record) {
       continue;
     }
-    const agents = record.agents ?? record.characters ?? record.showcaseAgents ?? record.avatarInfoList;
+    const agents =
+      record.agents ??
+      record.characters ??
+      record.showcaseAgents ??
+      record.avatarInfoList ??
+      record.avatarList ??
+      record.showcaseList;
     const list = asArray(agents);
     if (list.length) {
       return list;
     }
+  }
+
+  const queue: Array<{ value: unknown; depth: number }> = [{ value: root, depth: 0 }];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current) {
+      continue;
+    }
+    if (current.depth > 6) {
+      continue;
+    }
+    if (Array.isArray(current.value)) {
+      if (
+        current.value.some((item) => {
+          const record = asRecord(item);
+          return record ? looksLikeAgentRecord(record) : false;
+        })
+      ) {
+        return current.value;
+      }
+      current.value.forEach((item) => queue.push({ value: item, depth: current.depth + 1 }));
+      continue;
+    }
+    const record = asRecord(current.value);
+    if (!record) {
+      continue;
+    }
+    Object.values(record).forEach((value) => {
+      if (value && typeof value === "object") {
+        queue.push({ value, depth: current.depth + 1 });
+      }
+    });
   }
 
   return [];
@@ -62,6 +152,7 @@ function extractId(record: UnknownRecord): string | null {
     asString(record.characterId) ??
     asString(record.character_id) ??
     asString(record.avatarId) ??
+    asString(record.avatar_id) ??
     asString(record.id)
   );
 }
@@ -69,7 +160,17 @@ function extractId(record: UnknownRecord): string | null {
 function normalizeWeapon(record: UnknownRecord, mapping: EnkaMapping, unknownIds: string[]) {
   const weaponRecord = asRecord(record.weapon ?? record.weaponInfo);
   if (!weaponRecord) {
-    return undefined;
+    const primitive = asString(record.weapon);
+    if (!primitive) {
+      return undefined;
+    }
+    const mapped = mapping.weapons[primitive];
+    if (!mapped) {
+      unknownIds.push(`weapon:${primitive}`);
+    }
+    return {
+      weaponId: mapped ?? `enka:${primitive}`
+    };
   }
   const rawId = asString(weaponRecord.weaponId ?? weaponRecord.id);
   if (!rawId) {
@@ -87,7 +188,15 @@ function normalizeWeapon(record: UnknownRecord, mapping: EnkaMapping, unknownIds
 }
 
 function normalizeDiscs(record: UnknownRecord, mapping: EnkaMapping, unknownIds: string[]) {
-  const discs = asArray(record.discs ?? record.diskDrives ?? record.equipment);
+  const discs = asArray(
+    record.discs ??
+      record.diskDrives ??
+      record.equipment ??
+      record.driveDisks ??
+      record.driveDiskList ??
+      record.driveDisk ??
+      record.diskList
+  );
   if (!discs.length) {
     return undefined;
   }
@@ -120,7 +229,20 @@ function normalizeDiscs(record: UnknownRecord, mapping: EnkaMapping, unknownIds:
 }
 
 function normalizeSkills(record: UnknownRecord): Record<string, number> | undefined {
-  const skills = asRecord(record.skills ?? record.skillLevels ?? record.skillMap);
+  const rawSkills = record.skills ?? record.skillLevels ?? record.skillMap;
+  if (Array.isArray(rawSkills)) {
+    const entries = rawSkills
+      .map((item, index) => {
+        const skillRecord = asRecord(item);
+        const key = asString(skillRecord?.id) ?? `skill_${index + 1}`;
+        const value = asNumber(skillRecord?.level ?? skillRecord?.value ?? item);
+        return value !== undefined ? ([key, value] as const) : null;
+      })
+      .filter((entry) => entry !== null) as Array<readonly [string, number]>;
+    return entries.length ? (Object.fromEntries(entries) as Record<string, number>) : undefined;
+  }
+
+  const skills = asRecord(rawSkills);
   if (!skills) {
     return undefined;
   }
@@ -143,7 +265,21 @@ export function normalizeEnkaPayload(
     .map((item) => {
       const record = asRecord(item);
       if (!record) {
-        return null;
+        const rawId = asString(item);
+        if (!rawId) {
+          return null;
+        }
+        const agentId = mapping.characters[rawId];
+        if (!agentId) {
+          unknownIds.push(`character:${rawId}`);
+          return null;
+        }
+        return {
+          agentId,
+          owned: true,
+          source: "ENKA_SHOWCASE",
+          updatedAt: timestampIso
+        } satisfies PlayerAgentDynamic;
       }
       const rawId = extractId(record);
       if (!rawId) {
