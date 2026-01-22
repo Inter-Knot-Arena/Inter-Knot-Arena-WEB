@@ -106,7 +106,47 @@ export interface AgentCatalog {
   agents: AgentStatic[];
 }
 
+export interface DiscSet {
+  discSetId: string;
+  gameId: number;
+  name: string;
+  twoPieceBonus?: string;
+  fourPieceBonus?: string;
+  iconKey?: string;
+  iconPath?: string;
+  tags?: string[];
+}
+
+export interface DiscSetCatalog {
+  catalogVersion: string;
+  discSets: DiscSet[];
+}
+
 export type PlayerAgentSource = "ENKA_SHOWCASE" | "VERIFIER_OCR" | "MANUAL";
+
+export interface DiscProperty {
+  propertyId: number;
+  level?: number;
+  value?: number | string;
+}
+
+export interface PlayerAgentDisc {
+  discId: string;
+  slot?: number;
+  set?: string;
+  mainStat?: string;
+  subStats?: string[];
+  pieceGameId?: number;
+  setGameId?: number;
+  setId?: string;
+  setName?: string;
+  setIconKey?: string;
+  mainProps?: DiscProperty[];
+  subProps?: DiscProperty[];
+  level?: number;
+  breakLevel?: number;
+  isLocked?: boolean;
+}
 
 export interface PlayerAgentDynamic {
   agentId: string;
@@ -114,13 +154,7 @@ export interface PlayerAgentDynamic {
   level?: number;
   dupes?: number;
   weapon?: { weaponId: string; level?: number; rarity?: string };
-  discs?: Array<{
-    discId: string;
-    slot?: number;
-    set?: string;
-    mainStat?: string;
-    subStats?: string[];
-  }>;
+  discs?: PlayerAgentDisc[];
   skills?: Record<string, number>;
   mindscape?: number;
   source: PlayerAgentSource;
