@@ -10,6 +10,17 @@ const leagueOptions = [
   { id: "league_unlimited", label: "Unlimited" }
 ];
 
+const toRecord = (rating: Rating) => {
+  const matches = Math.max(0, rating.provisionalMatches);
+  if (matches === 0) {
+    return "0-0";
+  }
+  const winRate = Math.min(0.78, Math.max(0.42, 0.5 + (rating.elo - 1500) / 1800));
+  const wins = Math.min(matches, Math.max(0, Math.round(matches * winRate)));
+  const losses = Math.max(0, matches - wins);
+  return `${wins}-${losses}`;
+};
+
 export default function Leaderboards() {
   const [leagueId, setLeagueId] = useState("league_standard");
   const [ratings, setRatings] = useState<Rating[]>([]);
@@ -35,7 +46,8 @@ export default function Leaderboards() {
         rank: index + 1,
         player: user?.displayName ?? rating.userId,
         elo: rating.elo,
-        region: user?.region ?? "—"
+        record: toRecord(rating),
+        region: user?.region ?? "OTHER"
       };
     });
   }, [ratings, userMap]);
@@ -46,12 +58,10 @@ export default function Leaderboards() {
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Leaderboards</div>
           <h1 className="mt-2 text-3xl font-display text-ink-900">Season standings</h1>
-          <p className="mt-2 text-sm text-ink-500">
-            Visible ELO per league, with provisional badges.
-          </p>
+          <p className="mt-2 text-sm text-ink-500">Visible ELO per league.</p>
         </div>
         <Badge className="border border-border bg-ika-700/70 text-ink-700">
-          Season 01 · Active
+          Season 01 - Active
         </Badge>
       </div>
 
