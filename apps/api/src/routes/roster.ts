@@ -31,11 +31,11 @@ function parseRegion(value: unknown): Region | null {
   return REGIONS.includes(value as Region) ? (value as Region) : null;
 }
 
-function buildEnkaUrl(uid: string, region: Region): string {
+function buildEnkaUrl(uid: string, region: Region, includeRegion = true): string {
   const base = process.env.ENKA_BASE_URL ?? "https://enka.network/api/zzz/uid";
   const trimmed = base.replace(/\/+$/, "");
   const url = new URL(`${trimmed}/${uid}`);
-  if (region && region !== "OTHER") {
+  if (includeRegion && region && region !== "OTHER") {
     url.searchParams.set("region", region);
   }
   return url.toString();
@@ -65,6 +65,17 @@ async function fetchJsonWithRetry(url: string, timeoutMs: number): Promise<unkno
   }
 
   throw lastError;
+}
+
+async function fetchEnkaPayload(uid: string, region: Region, timeoutMs: number): Promise<unknown> {
+  try {
+    return await fetchJsonWithRetry(buildEnkaUrl(uid, region, true), timeoutMs);
+  } catch (error) {
+    if (region !== "OTHER") {
+      return fetchJsonWithRetry(buildEnkaUrl(uid, region, false), timeoutMs);
+    }
+    throw error;
+  }
 }
 
 async function resolveRuleset(repo: Repository, rulesetId?: string): Promise<Ruleset> {
@@ -154,16 +165,16 @@ export async function registerRosterRoutes(
 
       const cacheKey = `enka:${limitKey}`;
       const cached = !force ? cache.get<{ payload: unknown; fetchedAt: string }>(cacheKey) : null;
-      const fetchedAt = cached?.fetchedAt ?? new Date().toISOString();
+      let fetchedAt = cached?.fetchedAt ?? new Date().toISOString();
+      let payload = cached?.payload ?? null;
 
-      const payload =
-        cached?.payload ??
-        (await fetchJsonWithRetry(
-          buildEnkaUrl(uid, region),
+      if (!payload) {
+        fetchedAt = new Date().toISOString();
+        payload = await fetchEnkaPayload(
+          uid,
+          region,
           Number(process.env.ENKA_TIMEOUT_MS ?? 8000)
-        ));
-
-      if (!cached) {
+        );
         cache.set(cacheKey, { payload, fetchedAt }, cacheTtlMs);
       }
 
