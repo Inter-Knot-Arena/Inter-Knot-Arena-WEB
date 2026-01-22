@@ -130,8 +130,10 @@ export default function PlayerRoster() {
       await importRosterFromEnka({ uid, region });
       const updated = await fetchPlayerRoster({ uid, region });
       setRoster(updated);
-    } catch {
-      setError("Import failed. Check ENKA_BASE_URL and try again.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Import failed. Check ENKA_BASE_URL and try again.";
+      setError(message);
     } finally {
       setImporting(false);
     }
