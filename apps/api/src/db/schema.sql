@@ -216,6 +216,21 @@ CREATE TABLE IF NOT EXISTS roster_imports (
   PRIMARY KEY (uid, region)
 );
 
+CREATE TABLE IF NOT EXISTS player_import_snapshots (
+  snapshot_id text PRIMARY KEY,
+  uid text NOT NULL,
+  region text NOT NULL,
+  fetched_at bigint NOT NULL,
+  showcase_agent_ids jsonb NOT NULL,
+  raw_enka jsonb,
+  ttl_seconds integer NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_player_import_snapshots_uid_region
+  ON player_import_snapshots (uid, region);
+CREATE INDEX IF NOT EXISTS idx_player_import_snapshots_fetched_at
+  ON player_import_snapshots (fetched_at);
+
 CREATE INDEX IF NOT EXISTS idx_ratings_league ON ratings (league_id);
 CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes (status);
 CREATE INDEX IF NOT EXISTS idx_matches_state ON matches (state);
