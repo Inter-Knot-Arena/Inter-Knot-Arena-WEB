@@ -287,7 +287,8 @@ function normalizeWeapon(record: UnknownRecord, mapping: EnkaMapping, unknownIds
       unknownIds.push(`weapon:${primitive}`);
     }
     return {
-      weaponId: mapped ?? `enka:${primitive}`
+      weaponId: mapped ?? `enka:${primitive}`,
+      gameId: asNumber(primitive)
     };
   }
   const rawId = asString(weaponRecord.weaponId ?? weaponRecord.id);
@@ -300,7 +301,9 @@ function normalizeWeapon(record: UnknownRecord, mapping: EnkaMapping, unknownIds
   }
   return {
     weaponId: mapped ?? `enka:${rawId}`,
+    gameId: asNumber(rawId),
     level: asNumber(weaponRecord.level),
+    breakLevel: asNumber(weaponRecord.breakLevel ?? weaponRecord.break ?? weaponRecord.promoteLevel),
     rarity: asString(weaponRecord.rarity)
   };
 }
@@ -395,6 +398,7 @@ export function normalizeEnkaPayload(
         }
         return {
           agentId,
+          agentGameId: asNumber(rawId),
           owned: true,
           source: "ENKA_SHOWCASE",
           updatedAt: timestampIso
@@ -404,6 +408,7 @@ export function normalizeEnkaPayload(
       if (!rawId) {
         return null;
       }
+      const agentGameId = asNumber(rawId);
       const agentId = mapping.characters[rawId];
       if (!agentId) {
         unknownIds.push(`character:${rawId}`);
@@ -412,10 +417,14 @@ export function normalizeEnkaPayload(
 
       const dynamic: PlayerAgentDynamic = {
         agentId,
+        agentGameId,
         owned: true,
         level: asNumber(record.level ?? record.characterLevel),
         dupes: asNumber(record.dupes ?? record.rank),
         mindscape: asNumber(record.mindscape ?? record.resonance),
+        promotion: asNumber(record.promotion ?? record.promotionLevel ?? record.ascension),
+        talent: asNumber(record.talent ?? record.talentLevel ?? record.coreSkillLevel),
+        core: asNumber(record.core ?? record.coreLevel ?? record.coreSkill),
         weapon: normalizeWeapon(record, mapping, unknownIds),
         discs: normalizeEquippedDiscs(record, discSetMap) ?? normalizeDiscs(record, mapping, unknownIds),
         skills: normalizeSkills(record),
