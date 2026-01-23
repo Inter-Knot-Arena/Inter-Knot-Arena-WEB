@@ -150,15 +150,21 @@ export interface PlayerAgentDisc {
 
 export interface PlayerAgentDynamic {
   agentId: string;
+  agentGameId?: number;
   owned: boolean;
   level?: number;
   dupes?: number;
-  weapon?: { weaponId: string; level?: number; rarity?: string };
+  promotion?: number;
+  talent?: number;
+  core?: number;
+  weapon?: { weaponId: string; gameId?: number; level?: number; breakLevel?: number; rarity?: string };
   discs?: PlayerAgentDisc[];
   skills?: Record<string, number>;
   mindscape?: number;
   source: PlayerAgentSource;
   confidence?: Record<string, number>;
+  lastImportedAt?: string;
+  lastShowcaseSeenAt?: string;
   updatedAt: string;
 }
 
@@ -173,6 +179,10 @@ export interface PlayerRosterImportSummary {
   skippedCount: number;
   unknownIds: string[];
   fetchedAt: string;
+  newAgentsCount?: number;
+  updatedAgentsCount?: number;
+  unchangedCount?: number;
+  ttlSeconds?: number;
   message?: string;
 }
 
