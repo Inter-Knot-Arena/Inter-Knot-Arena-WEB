@@ -80,6 +80,23 @@ export default function PlayerRoster() {
     };
   }, [roster]);
 
+  const totalAgentsSaved = useMemo(() => {
+    if (!roster) {
+      return undefined;
+    }
+    return roster.agents.filter((item) => item.state?.owned).length;
+  }, [roster]);
+
+  const missingAgents = useMemo(() => {
+    if (!roster) {
+      return [];
+    }
+    return roster.agents
+      .filter((item) => !item.state?.owned)
+      .map((item) => item.agent.name)
+      .sort((a, b) => a.localeCompare(b));
+  }, [roster]);
+
   const filteredItems = useMemo(() => {
     if (!roster) {
       return [];
@@ -189,6 +206,8 @@ export default function PlayerRoster() {
           isImporting={importing}
           region={region}
           lastImport={roster?.lastImport}
+          totalAgentsSaved={totalAgentsSaved}
+          missingAgents={missingAgents}
           onImport={handleImport}
         />
 
