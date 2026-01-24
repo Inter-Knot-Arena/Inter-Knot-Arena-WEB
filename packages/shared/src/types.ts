@@ -7,7 +7,7 @@ export interface League {
   description: string;
 }
 
-export type Role = "USER" | "VERIFIED" | "JUDGE" | "ADMIN";
+export type Role = "USER" | "VERIFIED" | "JUDGE" | "ADMIN" | "STAFF" | "MODER";
 export type IdentityStatus = "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED";
 export type Region = "NA" | "EU" | "ASIA" | "SEA" | "OTHER";
 
