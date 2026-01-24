@@ -114,8 +114,11 @@ function roleBadgeClass(role: string) {
   if (role === "ADMIN") {
     return "border border-[#FF3B30]/40 bg-[#FF3B30]/10 text-[#FF3B30]";
   }
-  if (role === "STAFF" || role === "MODER") {
+  if (role === "STAFF") {
     return "border border-[#FF7A1A]/40 bg-[#FF7A1A]/10 text-[#FF7A1A]";
+  }
+  if (role === "MODER") {
+    return "border border-[#2DD4BF]/40 bg-[#2DD4BF]/10 text-[#2DD4BF]";
   }
   return "border border-border bg-ika-700/70 text-ink-700";
 }
