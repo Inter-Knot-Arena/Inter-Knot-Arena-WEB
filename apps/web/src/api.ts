@@ -364,3 +364,14 @@ export async function importRosterFromEnka(payload: {
   }
   return (await response.json()) as PlayerRosterImportSummary;
 }
+
+export async function upsertManualRosterAgents(payload: {
+  uid: string;
+  region: string;
+  agentIds: string[];
+}): Promise<{ updatedCount: number; updatedAt: string }> {
+  return postJsonWithCredentials<{ updatedCount: number; updatedAt: string }>(
+    `/players/${payload.uid}/roster/manual`,
+    { region: payload.region, agents: payload.agentIds.map((agentId) => ({ agentId })) }
+  );
+}

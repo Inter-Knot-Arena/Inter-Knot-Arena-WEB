@@ -271,4 +271,71 @@ export async function registerRosterRoutes(
       sendError(reply, error);
     }
   });
+
+  app.post("/players/:uid/roster/manual", async (request, reply) => {
+    try {
+      const params = request.params as { uid?: string };
+      const uid = params.uid ?? "";
+      if (!validateUid(uid)) {
+        throw new Error("Invalid UID");
+      }
+
+      const body = request.body as {
+        region?: string;
+        agentId?: string;
+        owned?: boolean;
+        agents?: Array<{
+          agentId: string;
+          owned?: boolean;
+          level?: number;
+          dupes?: number;
+          mindscape?: number;
+          promotion?: number;
+          talent?: number;
+          core?: number;
+        }>;
+      };
+
+      const region = parseRegion(body?.region);
+      if (!region) {
+        throw new Error("Invalid region");
+      }
+
+      const catalogIds = new Set(catalog.getCatalog().agents.map((agent) => agent.agentId));
+      const incomingAgents =
+        body?.agents ??
+        (body?.agentId
+          ? [{ agentId: body.agentId, owned: body.owned }]
+          : []);
+
+      if (!incomingAgents.length) {
+        throw new Error("No agents provided");
+      }
+
+      const now = new Date().toISOString();
+      const states = incomingAgents.map((agent) => {
+        if (!catalogIds.has(agent.agentId)) {
+          throw new Error(`Unknown agentId ${agent.agentId}`);
+        }
+        return {
+          agentId: agent.agentId,
+          owned: agent.owned ?? true,
+          level: agent.level,
+          dupes: agent.dupes,
+          mindscape: agent.mindscape,
+          promotion: agent.promotion,
+          talent: agent.talent,
+          core: agent.core,
+          source: "MANUAL",
+          updatedAt: now
+        };
+      });
+
+      await rosterStore.upsertStates(uid, region, states, { mergeStrategy: "ACCUMULATIVE" });
+
+      reply.send({ updatedCount: states.length, updatedAt: now });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
 }
