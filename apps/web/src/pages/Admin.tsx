@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Cloud, Flag, RefreshCw, Shield } from "lucide-react";
 import { AdminHeader, type AdminRole } from "../components/admin/AdminHeader";
 import { OpsMetricCard } from "../components/admin/OpsMetricCard";
@@ -234,7 +234,7 @@ export default function Admin() {
   }
 
   if (!role) {
-    return <div className="card">Нет доступа к админ-консоли.</div>;
+    return <div className="card">??? ??????? ? ?????-???????.</div>;
   }
 
   return (
