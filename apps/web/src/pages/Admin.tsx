@@ -57,7 +57,7 @@ const importItems: WorkQueueItem[] = Array.from({ length: 6 }).map((_, index) =>
   league: "Standard",
   createdAt: "4h ago",
   updatedAt: "2h ago",
-  status: index % 2 === 0 - "FAILED" : "OK",
+  status: index % 2 === 0 ? "FAILED" : "OK",
   assignee: "system"
 }));
 
