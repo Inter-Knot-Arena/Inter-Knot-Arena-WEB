@@ -23,8 +23,8 @@ const mockQueues = [
 
 const reviewItems: WorkQueueItem[] = Array.from({ length: 8 }).map((_, index) => ({
   id: `REV-${1200 + index}`,
-  players: index % 2 === 0 - "Ellen vs Lycaon" : "Anby vs Nicole",
-  league: index % 2 === 0 - "Standard" : "F2P",
+  players: index % 2 === 0 ? "Ellen vs Lycaon" : "Anby vs Nicole",
+  league: index % 2 === 0 ? "Standard" : "F2P",
   createdAt: "2h ago",
   updatedAt: "30m ago",
   status: index % 3 === 0 - "IN_REVIEW" : "NEW",
