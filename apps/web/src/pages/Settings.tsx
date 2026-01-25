@@ -117,6 +117,14 @@ export default function Settings() {
     return { level: 30, label: "Seasonal badges" };
   }, [user]);
 
+  const displayRoles = useMemo(() => {
+    if (!user) {
+      return ["USER"];
+    }
+    const elevated = user.roles.filter((role) => role !== "USER");
+    return elevated.length ? elevated : user.roles.length ? user.roles : ["USER"];
+  }, [user]);
+
   const isDirty = useMemo(() => {
     if (!user) {
       return false;
@@ -319,7 +327,7 @@ export default function Settings() {
             <div>
               <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Roles</div>
               <div className="mt-2 flex flex-wrap gap-2">
-                {user.roles.map((role) => (
+                {displayRoles.map((role) => (
                   <Badge key={role} className={roleBadgeClass(role)}>
                     {roleLabel(role)}
                   </Badge>
