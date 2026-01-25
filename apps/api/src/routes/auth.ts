@@ -24,7 +24,7 @@ import {
   setSessionCookie
 } from "../auth/session.js";
 import { hashPassword, isValidEmail, normalizeEmail, verifyPassword } from "../auth/password.js";
-import type { Region, User } from "@ika/shared";
+import type { Region, Role, User } from "@ika/shared";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
@@ -37,6 +37,19 @@ export async function registerAuthRoutes(
   auth: AuthContext
 ) {
   const allowedRegions: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
+  const adminEmails = new Set(
+    (process.env.ADMIN_EMAILS ?? "lovalentin08@gmail.com")
+      .split(",")
+      .map((value) => normalizeEmail(value.trim()))
+      .filter(Boolean)
+  );
+
+  const applyAdminRole = (email: string, roles: Role[]): Role[] => {
+    if (!adminEmails.has(normalizeEmail(email))) {
+      return roles;
+    }
+    return roles.includes("ADMIN") ? roles : [...roles, "ADMIN"];
+  };
 
   const resolveRegion = (value: unknown, fallback: Region): Region => {
     if (typeof value !== "string") {
@@ -151,7 +164,7 @@ export async function registerAuthRoutes(
           region: base.region,
           createdAt: base.createdAt,
           updatedAt: now(),
-          roles: base.roles,
+          roles: applyAdminRole(profile.email, base.roles),
           trustScore: base.trustScore,
           proxyLevel: base.proxyLevel,
           verification: base.verification,
@@ -165,6 +178,7 @@ export async function registerAuthRoutes(
           email: profile.email,
           displayName: user.displayName || displayName,
           avatarUrl: user.avatarUrl ?? profile.picture ?? null,
+          roles: applyAdminRole(profile.email, user.roles),
           updatedAt: now()
         };
         await repo.saveUser(updatedUser);
@@ -273,7 +287,7 @@ export async function registerAuthRoutes(
           region: resolveRegion(body?.region, base.region),
           createdAt: base.createdAt,
           updatedAt: now(),
-          roles: base.roles,
+          roles: applyAdminRole(email, base.roles),
           trustScore: base.trustScore,
           proxyLevel: base.proxyLevel,
           verification: base.verification,
@@ -287,7 +301,12 @@ export async function registerAuthRoutes(
           reply.code(400).send({ error: "Display name must be 24 characters or fewer" });
           return;
         }
-        const updated = { ...user, displayName: trimmedName, updatedAt: now() };
+        const updated = {
+          ...user,
+          displayName: trimmedName,
+          roles: applyAdminRole(email, user.roles),
+          updatedAt: now()
+        };
         await repo.saveUser(updated);
         user = updated;
       }
@@ -336,7 +355,12 @@ export async function registerAuthRoutes(
         return;
       }
 
-      const user = await repo.findUser(account.userId);
+      let user = await repo.findUser(account.userId);
+      const updatedRoles = applyAdminRole(user.email, user.roles);
+      if (updatedRoles !== user.roles) {
+        user = { ...user, roles: updatedRoles, updatedAt: now() };
+        await repo.saveUser(user);
+      }
       const session = auth.sessionStore.createSession(user.id);
       setSessionCookie(reply, session.id, auth.config.sessionSecret, {
         secure: process.env.NODE_ENV === "production",
