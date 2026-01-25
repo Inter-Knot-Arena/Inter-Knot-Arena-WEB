@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Cloud, Flag, RefreshCw, Shield } from "lucide-react";
 import { AdminHeader, type AdminRole } from "../components/admin/AdminHeader";
 import { OpsMetricCard } from "../components/admin/OpsMetricCard";
@@ -10,6 +10,10 @@ import {
 } from "../components/admin/QuickActionsPanel";
 import { ConfigModulesGrid, type ConfigModule } from "../components/admin/ConfigModulesGrid";
 import { Skeleton } from "../components/ui/skeleton";
+import { useAuth } from "../auth/AuthProvider";
+import { fetchAgentCatalog, fetchDisputes, fetchLobbyStats, fetchQueues } from "../api";
+import { featureFlags as appFlags } from "../flags";
+import type { Dispute } from "@ika/shared";
 
 const mockQueues = [
   { name: "Standard", status: "OPEN", inQueue: 14, avgWait: "2–4 min" },
@@ -19,12 +23,12 @@ const mockQueues = [
 
 const reviewItems: WorkQueueItem[] = Array.from({ length: 8 }).map((_, index) => ({
   id: `REV-${1200 + index}`,
-  players: index % 2 === 0 ? "Ellen vs Lycaon" : "Anby vs Nicole",
-  league: index % 2 === 0 ? "Standard" : "F2P",
+  players: index % 2 === 0 - "Ellen vs Lycaon" : "Anby vs Nicole",
+  league: index % 2 === 0 - "Standard" : "F2P",
   createdAt: "2h ago",
   updatedAt: "30m ago",
-  status: index % 3 === 0 ? "IN_REVIEW" : "NEW",
-  assignee: index % 3 === 0 ? "moder_kris" : undefined
+  status: index % 3 === 0 - "IN_REVIEW" : "NEW",
+  assignee: index % 3 === 0 - "moder_kris" : undefined
 }));
 
 const disputeItems: WorkQueueItem[] = Array.from({ length: 5 }).map((_, index) => ({
@@ -33,8 +37,8 @@ const disputeItems: WorkQueueItem[] = Array.from({ length: 5 }).map((_, index) =
   league: "Standard",
   createdAt: "1d ago",
   updatedAt: "4h ago",
-  status: index % 2 === 0 ? "OPEN" : "ESCALATED",
-  assignee: index % 2 === 0 ? "staff_zoe" : undefined
+  status: index % 2 === 0 - "OPEN" : "ESCALATED",
+  assignee: index % 2 === 0 - "staff_zoe" : undefined
 }));
 
 const reportItems: WorkQueueItem[] = Array.from({ length: 3 }).map((_, index) => ({
@@ -53,17 +57,9 @@ const importItems: WorkQueueItem[] = Array.from({ length: 6 }).map((_, index) =>
   league: "Standard",
   createdAt: "4h ago",
   updatedAt: "2h ago",
-  status: index % 2 === 0 ? "FAILED" : "OK",
+  status: index % 2 === 0 - "FAILED" : "OK",
   assignee: "system"
 }));
-
-const featureFlags = [
-  { id: "ENKA_IMPORT", label: "Enka Import", enabled: true },
-  { id: "AGENT_CATALOG", label: "Agent Catalog", enabled: true },
-  { id: "ACCUMULATIVE_IMPORT", label: "Accumulative Import", enabled: true },
-  { id: "STRICT_RANKED", label: "Strict Ranked", enabled: false },
-  { id: "VERIFIER_MONITOR", label: "Verifier Monitor", enabled: false }
-];
 
 const configModules: ConfigModule[] = [
   {
@@ -112,10 +108,42 @@ const configModules: ConfigModule[] = [
   }
 ];
 
+const queueWaitEstimate = (waiting: number) => {
+  if (waiting <= 3) return "1-3 min";
+  if (waiting <= 8) return "2-4 min";
+  if (waiting <= 12) return "4-6 min";
+  return "6-10 min";
+};
+
+const toDisputeItem = (dispute: Dispute): WorkQueueItem => {
+  const created = new Date(dispute.createdAt);
+  const updated = dispute.resolvedAt ? new Date(dispute.resolvedAt) : created;
+  return {
+    id: dispute.id,
+    players: dispute.matchId,
+    league: "Unknown",
+    createdAt: created.toLocaleDateString(),
+    updatedAt: updated.toLocaleDateString(),
+    status: dispute.status,
+    assignee: undefined
+  };
+};
+
 export default function Admin() {
+  const { user, isLoading: authLoading } = useAuth();
   const [season, setSeason] = useState("Season 01");
-  const [role] = useState<AdminRole>("admin");
-  const [loading] = useState(false);
+  const role = useMemo<AdminRole | null>(() => {
+    if (!user) return null;
+    if (user.roles.includes("ADMIN")) return "admin";
+    if (user.roles.includes("STAFF")) return "staff";
+    if (user.roles.includes("MODER")) return "moder";
+    return null;
+  }, [user]);
+  const [loading, setLoading] = useState(true);
+  const [queueStats, setQueueStats] = useState(mockQueues);
+  const [disputeQueue, setDisputeQueue] = useState<WorkQueueItem[]>(disputeItems);
+  const [catalogVersion, setCatalogVersion] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState("Just now");
   const [recentActions, setRecentActions] = useState<AdminActionLog[]>([]);
 
   const onAction = (action: string) => {
@@ -123,7 +151,7 @@ export default function Admin() {
       {
         id: `${Date.now()}-${prev.length}`,
         action,
-        actor: role,
+        actor: role ?? "moder",
         time: new Date().toLocaleTimeString()
       },
       ...prev
@@ -131,17 +159,83 @@ export default function Admin() {
   };
 
   const queueSummary = useMemo(() => {
-    return mockQueues
+    return queueStats
       .map((queue) => `${queue.name}: ${queue.inQueue} (${queue.avgWait})`)
       .join(" · ");
-  }, []);
+  }, [queueStats]);
 
-  const flagsEnabled = featureFlags.filter((flag) => flag.enabled).length;
+  const flagList = [
+    { id: "AGENT_CATALOG", label: "Agent Catalog", enabled: appFlags.enableAgentCatalog },
+    { id: "ENKA_IMPORT", label: "Enka Import", enabled: appFlags.enableEnkaImport }
+  ];
+  const flagsEnabled = flagList.filter((flag) => flag.enabled).length;
   const pendingReviews = reviewItems.length;
-  const openDisputes = disputeItems.length;
+  const openDisputes = disputeQueue.length;
   const proofMissing = 4;
   const enkaErrors = 3;
-  const catalogSummary = "agents v1.2 · weapons v1.1 · discs v1.0";
+  const openQueues = queueStats.filter((queue) => queue.status === "OPEN").length;
+  const catalogSummary = catalogVersion
+    ? `agents v${catalogVersion} · weapons local · discs local`
+    : "agents v? · weapons local · discs local";
+  const catalogValue = catalogVersion ? `v${catalogVersion}` : "local";
+
+  useEffect(() => {
+    if (!role) {
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const [queues, lobbies, disputes, catalog] = await Promise.all([
+        fetchQueues(),
+        fetchLobbyStats(),
+        fetchDisputes(),
+        appFlags.enableAgentCatalog ? fetchAgentCatalog() : Promise.resolve(null)
+      ]);
+
+      if (cancelled) return;
+
+      if (queues.length) {
+        const nextQueues = queues.map((queue) => {
+          const lobby = lobbies.find((item) => item.leagueId === queue.leagueId);
+          const waiting = lobby?.waiting ?? 0;
+          return {
+            name: queue.name,
+            status: "OPEN",
+            inQueue: waiting,
+            avgWait: queueWaitEstimate(waiting)
+          };
+        });
+        setQueueStats(nextQueues.length ? nextQueues : mockQueues);
+      }
+
+      if (disputes.length) {
+        setDisputeQueue(disputes.map(toDisputeItem));
+      }
+
+      setCatalogVersion(catalog?.catalogVersion ?? null);
+      setLastRefresh(new Date().toLocaleTimeString());
+      setLoading(false);
+    };
+
+    load().catch(() => {
+      if (!cancelled) {
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [role]);
+
+  if (authLoading) {
+    return <div className="card">Loading admin console...</div>;
+  }
+
+  if (!role) {
+    return <div className="card">Нет доступа к админ-консоли.</div>;
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-6 px-6 pb-16 pt-8">
@@ -150,12 +244,12 @@ export default function Admin() {
         season={season}
         seasons={["Season 01", "Season 00"]}
         systemStatus="Operational"
-        lastRefresh="2 minutes ago"
+        lastRefresh={lastRefresh}
         onSeasonChange={setSeason}
       />
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {loading ? (
+        {loading - (
           Array.from({ length: 8 }).map((_, index) => (
             <Skeleton key={index} className="h-24" />
           ))
@@ -163,7 +257,7 @@ export default function Admin() {
           <>
             <OpsMetricCard
               title="Live queues"
-              value="3 OPEN"
+              value={`${openQueues} OPEN`}
               description={queueSummary}
               icon={<Shield className="h-4 w-4" />}
             />
@@ -197,7 +291,7 @@ export default function Admin() {
             />
             <OpsMetricCard
               title="Catalog versions"
-              value="v1.x"
+              value={catalogValue}
               description={catalogSummary}
               icon={<CheckCircle2 className="h-4 w-4" />}
             />
@@ -228,7 +322,7 @@ export default function Admin() {
           <WorkQueueTabs
             role={role}
             reviews={reviewItems}
-            disputes={disputeItems}
+            disputes={disputeQueue}
             reports={reportItems}
             imports={importItems}
           />
@@ -236,7 +330,7 @@ export default function Admin() {
 
         <QuickActionsPanel
           role={role}
-          featureFlags={featureFlags}
+          featureFlags={flagList}
           recentActions={recentActions}
           onAction={onAction}
         />
