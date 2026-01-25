@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import SearchBar from "./SearchBar";
 import UserMenu from "./UserMenu";
+import { useAuth } from "../auth/AuthProvider";
 
 const navItems = [
   {
@@ -71,6 +72,7 @@ interface ShellProps {
 }
 
 export default function Shell({ children }: ShellProps) {
+  const { user } = useAuth();
   const [language, setLanguage] = useState(() => {
     if (typeof window === "undefined") {
       return "ru";
@@ -97,6 +99,11 @@ export default function Shell({ children }: ShellProps) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const canSeeAdmin =
+    user?.roles?.includes("ADMIN") ||
+    user?.roles?.includes("STAFF") ||
+    user?.roles?.includes("MODER");
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -110,7 +117,9 @@ export default function Shell({ children }: ShellProps) {
           </div>
         </div>
         <nav className="nav-links">
-          {navItems.map((item) => (
+          {navItems
+            .filter((item) => (item.to === "/admin" ? canSeeAdmin : true))
+            .map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
