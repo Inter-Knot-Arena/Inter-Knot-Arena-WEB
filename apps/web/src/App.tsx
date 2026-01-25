@@ -16,6 +16,7 @@ import PlayerRoster from "./pages/PlayerRoster";
 import Disputes from "./pages/Disputes";
 import Admin from "./pages/Admin";
 import { RequireAuth } from "./auth/RequireAuth";
+import { RequireRole } from "./auth/RequireRole";
 import { featureFlags } from "./flags";
 
 export default function App() {
@@ -46,7 +47,16 @@ export default function App() {
           <Route path="/players/:uid/roster" element={<PlayerRoster />} />
         ) : null}
         <Route path="/disputes" element={<Disputes />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route
+          path="/admin"
+          element={
+            <RequireAuth>
+              <RequireRole roles={["ADMIN", "STAFF", "MODER"]}>
+                <Admin />
+              </RequireRole>
+            </RequireAuth>
+          }
+        />
         <Route path="*" element={<div className="card">Page not found.</div>} />
       </Routes>
     </Shell>
