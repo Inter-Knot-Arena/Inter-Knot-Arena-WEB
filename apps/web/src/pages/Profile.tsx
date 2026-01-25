@@ -142,6 +142,12 @@ export default function Profile() {
   const profileId = id ?? user?.id ?? null;
   const profileUser = profile?.user ?? user;
   const ratings = profile?.ratings ?? [];
+  const isSelf = profileUser?.id && user?.id ? profileUser.id === user.id : true;
+  const displayRoles = useMemo(() => {
+    const roles = profileUser?.roles ?? [];
+    const elevated = roles.filter((role) => role !== "USER");
+    return elevated.length ? elevated : roles.length ? roles : ["USER"];
+  }, [profileUser?.roles]);
 
   useEffect(() => {
     if (authLoading) {
@@ -367,7 +373,7 @@ export default function Profile() {
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {profileUser?.roles.map((role) => (
+                  {displayRoles.map((role) => (
                     <Badge key={role} className={roleBadgeClass(role)}>
                       {roleLabel(role)}
                     </Badge>
@@ -385,10 +391,12 @@ export default function Profile() {
                   <Swords className="mr-2 h-4 w-4" />
                   Challenge
                 </Button>
-                <Button variant="outline" size="sm">
-                  <Flag className="mr-2 h-4 w-4" />
-                  Report
-                </Button>
+                {!isSelf ? (
+                  <Button variant="outline" size="sm">
+                    <Flag className="mr-2 h-4 w-4" />
+                    Report
+                  </Button>
+                ) : null}
                 <Button variant="outline" size="sm">
                   <Share2 className="mr-2 h-4 w-4" />
                   Share profile
