@@ -490,7 +490,7 @@ export default function Profile() {
 
         <Tabs value={tab} onValueChange={setTab} className="mt-8">
           <div className="sticky top-24 z-20 bg-ika-900/90 pb-3 pt-3">
-            <div className="rounded-lg border border-border bg-ika-800/70 p-1">
+            <div className="mx-auto w-full max-w-[1280px] rounded-lg border border-border bg-ika-800/70 p-1">
               <TabsList className="w-full border-0 bg-transparent p-0">
               <TabsTrigger value="overview" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500">
                 Overview
@@ -515,7 +515,7 @@ export default function Profile() {
           </div>
 
           <TabsContent value="overview">
-            <div className="grid grid-cols-12 gap-6">
+            <div className="mx-auto grid w-full max-w-[1280px] grid-cols-12 gap-6">
               <div className="col-span-12">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
@@ -566,21 +566,23 @@ export default function Profile() {
           </TabsContent>
 
           <TabsContent value="agents">
-            {featureFlags.enableAgentCatalog ? (
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                <div className="text-sm text-ink-500">
-                  Showcase roster combines catalog data with imported agent states.
+            <div className="mx-auto w-full max-w-[1280px]">
+              {featureFlags.enableAgentCatalog ? (
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm text-ink-500">
+                    Showcase roster combines catalog data with imported agent states.
+                  </div>
+                  {rosterUid ? (
+                    <Link className="text-sm text-accent-400" to={`/players/${rosterUid}/roster`}>
+                      View roster
+                    </Link>
+                  ) : (
+                    <span className="text-xs text-ink-500">UID required for roster view.</span>
+                  )}
                 </div>
-                {rosterUid ? (
-                  <Link className="text-sm text-accent-400" to={`/players/${rosterUid}/roster`}>
-                    View roster
-                  </Link>
-                ) : (
-                  <span className="text-xs text-ink-500">UID required for roster view.</span>
-                )}
-              </div>
-            ) : null}
-            <AgentGrid agents={rosterAgents} />
+              ) : null}
+              <AgentGrid agents={rosterAgents} />
+            </div>
           </TabsContent>
 
           <TabsContent value="tournaments">
