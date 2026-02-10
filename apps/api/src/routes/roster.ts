@@ -25,6 +25,16 @@ const accumulativeEnabled = process.env.ENABLE_ACCUMULATIVE_IMPORT === "true";
 const storeRawEnka = process.env.ENKA_STORE_RAW === "true";
 const rawEnkaTtlSeconds = Number(process.env.ENKA_RAW_TTL_SEC ?? 60 * 60 * 24 * 14);
 const ENKA_REGION_FALLBACKS: Region[] = ["NA", "EU", "ASIA", "SEA"];
+const ENKA_USER_AGENT =
+  process.env.ENKA_USER_AGENT ??
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36";
+const ENKA_REQUEST_HEADERS: Record<string, string> = {
+  "User-Agent": ENKA_USER_AGENT,
+  Accept: "application/json,text/plain,*/*",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: "https://enka.network/",
+  Origin: "https://enka.network"
+};
 
 class EnkaHttpError extends Error {
   constructor(
@@ -64,7 +74,10 @@ async function fetchJsonWithRetry(url: string, timeoutMs: number): Promise<unkno
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(url, { signal: controller.signal });
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: ENKA_REQUEST_HEADERS
+      });
       if (!response.ok) {
         throw new EnkaHttpError(response.status, url);
       }
