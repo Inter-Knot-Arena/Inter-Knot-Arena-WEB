@@ -11,6 +11,7 @@ import {
   startMatchSearch
 } from "../api";
 import { useAuth } from "../auth/AuthProvider";
+import { isUidVerified, normalizedVerificationStatus } from "../lib/verification";
 
 type LobbyCounters = {
   waiting: number;
@@ -110,7 +111,8 @@ export default function Matchmaking() {
   const selectedLeague = leagues.find((league) => league.id === selectedLeagueId) ?? null;
   const leagueQueue = queues.find((queue) => queue.leagueId === selectedLeagueId) ?? null;
   const leagueRating = profile?.ratings.find((rating) => rating.leagueId === selectedLeagueId) ?? null;
-  const isVerified = profile?.user.verification.status === "VERIFIED";
+  const verificationStatus = normalizedVerificationStatus(profile?.user.verification.status);
+  const isVerified = isUidVerified(verificationStatus);
   const isQueueLocked = Boolean(leagueQueue?.requireVerifier && !isVerified);
   const counters = selectedLeagueId
     ? lobbyCounters[selectedLeagueId] ?? { waiting: 0, inProgress: 0 }
@@ -241,7 +243,7 @@ export default function Matchmaking() {
             <div className="card lobby-profile">
               <div className="card-header">
                 <h3>Player card</h3>
-                <span className="badge-outline">{profile?.user.verification.status ?? "PENDING"}</span>
+                <span className="badge-outline">{verificationStatus}</span>
               </div>
               <div className="stack">
                 <div className="row">
