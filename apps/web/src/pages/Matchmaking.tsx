@@ -56,7 +56,9 @@ export default function Matchmaking() {
   useEffect(() => {
     fetchQueues().then(setQueues);
     fetchLeagues().then(setLeagues);
-    fetchProfile(currentUserId).then(setProfile);
+    fetchProfile(currentUserId)
+      .then(setProfile)
+      .catch(() => setProfile(null));
     refreshLobbyStats();
   }, []);
 
@@ -76,13 +78,17 @@ export default function Matchmaking() {
       return;
     }
     pollRef.current = window.setInterval(async () => {
-      const result = await fetchMatchmakingStatus(ticketId);
-      if (result.status === "MATCH_FOUND" && result.match) {
-        setStatus(null);
-        setIsSearching(false);
-        setTicketId(null);
-        refreshLobbyStats();
-        navigate(`/match/${result.match.id}`);
+      try {
+        const result = await fetchMatchmakingStatus(ticketId);
+        if (result.status === "MATCH_FOUND" && result.match) {
+          setStatus(null);
+          setIsSearching(false);
+          setTicketId(null);
+          refreshLobbyStats();
+          navigate(`/match/${result.match.id}`);
+        }
+      } catch {
+        setStatus("Matchmaking status check failed. Retrying...");
       }
     }, 2000);
 
@@ -125,36 +131,46 @@ export default function Matchmaking() {
     }
     setStatus("Waiting for opponent...");
     setIsSearching(true);
-    const result = await startMatchSearch(currentUserId, leagueQueue.id);
-    setTicketId(result.ticketId);
-    if (result.status === "MATCH_FOUND" && result.match) {
-      setStatus(null);
+    try {
+      const result = await startMatchSearch(currentUserId, leagueQueue.id);
+      setTicketId(result.ticketId);
+      if (result.status === "MATCH_FOUND" && result.match) {
+        setStatus(null);
+        setIsSearching(false);
+        setTicketId(null);
+        refreshLobbyStats();
+        navigate(`/match/${result.match.id}`);
+        return;
+      }
+      refreshLobbyStats();
+    } catch {
+      setStatus("Failed to start matchmaking.");
       setIsSearching(false);
       setTicketId(null);
-      refreshLobbyStats();
-      navigate(`/match/${result.match.id}`);
-      return;
     }
-    refreshLobbyStats();
   };
 
   const handleCancelSearch = async () => {
     if (!ticketId) {
       return;
     }
-    const result = await cancelMatchSearch(ticketId);
-    if (result.status === "MATCH_FOUND" && result.match) {
+    try {
+      const result = await cancelMatchSearch(ticketId);
+      if (result.status === "MATCH_FOUND" && result.match) {
+        setStatus(null);
+        setIsSearching(false);
+        setTicketId(null);
+        refreshLobbyStats();
+        navigate(`/match/${result.match.id}`);
+        return;
+      }
       setStatus(null);
       setIsSearching(false);
       setTicketId(null);
       refreshLobbyStats();
-      navigate(`/match/${result.match.id}`);
-      return;
+    } catch {
+      setStatus("Failed to cancel matchmaking search.");
     }
-    setStatus(null);
-    setIsSearching(false);
-    setTicketId(null);
-    refreshLobbyStats();
   };
 
   const handleBack = () => {

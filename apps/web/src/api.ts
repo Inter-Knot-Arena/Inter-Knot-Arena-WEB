@@ -10,21 +10,13 @@ import type {
   PlayerRosterView,
   ProfileSummary,
   QueueConfig,
+  RankBand,
   Rating,
   Ruleset,
+  Sanction,
+  Season,
   User
 } from "@ika/shared";
-import {
-  agents,
-  demoMatch,
-  leagues,
-  lobbyStats,
-  profiles,
-  queues,
-  ratings,
-  rulesets,
-  users
-} from "./data/mock";
 
 export interface LobbyStats {
   leagueId: string;
@@ -48,164 +40,158 @@ export interface MatchmakingCancelResponse {
   match?: Match;
 }
 
+export interface AuditEvent {
+  id: string;
+  actorUserId?: string;
+  action: string;
+  entityType: string;
+  entityId?: string;
+  payload?: unknown;
+  createdAt: number;
+}
+
+export interface AgentPickBanAnalytics {
+  agentId: string;
+  picks: number;
+  bans: number;
+  wins: number;
+  losses: number;
+  winrate: number | null;
+}
+
+export interface AgentComboAnalytics {
+  combo: [string, string];
+  matches: number;
+  wins: number;
+  winrate: number;
+}
+
+export interface SeasonReport {
+  seasonId: string;
+  totalMatches: number;
+  disputedOpen: number;
+  resolvedWithModeration: number;
+  averageMatchDurationSec: number | null;
+}
+
+export interface PresignedUpload {
+  key: string;
+  uploadUrl: string;
+  publicUrl?: string;
+  expiresIn: number;
+}
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
-async function safeFetch<T>(path: string, fallback: T): Promise<T> {
+async function readError(response: Response): Promise<string> {
   try {
-    const response = await fetch(`${API_BASE}${path}`, { credentials: "include" });
-    if (!response.ok) {
-      return fallback;
+    const data = (await response.json()) as { error?: string };
+    if (data?.error) {
+      return data.error;
     }
-    return (await response.json()) as T;
+  } catch {
+    // ignore non-json body
+  }
+  return `Request failed: ${response.status}`;
+}
+
+async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    credentials: "include",
+    ...options
+  });
+  if (!response.ok) {
+    throw new Error(await readError(response));
+  }
+  return (await response.json()) as T;
+}
+
+async function requestJsonOr<T>(path: string, fallback: T, options?: RequestInit): Promise<T> {
+  try {
+    return await requestJson<T>(path, options);
   } catch {
     return fallback;
   }
 }
 
-async function postJson<T>(path: string, payload: unknown, fallback: T): Promise<T> {
-  try {
-    const response = await fetch(`${API_BASE}${path}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      return fallback;
-    }
-    return (await response.json()) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-async function postJsonWithCredentials<T>(path: string, payload?: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
+function jsonRequest(body: unknown, method = "POST"): RequestInit {
+  return {
+    method,
     headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: payload ? JSON.stringify(payload) : undefined
-  });
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
-  }
-  return (await response.json()) as T;
-}
-
-async function patchJsonWithCredentials<T>(path: string, payload: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
-  }
-  return (await response.json()) as T;
+    body: JSON.stringify(body)
+  };
 }
 
 export function fetchQueues(): Promise<QueueConfig[]> {
-  return safeFetch<QueueConfig[]>("/queues", queues);
+  return requestJsonOr<QueueConfig[]>("/queues", []);
 }
 
 export function fetchLeagues(): Promise<League[]> {
-  return safeFetch<League[]>("/leagues", leagues);
+  return requestJsonOr<League[]>("/leagues", []);
 }
 
 export function fetchLobbyStats(): Promise<LobbyStats[]> {
-  return safeFetch<LobbyStats[]>("/matchmaking/lobbies", lobbyStats);
+  return requestJsonOr<LobbyStats[]>("/matchmaking/lobbies", []);
 }
 
 export async function fetchLeaderboard(leagueId: string): Promise<Rating[]> {
-  const fallback = ratings
-    .filter((item) => item.leagueId === leagueId)
-    .slice()
-    .sort((a, b) => b.elo - a.elo);
-  const data = await safeFetch<{ leagueId: string; ratings: Rating[] }>(
+  const data = await requestJsonOr<{ leagueId: string; ratings: Rating[] }>(
     `/leaderboards/${leagueId}`,
-    { leagueId, ratings: fallback }
+    { leagueId, ratings: [] }
   );
   return data.ratings;
 }
 
 export function fetchMatch(matchId: string): Promise<Match> {
-  return safeFetch<Match>(`/matches/${matchId}`, demoMatch);
+  return requestJson<Match>(`/matches/${matchId}`);
 }
 
 export function fetchAgents(): Promise<Agent[]> {
-  return safeFetch<Agent[]>("/agents", agents);
+  return requestJsonOr<Agent[]>("/agents", []);
 }
 
 export function fetchRulesets(): Promise<Ruleset[]> {
-  return safeFetch<Ruleset[]>("/rulesets", rulesets);
+  return requestJsonOr<Ruleset[]>("/rulesets", []);
 }
 
 export function fetchUsers(): Promise<User[]> {
-  return safeFetch<User[]>("/users", users);
+  return requestJsonOr<User[]>("/users", []);
 }
 
 export function fetchProfile(userId: string): Promise<ProfileSummary> {
-  const fallbackUser: User = users[0] ?? {
-    id: "user_demo",
-    email: "demo@interknot.dev",
-    displayName: "Demo User",
-    avatarUrl: null,
-    region: "NA",
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    roles: ["USER"],
-    trustScore: 100,
-    proxyLevel: { level: 1, xp: 0, nextXp: 100 },
-    verification: { status: "UNVERIFIED" },
-    privacy: { showUidPublicly: false, showMatchHistoryPublicly: true }
-  };
-  const defaultProfile: ProfileSummary = profiles[0] ?? { user: fallbackUser, ratings: [] };
-  const fallback = profiles.find((item) => item.user.id === userId) ?? defaultProfile;
-  return safeFetch<ProfileSummary>(`/profiles/${userId}`, fallback);
+  return requestJson<ProfileSummary>(`/profiles/${userId}`);
 }
 
-export function joinMatchmaking(userId: string, queueId: string): Promise<Match> {
-  return postJson<Match>("/matchmaking/join", { queueId }, demoMatch);
+export function joinMatchmaking(_userId: string, queueId: string): Promise<Match> {
+  return requestJson<Match>("/matchmaking/join", jsonRequest({ queueId }));
 }
 
 export function startMatchSearch(
-  userId: string,
+  _userId: string,
   queueId: string
 ): Promise<MatchmakingSearchResponse> {
-  return postJson<MatchmakingSearchResponse>(
-    "/matchmaking/search",
-    { queueId },
-    { status: "MATCH_FOUND", ticketId: "ticket_demo", match: demoMatch }
-  );
+  return requestJson<MatchmakingSearchResponse>("/matchmaking/search", jsonRequest({ queueId }));
 }
 
 export function fetchMatchmakingStatus(ticketId: string): Promise<MatchmakingStatusResponse> {
-  return safeFetch<MatchmakingStatusResponse>(
-    `/matchmaking/status/${ticketId}`,
-    { status: "SEARCHING" }
-  );
+  return requestJson<MatchmakingStatusResponse>(`/matchmaking/status/${ticketId}`);
 }
 
 export function cancelMatchSearch(ticketId: string): Promise<MatchmakingCancelResponse> {
-  return postJson<MatchmakingCancelResponse>(
-    "/matchmaking/cancel",
-    { ticketId },
-    { status: "CANCELED" }
-  );
+  return requestJson<MatchmakingCancelResponse>("/matchmaking/cancel", jsonRequest({ ticketId }));
 }
 
-export function checkinMatch(matchId: string, userId: string): Promise<Match> {
-  return postJson<Match>(`/matches/${matchId}/checkin`, {}, demoMatch);
+export function checkinMatch(matchId: string, _userId: string): Promise<Match> {
+  return requestJson<Match>(`/matches/${matchId}/checkin`, jsonRequest({}));
 }
 
 export function submitDraftAction(
   matchId: string,
-  userId: string,
+  _userId: string,
   type: DraftActionType,
   agentId: string
 ): Promise<Match> {
-  return postJson<Match>(`/matches/${matchId}/draft/action`, { type, agentId }, demoMatch);
+  return requestJson<Match>(`/matches/${matchId}/draft/action`, jsonRequest({ type, agentId }));
 }
 
 export function submitPrecheck(
@@ -218,7 +204,7 @@ export function submitPrecheck(
     cropUrl?: string;
   }
 ): Promise<Match> {
-  return postJson<Match>(`/matches/${matchId}/evidence/precheck`, payload, demoMatch);
+  return requestJson<Match>(`/matches/${matchId}/evidence/precheck`, jsonRequest(payload));
 }
 
 export function submitInrun(
@@ -231,7 +217,7 @@ export function submitInrun(
     cropUrl?: string;
   }
 ): Promise<Match> {
-  return postJson<Match>(`/matches/${matchId}/evidence/inrun`, payload, demoMatch);
+  return requestJson<Match>(`/matches/${matchId}/evidence/inrun`, jsonRequest(payload));
 }
 
 export function submitResult(
@@ -240,34 +226,31 @@ export function submitResult(
     metricType: "TIME_MS" | "SCORE" | "RANK_TIER";
     value: number | string;
     proofUrl: string;
+    demoUrl?: string;
+    notes?: string;
   }
 ): Promise<Match> {
-  return postJson<Match>(`/matches/${matchId}/result/submit`, payload, demoMatch);
+  return requestJson<Match>(`/matches/${matchId}/result/submit`, jsonRequest(payload));
 }
 
-export function confirmMatchResult(matchId: string, userId: string): Promise<Match> {
-  return postJson<Match>(`/matches/${matchId}/confirm`, {}, demoMatch);
+export function confirmMatchResult(matchId: string, _userId: string): Promise<Match> {
+  return requestJson<Match>(`/matches/${matchId}/confirm`, jsonRequest({}));
 }
 
 export function openDispute(
   matchId: string,
-  userId: string,
+  _userId: string,
   reason: string,
   evidenceUrls?: string[]
 ): Promise<Dispute> {
-  return postJson<Dispute>(`/matches/${matchId}/dispute/open`, { reason, evidenceUrls }, {
-    id: "dispute_demo",
-    matchId,
-    openedBy: userId || "user_demo",
-    reason,
-    status: "OPEN",
-    evidenceUrls,
-    createdAt: Date.now()
-  });
+  return requestJson<Dispute>(
+    `/matches/${matchId}/dispute/open`,
+    jsonRequest({ reason, evidenceUrls })
+  );
 }
 
 export function fetchDisputes(): Promise<Dispute[]> {
-  return safeFetch<Dispute[]>("/disputes/queue", []);
+  return requestJsonOr<Dispute[]>("/disputes/queue", []);
 }
 
 export function resolveDispute(
@@ -275,25 +258,15 @@ export function resolveDispute(
   decision: string,
   winnerUserId?: string
 ): Promise<Dispute> {
-  return postJson<Dispute>(`/disputes/${disputeId}/decision`, { decision, winnerUserId }, {
-    id: disputeId,
-    matchId: "match_demo",
-    openedBy: "user_ellen",
-    reason: "demo",
-    status: "RESOLVED",
-    decision,
-    winnerUserId,
-    createdAt: Date.now()
-  });
+  return requestJson<Dispute>(
+    `/disputes/${disputeId}/decision`,
+    jsonRequest({ decision, winnerUserId })
+  );
 }
 
 export async function fetchAuthMe(): Promise<User | null> {
   try {
-    const response = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
-    if (!response.ok) {
-      return null;
-    }
-    return (await response.json()) as User;
+    return await requestJson<User>("/auth/me");
   } catch {
     return null;
   }
@@ -306,55 +279,55 @@ export async function startGoogleAuth(redirect?: string): Promise<{ url: string 
   }
   const response = await fetch(url.toString());
   if (!response.ok) {
-    throw new Error("Failed to start Google auth");
+    throw new Error(await readError(response));
   }
   return (await response.json()) as { url: string };
 }
 
 export async function logout(): Promise<void> {
-  await postJsonWithCredentials("/auth/logout");
+  await requestJson<{ status: string }>("/auth/logout", jsonRequest({}));
 }
 
-export async function loginWithEmail(payload: { email: string; password: string }): Promise<User> {
-  return postJsonWithCredentials<User>("/auth/login", payload);
+export function loginWithEmail(payload: { email: string; password: string }): Promise<User> {
+  return requestJson<User>("/auth/login", jsonRequest(payload));
 }
 
-export async function registerWithEmail(payload: {
+export function registerWithEmail(payload: {
   email: string;
   password: string;
   displayName?: string;
   region?: string;
 }): Promise<User> {
-  return postJsonWithCredentials<User>("/auth/register", payload);
+  return requestJson<User>("/auth/register", jsonRequest(payload));
 }
 
-export async function updateMe(payload: {
+export function updateMe(payload: {
   displayName?: string;
   region?: string;
   avatarUrl?: string | null;
   privacy?: { showUidPublicly?: boolean; showMatchHistoryPublicly?: boolean };
 }): Promise<User> {
-  return patchJsonWithCredentials<User>("/users/me", payload);
+  return requestJson<User>("/users/me", jsonRequest(payload, "PATCH"));
 }
 
-export async function submitUidVerification(payload: {
+export function submitUidVerification(payload: {
   uid: string;
   region: string;
 }): Promise<{ code: string; status: string }> {
-  return postJsonWithCredentials<{ code: string; status: string }>("/identity/uid/submit", payload);
+  return requestJson<{ code: string; status: string }>("/identity/uid/submit", jsonRequest(payload));
 }
 
-export async function verifyUidProof(payload: {
+export function verifyUidProof(payload: {
   uid: string;
   region: string;
   code: string;
   proofUrl?: string;
 }): Promise<User> {
-  return postJsonWithCredentials<User>("/identity/uid/verify-proof", payload);
+  return requestJson<User>("/identity/uid/verify-proof", jsonRequest(payload));
 }
 
 export function fetchAgentCatalog(): Promise<AgentCatalog> {
-  return safeFetch<AgentCatalog>("/catalog/agents", { catalogVersion: "unknown", agents: [] });
+  return requestJsonOr<AgentCatalog>("/catalog/agents", { catalogVersion: "unknown", agents: [] });
 }
 
 export async function fetchPlayerRoster(options: {
@@ -369,10 +342,9 @@ export async function fetchPlayerRoster(options: {
   if (options.rulesetId) {
     url.searchParams.set("rulesetId", options.rulesetId);
   }
-
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), { credentials: "include" });
   if (!response.ok) {
-    throw new Error(`Roster fetch failed (${response.status})`);
+    throw new Error(await readError(response));
   }
   return (await response.json()) as PlayerRosterView;
 }
@@ -389,27 +361,125 @@ export async function importRosterFromEnka(payload: {
     body: JSON.stringify({ region: payload.region, force: payload.force })
   });
   if (!response.ok) {
-    let message = `Enka import failed (${response.status})`;
-    try {
-      const data = (await response.json()) as { error?: string };
-      if (data?.error) {
-        message = data.error;
-      }
-    } catch {
-      // ignore JSON parse errors
-    }
-    throw new Error(message);
+    throw new Error(await readError(response));
   }
   return (await response.json()) as PlayerRosterImportSummary;
 }
 
-export async function upsertManualRosterAgents(payload: {
+export function upsertManualRosterAgents(payload: {
   uid: string;
   region: string;
   agentIds: string[];
 }): Promise<{ updatedCount: number; updatedAt: string }> {
-  return postJsonWithCredentials<{ updatedCount: number; updatedAt: string }>(
+  return requestJson<{ updatedCount: number; updatedAt: string }>(
     `/players/${payload.uid}/roster/manual`,
-    { region: payload.region, agents: payload.agentIds.map((agentId) => ({ agentId })) }
+    jsonRequest({ region: payload.region, agents: payload.agentIds.map((agentId) => ({ agentId })) })
   );
+}
+
+export function fetchAdminRulesets(): Promise<Ruleset[]> {
+  return requestJson<Ruleset[]>("/admin/rulesets");
+}
+
+export function saveAdminRuleset(rulesetId: string, payload: Partial<Ruleset>): Promise<Ruleset> {
+  return requestJson<Ruleset>(`/admin/rulesets/${rulesetId}`, jsonRequest(payload, "PUT"));
+}
+
+export function fetchAdminSeasons(): Promise<Season[]> {
+  return requestJson<Season[]>("/admin/seasons");
+}
+
+export function saveAdminSeason(seasonId: string, payload: Partial<Season>): Promise<Season> {
+  return requestJson<Season>(`/admin/seasons/${seasonId}`, jsonRequest(payload, "PUT"));
+}
+
+export function fetchRankBands(): Promise<RankBand[]> {
+  return requestJson<RankBand[]>("/admin/rank-bands");
+}
+
+export function saveRankBands(bands: RankBand[]): Promise<RankBand[]> {
+  return requestJson<RankBand[]>("/admin/rank-bands", jsonRequest({ bands }, "PUT"));
+}
+
+export function fetchSanctions(limit = 100): Promise<Sanction[]> {
+  return requestJson<Sanction[]>(`/admin/sanctions?limit=${limit}`);
+}
+
+export function createSanction(payload: Partial<Sanction>): Promise<Sanction> {
+  return requestJson<Sanction>("/admin/sanctions", jsonRequest(payload));
+}
+
+export function fetchAuditLogs(options?: {
+  limit?: number;
+  actorUserId?: string;
+  action?: string;
+  entityType?: string;
+}): Promise<AuditEvent[]> {
+  const query = new URLSearchParams();
+  if (options?.limit) {
+    query.set("limit", String(options.limit));
+  }
+  if (options?.actorUserId) {
+    query.set("actorUserId", options.actorUserId);
+  }
+  if (options?.action) {
+    query.set("action", options.action);
+  }
+  if (options?.entityType) {
+    query.set("entityType", options.entityType);
+  }
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return requestJson<AuditEvent[]>(`/admin/audit${suffix}`);
+}
+
+export function fetchAnalyticsPickBan(): Promise<AgentPickBanAnalytics[]> {
+  return requestJsonOr<AgentPickBanAnalytics[]>("/analytics/pick-ban", []);
+}
+
+export function fetchAnalyticsAgentCombos(): Promise<AgentComboAnalytics[]> {
+  return requestJsonOr<AgentComboAnalytics[]>("/analytics/agent-combos", []);
+}
+
+export function fetchAnalyticsSeasonReport(): Promise<SeasonReport> {
+  return requestJsonOr<SeasonReport>("/analytics/season/report", {
+    seasonId: "unknown",
+    totalMatches: 0,
+    disputedOpen: 0,
+    resolvedWithModeration: 0,
+    averageMatchDurationSec: null
+  });
+}
+
+export function requestPresignedUpload(payload: {
+  purpose: string;
+  contentType: string;
+  extension?: string;
+}): Promise<PresignedUpload> {
+  return requestJson<PresignedUpload>("/uploads/presign", jsonRequest(payload));
+}
+
+export async function uploadEvidenceFile(
+  file: File,
+  purpose = "match-proof"
+): Promise<{ url: string; key: string }> {
+  const extension = file.name.includes(".") ? file.name.split(".").pop() ?? "" : "";
+  const presign = await requestPresignedUpload({
+    purpose,
+    contentType: file.type || "application/octet-stream",
+    extension
+  });
+  const uploadResponse = await fetch(presign.uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": file.type || "application/octet-stream"
+    },
+    body: file
+  });
+  if (!uploadResponse.ok) {
+    throw new Error(`Upload failed (${uploadResponse.status})`);
+  }
+  return {
+    url: presign.publicUrl ?? presign.key,
+    key: presign.key
+  };
 }

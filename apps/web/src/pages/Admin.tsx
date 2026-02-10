@@ -1,342 +1,342 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Cloud, Flag, RefreshCw, Shield } from "lucide-react";
-import { AdminHeader, type AdminRole } from "../components/admin/AdminHeader";
-import { OpsMetricCard } from "../components/admin/OpsMetricCard";
-import { WorkQueueTabs } from "../components/admin/WorkQueueTabs";
-import type { WorkQueueItem } from "../components/admin/WorkQueueTable";
-import {
-  QuickActionsPanel,
-  type AdminActionLog
-} from "../components/admin/QuickActionsPanel";
-import { ConfigModulesGrid, type ConfigModule } from "../components/admin/ConfigModulesGrid";
-import { Skeleton } from "../components/ui/skeleton";
+import type { RankBand, Ruleset, Sanction, Season } from "@ika/shared";
 import { useAuth } from "../auth/AuthProvider";
-import { fetchAgentCatalog, fetchDisputes, fetchLobbyStats, fetchQueues } from "../api";
-import { featureFlags as appFlags } from "../flags";
-import type { Dispute } from "@ika/shared";
+import {
+  createSanction,
+  fetchAdminRulesets,
+  fetchAdminSeasons,
+  fetchAuditLogs,
+  fetchDisputes,
+  fetchLobbyStats,
+  fetchQueues,
+  fetchRankBands,
+  fetchSanctions,
+  saveAdminRuleset,
+  saveAdminSeason,
+  saveRankBands,
+  type AuditEvent
+} from "../api";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Badge } from "../components/ui/badge";
+import { Card } from "../components/ui/card";
 
-const mockQueues = [
-  { name: "Standard", status: "OPEN", inQueue: 14, avgWait: "2-4 min" },
-  { name: "F2P", status: "OPEN", inQueue: 9, avgWait: "3-6 min" },
-  { name: "Unlimited", status: "OPEN", inQueue: 3, avgWait: "1-3 min" }
-];
-
-const reviewItems: WorkQueueItem[] = Array.from({ length: 8 }).map((_, index) => ({
-  id: `REV-${1200 + index}`,
-  players: index % 2 === 0 ? "Ellen vs Lycaon" : "Anby vs Nicole",
-  league: index % 2 === 0 ? "Standard" : "F2P",
-  createdAt: "2h ago",
-  updatedAt: "30m ago",
-  status: index % 3 === 0 ? "IN_REVIEW" : "NEW",
-  assignee: index % 3 === 0 ? "moder_kris" : undefined
-}));
-
-const disputeItems: WorkQueueItem[] = Array.from({ length: 5 }).map((_, index) => ({
-  id: `DSP-${640 + index}`,
-  players: "Ellen vs Billy",
-  league: "Standard",
-  createdAt: "1d ago",
-  updatedAt: "4h ago",
-  status: index % 2 === 0 ? "OPEN" : "ESCALATED",
-  assignee: index % 2 === 0 ? "staff_zoe" : undefined
-}));
-
-const reportItems: WorkQueueItem[] = Array.from({ length: 3 }).map((_, index) => ({
-  id: `RPT-${300 + index}`,
-  players: "Unknown",
-  league: "Unlimited",
-  createdAt: "3d ago",
-  updatedAt: "6h ago",
-  status: "NEW",
-  assignee: undefined
-}));
-
-const importItems: WorkQueueItem[] = Array.from({ length: 6 }).map((_, index) => ({
-  id: `IMP-${80 + index}`,
-  players: "UID 123456789",
-  league: "Standard",
-  createdAt: "4h ago",
-  updatedAt: "2h ago",
-  status: index % 2 === 0 ? "FAILED" : "OK",
-  assignee: "system"
-}));
-
-const configModules: ConfigModule[] = [
-  {
-    id: "catalogs",
-    title: "Catalogs",
-    description: "Agents, weapons, and disc set content.",
-    status: "Ready",
-    updatedAt: "2h ago",
-    allowedRoles: ["admin"]
-  },
-  {
-    id: "rulesets",
-    title: "Rulesets",
-    description: "League caps, proof requirements, evidence policies.",
-    status: "Draft",
-    updatedAt: "1d ago"
-  },
-  {
-    id: "seasons",
-    title: "Seasons",
-    description: "Season timelines and soft resets.",
-    status: "Active",
-    updatedAt: "3h ago"
-  },
-  {
-    id: "rank-bands",
-    title: "Rank bands",
-    description: "ELO tiers and seasonal badges.",
-    status: "Draft",
-    updatedAt: "6h ago"
-  },
-  {
-    id: "flags",
-    title: "Feature flags",
-    description: "Runtime toggles for queue behavior.",
-    status: "Ready",
-    updatedAt: "15m ago"
-  },
-  {
-    id: "access-control",
-    title: "Access control",
-    description: "Role grants and permissions.",
-    status: "Ready",
-    updatedAt: "12m ago",
-    allowedRoles: ["admin"]
+function nextSeasonStatus(status: Season["status"]): Season["status"] {
+  if (status === "PLANNED") {
+    return "ACTIVE";
   }
-];
+  if (status === "ACTIVE") {
+    return "ENDED";
+  }
+  return "PLANNED";
+}
 
-const queueWaitEstimate = (waiting: number) => {
-  if (waiting <= 3) return "1-3 min";
-  if (waiting <= 8) return "2-4 min";
-  if (waiting <= 12) return "4-6 min";
-  return "6-10 min";
-};
-
-const toDisputeItem = (dispute: Dispute): WorkQueueItem => {
-  const created = new Date(dispute.createdAt);
-  const updated = dispute.resolvedAt ? new Date(dispute.resolvedAt) : created;
-  return {
-    id: dispute.id,
-    players: dispute.matchId,
-    league: "Unknown",
-    createdAt: created.toLocaleDateString(),
-    updatedAt: updated.toLocaleDateString(),
-    status: dispute.status,
-    assignee: undefined
-  };
-};
+function canAdmin(roles: string[] | undefined): boolean {
+  return Boolean(roles?.includes("ADMIN") || roles?.includes("STAFF"));
+}
 
 export default function Admin() {
   const { user, isLoading: authLoading } = useAuth();
-  const [season, setSeason] = useState("Season 01");
-  const role = useMemo<AdminRole | null>(() => {
-    if (!user) return null;
-    if (user.roles.includes("ADMIN")) return "admin";
-    if (user.roles.includes("STAFF")) return "staff";
-    if (user.roles.includes("MODER")) return "moder";
-    return null;
-  }, [user]);
   const [loading, setLoading] = useState(true);
-  const [queueStats, setQueueStats] = useState(mockQueues);
-  const [disputeQueue, setDisputeQueue] = useState<WorkQueueItem[]>(disputeItems);
-  const [catalogVersion, setCatalogVersion] = useState<string | null>(null);
-  const [lastRefresh, setLastRefresh] = useState("Just now");
-  const [recentActions, setRecentActions] = useState<AdminActionLog[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [rulesets, setRulesets] = useState<Ruleset[]>([]);
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [rankBands, setRankBands] = useState<RankBand[]>([]);
+  const [queuesCount, setQueuesCount] = useState(0);
+  const [waitingCount, setWaitingCount] = useState(0);
+  const [openDisputes, setOpenDisputes] = useState(0);
+  const [sanctions, setSanctions] = useState<Sanction[]>([]);
+  const [auditRows, setAuditRows] = useState<AuditEvent[]>([]);
+  const [rankBandsJson, setRankBandsJson] = useState("");
+  const [newSanctionUserId, setNewSanctionUserId] = useState("");
+  const [newSanctionReason, setNewSanctionReason] = useState("");
+  const [newSanctionType, setNewSanctionType] = useState<Sanction["type"]>("WARNING");
 
-  const onAction = (action: string) => {
-    setRecentActions((prev) => [
-      {
-        id: `${Date.now()}-${prev.length}`,
-        action,
-        actor: role ?? "moder",
-        time: new Date().toLocaleTimeString()
-      },
-      ...prev
-    ].slice(0, 5));
-  };
+  const isAdmin = useMemo(() => canAdmin(user?.roles), [user?.roles]);
 
-  const queueSummary = useMemo(() => {
-    return queueStats
-      .map((queue) => `${queue.name}: ${queue.inQueue} (${queue.avgWait})`)
-      .join(" | ");
-  }, [queueStats]);
-
-  const flagList = [
-    { id: "AGENT_CATALOG", label: "Agent Catalog", enabled: appFlags.enableAgentCatalog },
-    { id: "ENKA_IMPORT", label: "Enka Import", enabled: appFlags.enableEnkaImport }
-  ];
-  const flagsEnabled = flagList.filter((flag) => flag.enabled).length;
-  const pendingReviews = reviewItems.length;
-  const openDisputes = disputeQueue.length;
-  const proofMissing = 4;
-  const enkaErrors = 3;
-  const openQueues = queueStats.filter((queue) => queue.status === "OPEN").length;
-  const catalogSummary = catalogVersion
-    ? `agents v${catalogVersion} | weapons local | discs local`
-    : "agents v? | weapons local | discs local";
-  const catalogValue = catalogVersion ? `v${catalogVersion}` : "local";
-
-  useEffect(() => {
-    if (!role) {
-      return;
-    }
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      const [queues, lobbies, disputes, catalog] = await Promise.all([
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [
+        rulesetsData,
+        seasonsData,
+        rankBandsData,
+        queues,
+        lobbies,
+        disputes,
+        sanctionsData,
+        auditData
+      ] = await Promise.all([
+        fetchAdminRulesets(),
+        fetchAdminSeasons(),
+        fetchRankBands(),
         fetchQueues(),
         fetchLobbyStats(),
         fetchDisputes(),
-        appFlags.enableAgentCatalog ? fetchAgentCatalog() : Promise.resolve(null)
+        fetchSanctions(50),
+        fetchAuditLogs({ limit: 50 })
       ]);
-
-      if (cancelled) return;
-
-      if (queues.length) {
-        const nextQueues = queues.map((queue) => {
-          const lobby = lobbies.find((item) => item.leagueId === queue.leagueId);
-          const waiting = lobby?.waiting ?? 0;
-          return {
-            name: queue.name,
-            status: "OPEN",
-            inQueue: waiting,
-            avgWait: queueWaitEstimate(waiting)
-          };
-        });
-        setQueueStats(nextQueues.length ? nextQueues : mockQueues);
-      }
-
-      if (disputes.length) {
-        setDisputeQueue(disputes.map(toDisputeItem));
-      }
-
-      setCatalogVersion(catalog?.catalogVersion ?? null);
-      setLastRefresh(new Date().toLocaleTimeString());
+      setRulesets(rulesetsData);
+      setSeasons(seasonsData);
+      setRankBands(rankBandsData);
+      setRankBandsJson(JSON.stringify(rankBandsData, null, 2));
+      setQueuesCount(queues.length);
+      setWaitingCount(lobbies.reduce((sum, item) => sum + item.waiting, 0));
+      setOpenDisputes(disputes.length);
+      setSanctions(sanctionsData);
+      setAuditRows(auditData);
+    } catch (loadError) {
+      const message = loadError instanceof Error ? loadError.message : "Failed to load admin data.";
+      setError(message);
+    } finally {
       setLoading(false);
-    };
+    }
+  };
 
-    load().catch(() => {
-      if (!cancelled) {
-        setLoading(false);
+  useEffect(() => {
+    if (authLoading || !user) {
+      return;
+    }
+    void load();
+  }, [authLoading, user?.id]);
+
+  const handleToggleRulesetVerifier = async (ruleset: Ruleset) => {
+    try {
+      const updated = await saveAdminRuleset(ruleset.id, {
+        requireVerifier: !ruleset.requireVerifier
+      });
+      setRulesets((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (saveError) {
+      const message =
+        saveError instanceof Error ? saveError.message : "Failed to update ruleset.";
+      setError(message);
+    }
+  };
+
+  const handleCycleSeasonStatus = async (season: Season) => {
+    try {
+      const updated = await saveAdminSeason(season.id, {
+        status: nextSeasonStatus(season.status)
+      });
+      setSeasons((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "Failed to update season.";
+      setError(message);
+    }
+  };
+
+  const handleSaveRankBands = async () => {
+    try {
+      const parsed = JSON.parse(rankBandsJson) as RankBand[];
+      const updated = await saveRankBands(parsed);
+      setRankBands(updated);
+      setRankBandsJson(JSON.stringify(updated, null, 2));
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "Failed to save rank bands.";
+      setError(message);
+    }
+  };
+
+  const handleCreateSanction = async () => {
+    try {
+      if (!newSanctionUserId.trim() || !newSanctionReason.trim()) {
+        setError("User ID and reason are required for a sanction.");
+        return;
       }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [role]);
+      const created = await createSanction({
+        userId: newSanctionUserId.trim(),
+        reason: newSanctionReason.trim(),
+        type: newSanctionType
+      });
+      setSanctions((prev) => [created, ...prev].slice(0, 50));
+      setNewSanctionReason("");
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "Failed to create sanction.";
+      setError(message);
+    }
+  };
 
   if (authLoading) {
     return <div className="card">Loading admin console...</div>;
   }
 
-  if (!role) {
-    return <div className="card">??? ??????? ? ?????-???????.</div>;
+  if (!user) {
+    return <div className="card">Sign in required.</div>;
+  }
+
+  if (!user.roles.some((role) => role === "ADMIN" || role === "STAFF" || role === "MODER")) {
+    return <div className="card">Access denied.</div>;
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1280px] space-y-6 px-6 pb-16 pt-8">
-      <AdminHeader
-        role={role}
-        season={season}
-        seasons={["Season 01", "Season 00"]}
-        systemStatus="Operational"
-        lastRefresh={lastRefresh}
-        onSeasonChange={setSeason}
-      />
-
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {loading ? (
-          Array.from({ length: 8 }).map((_, index) => (
-            <Skeleton key={index} className="h-24" />
-          ))
-        ) : (
-          <>
-            <OpsMetricCard
-              title="Live queues"
-              value={`${openQueues} OPEN`}
-              description={queueSummary}
-              icon={<Shield className="h-4 w-4" />}
-            />
-            <OpsMetricCard
-              title="Pending reviews"
-              value={`${pendingReviews}`}
-              warning={pendingReviews > 6}
-              description="Awaiting moderation"
-              icon={<AlertTriangle className="h-4 w-4" />}
-            />
-            <OpsMetricCard
-              title="Open disputes"
-              value={`${openDisputes}`}
-              warning={openDisputes > 4}
-              description="Active escalations"
-              icon={<Flag className="h-4 w-4" />}
-            />
-            <OpsMetricCard
-              title="Proof missing"
-              value={`${proofMissing}`}
-              warning={proofMissing > 3}
-              description="Uploads required"
-              icon={<AlertTriangle className="h-4 w-4" />}
-            />
-            <OpsMetricCard
-              title="Enka errors"
-              value={`${enkaErrors}`}
-              warning={enkaErrors > 0}
-              description="Top: invalid UID"
-              icon={<Cloud className="h-4 w-4" />}
-            />
-            <OpsMetricCard
-              title="Catalog versions"
-              value={catalogValue}
-              description={catalogSummary}
-              icon={<CheckCircle2 className="h-4 w-4" />}
-            />
-            <OpsMetricCard
-              title="Feature flags"
-              value={`${flagsEnabled} enabled`}
-              description="Runtime toggles"
-              icon={<RefreshCw className="h-4 w-4" />}
-            />
-            <OpsMetricCard
-              title="Proof pipeline"
-              value="Stable"
-              description="Moderation queue synced"
-              icon={<CheckCircle2 className="h-4 w-4" />}
-            />
-          </>
-        )}
+    <div className="mx-auto w-full max-w-[1320px] space-y-6 px-6 pb-16 pt-8">
+      <section className="section-header">
+        <h2>Admin Console</h2>
+        <p>Rulesets, seasons, sanctions, and audit logs for moderation workflow.</p>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Work queue</div>
-              <div className="text-lg font-semibold text-ink-900">Reviews & disputes</div>
-            </div>
+      {error ? <div className="card">{error}</div> : null}
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <Card className="p-4">
+          <div className="meta-label">Queues configured</div>
+          <div className="stat-value">{queuesCount}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="meta-label">Players waiting</div>
+          <div className="stat-value">{waitingCount}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="meta-label">Open disputes</div>
+          <div className="stat-value">{openDisputes}</div>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <Card className="p-4">
+          <div className="card-header">
+            <h3>Rulesets</h3>
+            <Badge>{rulesets.length}</Badge>
           </div>
-          <WorkQueueTabs
-            role={role}
-            reviews={reviewItems}
-            disputes={disputeQueue}
-            reports={reportItems}
-            imports={importItems}
+          <div className="space-y-3">
+            {rulesets.map((ruleset) => (
+              <div key={ruleset.id} className="rounded-lg border border-border bg-ika-900/40 p-3">
+                <div className="row">
+                  <div className="font-semibold text-ink-900">{ruleset.name}</div>
+                  <Badge>{ruleset.leagueId}</Badge>
+                </div>
+                <div className="text-xs text-ink-500">{ruleset.id}</div>
+                <div className="mt-3 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={ruleset.requireVerifier ? "default" : "outline"}
+                    onClick={() => handleToggleRulesetVerifier(ruleset)}
+                    disabled={!isAdmin || loading}
+                  >
+                    {ruleset.requireVerifier ? "Verifier required" : "Verifier optional"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <div className="card-header">
+            <h3>Seasons</h3>
+            <Badge>{seasons.length}</Badge>
+          </div>
+          <div className="space-y-3">
+            {seasons.map((season) => (
+              <div key={season.id} className="rounded-lg border border-border bg-ika-900/40 p-3">
+                <div className="row">
+                  <div className="font-semibold text-ink-900">{season.name}</div>
+                  <Badge>{season.status}</Badge>
+                </div>
+                <div className="text-xs text-ink-500">{season.id}</div>
+                <div className="mt-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCycleSeasonStatus(season)}
+                    disabled={!isAdmin || loading}
+                  >
+                    Cycle status
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <Card className="p-4">
+          <div className="card-header">
+            <h3>Rank Bands</h3>
+            <Badge>{rankBands.length}</Badge>
+          </div>
+          <textarea
+            className="h-72 w-full rounded-md border border-border bg-ika-900/50 p-3 text-xs text-ink-900"
+            value={rankBandsJson}
+            onChange={(event) => setRankBandsJson(event.target.value)}
+            spellCheck={false}
           />
-        </section>
+          <div className="mt-3">
+            <Button onClick={handleSaveRankBands} disabled={!isAdmin || loading}>
+              Save rank bands
+            </Button>
+          </div>
+        </Card>
 
-        <QuickActionsPanel
-          role={role}
-          featureFlags={flagList}
-          recentActions={recentActions}
-          onAction={onAction}
-        />
-      </div>
+        <Card className="p-4">
+          <div className="card-header">
+            <h3>Issue Sanction</h3>
+            <Badge>{sanctions.length} recent</Badge>
+          </div>
+          <div className="space-y-3">
+            <Input
+              value={newSanctionUserId}
+              onChange={(event) => setNewSanctionUserId(event.target.value)}
+              placeholder="Target user ID"
+            />
+            <Input
+              value={newSanctionReason}
+              onChange={(event) => setNewSanctionReason(event.target.value)}
+              placeholder="Reason"
+            />
+            <select
+              className="h-10 w-full rounded-md border border-border bg-ika-900/50 px-3 text-sm text-ink-900"
+              value={newSanctionType}
+              onChange={(event) => setNewSanctionType(event.target.value as Sanction["type"])}
+            >
+              <option value="WARNING">WARNING</option>
+              <option value="TIME_BAN">TIME_BAN</option>
+              <option value="SEASON_BAN">SEASON_BAN</option>
+              <option value="ELO_ROLLBACK">ELO_ROLLBACK</option>
+            </select>
+            <Button onClick={handleCreateSanction} disabled={loading}>
+              Create sanction
+            </Button>
+          </div>
+          <div className="mt-4 space-y-2">
+            {sanctions.slice(0, 6).map((sanction) => (
+              <div key={sanction.id} className="rounded-lg border border-border bg-ika-900/40 p-2 text-xs">
+                <div className="row">
+                  <span>{sanction.userId}</span>
+                  <Badge>{sanction.type}</Badge>
+                </div>
+                <div className="text-ink-500">{sanction.reason}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </section>
 
-      <ConfigModulesGrid role={role} modules={configModules} />
+      <section>
+        <Card className="p-4">
+          <div className="card-header">
+            <h3>Audit Log</h3>
+            <Button variant="outline" size="sm" onClick={() => void load()}>
+              Refresh
+            </Button>
+          </div>
+          <div className="mt-3 space-y-2">
+            {auditRows.slice(0, 20).map((event) => (
+              <div key={event.id} className="rounded-lg border border-border bg-ika-900/40 p-3 text-xs">
+                <div className="row">
+                  <span className="font-semibold text-ink-900">{event.action}</span>
+                  <Badge>{event.entityType}</Badge>
+                </div>
+                <div className="text-ink-500">
+                  {event.actorUserId ?? "system"} · {new Date(event.createdAt).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </section>
     </div>
   );
 }

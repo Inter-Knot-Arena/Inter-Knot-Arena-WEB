@@ -6,6 +6,12 @@ import { TooltipProvider } from "../components/ui/tooltip";
 import { HomeHeader, type UserState } from "../components/home/HomeHeader";
 import { LeaderboardPreviewTable, type LeaderboardRow } from "../components/home/LeaderboardPreviewTable";
 import { UpdatesFeed, type UpdateItem } from "../components/home/UpdatesFeed";
+import {
+  fetchAnalyticsSeasonReport,
+  fetchLeaderboard,
+  fetchLeagues,
+  fetchUsers
+} from "../api";
 
 const seasonInfo = {
   name: "Season 01",
@@ -13,7 +19,7 @@ const seasonInfo = {
   valueProp: "Queues, drafts, and proofs aligned for ranked play."
 };
 
-const leaderboardRows: LeaderboardRow[] = [
+const fallbackLeaderboardRows: LeaderboardRow[] = [
   { rank: 1, player: "Ellen", elo: 1982, record: "42-18", region: "NA", league: "Standard" },
   { rank: 2, player: "Lycaon", elo: 1910, record: "39-20", region: "EU", league: "Standard" },
   { rank: 3, player: "Nicole", elo: 1884, record: "36-22", region: "SEA", league: "Standard" },
@@ -26,7 +32,7 @@ const leaderboardRows: LeaderboardRow[] = [
   { rank: 2, player: "Ben", elo: 1658, record: "10-7", region: "EU", league: "Unlimited" }
 ];
 
-const updates: UpdateItem[] = [
+const fallbackUpdates: UpdateItem[] = [
   {
     id: "u1",
     title: "Moderation flow upgrade",
@@ -162,6 +168,91 @@ export default function Home() {
 
   const [selectedLeague, setSelectedLeague] = useState("standard");
   const showElo = userState !== "guest";
+  const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>(fallbackLeaderboardRows);
+  const [updates, setUpdates] = useState<UpdateItem[]>(fallbackUpdates);
+
+  useEffect(() => {
+    let active = true;
+
+    const load = async () => {
+      try {
+        const [leagues, users, seasonReport] = await Promise.all([
+          fetchLeagues(),
+          fetchUsers(),
+          fetchAnalyticsSeasonReport()
+        ]);
+
+        const userMap = new Map(users.map((item) => [item.id, item]));
+        const selectedLeagues = leagues.slice(0, 3);
+        const perLeague = await Promise.all(
+          selectedLeagues.map(async (league) => ({
+            league,
+            ratings: await fetchLeaderboard(league.id)
+          }))
+        );
+
+        const rows: LeaderboardRow[] = [];
+        perLeague.forEach(({ league, ratings }) => {
+          const leagueLabel: "F2P" | "Standard" | "Unlimited" =
+            league.type === "F2P"
+              ? "F2P"
+              : league.type === "UNLIMITED"
+                ? "Unlimited"
+                : "Standard";
+          ratings.slice(0, 5).forEach((rating, index) => {
+            const profile = userMap.get(rating.userId);
+            rows.push({
+              rank: index + 1,
+              player: profile?.displayName ?? rating.userId,
+              elo: rating.elo,
+              record: `${rating.provisionalMatches}-${Math.max(0, rating.provisionalMatches - 1)}`,
+              region: profile?.region ?? "OTHER",
+              league: leagueLabel
+            });
+          });
+        });
+
+        if (active && rows.length > 0) {
+          setLeaderboardRows(rows);
+        }
+        if (active) {
+          setUpdates([
+            {
+              id: "season_report",
+              title: `Season ${seasonReport.seasonId}`,
+              summary: `Resolved matches: ${seasonReport.totalMatches}. Moderation resolves: ${seasonReport.resolvedWithModeration}.`,
+              type: "season",
+              date: "Live"
+            },
+            {
+              id: "disputes_open",
+              title: "Open dispute load",
+              summary: `${seasonReport.disputedOpen} active disputes in queue.`,
+              type: "moderation",
+              date: "Live"
+            },
+            {
+              id: "ruleset_status",
+              title: "Ruleset status",
+              summary: "Ranked queues enforce verified roster eligibility in draft.",
+              type: "ruleset",
+              date: "Live"
+            }
+          ]);
+        }
+      } catch {
+        if (active) {
+          setLeaderboardRows(fallbackLeaderboardRows);
+          setUpdates(fallbackUpdates);
+        }
+      }
+    };
+
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   if (isLoading) {
     return <HomeSkeleton />;

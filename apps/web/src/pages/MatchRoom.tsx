@@ -10,7 +10,8 @@ import {
   submitDraftAction,
   submitInrun,
   submitPrecheck,
-  submitResult
+  submitResult,
+  uploadEvidenceFile
 } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 
@@ -63,11 +64,15 @@ export default function MatchRoom() {
   const [resultType, setResultType] = useState<"TIME_MS" | "SCORE" | "RANK_TIER">("TIME_MS");
   const [resultValue, setResultValue] = useState<string>("");
   const [proofUrl, setProofUrl] = useState<string>("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
   const [disputeReason, setDisputeReason] = useState<string>("");
 
   useEffect(() => {
     if (id) {
-      fetchMatch(id).then(setMatch);
+      fetchMatch(id)
+        .then(setMatch)
+        .catch(() => setError("Failed to load match."));
       fetchAgents().then(setAgents);
     }
   }, [id]);
@@ -138,14 +143,30 @@ export default function MatchRoom() {
   const handleResultSubmit = async () => {
     try {
       setError(null);
+      if (!proofUrl.trim()) {
+        if (!proofFile) {
+          setError("Proof URL or proof file is required.");
+          return;
+        }
+        setUploadingProof(true);
+        const uploaded = await uploadEvidenceFile(proofFile, `match-result-${match.id}`);
+        setProofUrl(uploaded.url);
+      }
+      if (!resultValue.trim()) {
+        setError("Result value is required.");
+        return;
+      }
       const updated = await submitResult(match.id, {
         metricType: resultType,
-        value: resultValue || "0",
-        proofUrl: proofUrl || "proof://placeholder"
+        value: resultValue,
+        proofUrl: proofUrl
       });
       setMatch(updated);
+      setProofFile(null);
     } catch {
       setError("Result submission failed.");
+    } finally {
+      setUploadingProof(false);
     }
   };
 
@@ -331,9 +352,17 @@ export default function MatchRoom() {
             Proof URL
             <input value={proofUrl} onChange={(event) => setProofUrl(event.target.value)} placeholder="proof://..." />
           </label>
+          <label>
+            Upload proof file
+            <input
+              type="file"
+              accept="image/*,video/*"
+              onChange={(event) => setProofFile(event.target.files?.[0] ?? null)}
+            />
+          </label>
           <div className="card-actions">
-            <button className="primary-button" onClick={handleResultSubmit}>
-              Submit result
+            <button className="primary-button" onClick={handleResultSubmit} disabled={uploadingProof}>
+              {uploadingProof ? "Uploading..." : "Submit result"}
             </button>
             {match.state === "AWAITING_CONFIRMATION" ? (
               <button className="ghost-button" onClick={handleConfirm}>

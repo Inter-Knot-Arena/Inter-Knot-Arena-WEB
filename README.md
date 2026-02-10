@@ -96,6 +96,31 @@ Endpoints (feature-flagged):
 - `POST /players/:uid/import/enka` with `{ region, force? }`
 - `POST /admin/catalog/reload` (dev-only, admin role or AUTH_DISABLED)
 
+## Moderation and admin APIs
+
+Core moderation/admin endpoints:
+
+- `GET /disputes/queue`
+- `POST /disputes/{id}/decision`
+- `GET /admin/rulesets`
+- `PUT /admin/rulesets/{id}`
+- `GET /admin/seasons`
+- `PUT /admin/seasons/{id}`
+- `GET /admin/rank-bands`
+- `PUT /admin/rank-bands`
+- `GET /admin/sanctions`
+- `POST /admin/sanctions`
+- `GET /admin/audit`
+
+Additional operations:
+
+- Match lifecycle timeouts run automatically on the API (check-in, draft, precheck, confirmation windows).
+- Idempotency is supported for critical POST routes via `Idempotency-Key` request header.
+- Analytics endpoints:
+  - `GET /analytics/pick-ban`
+  - `GET /analytics/agent-combos`
+  - `GET /analytics/season/report`
+
 ## Postgres
 
 The API uses the in-memory repository by default. To use Postgres, set `DATABASE_URL` and run migrations + seed data.

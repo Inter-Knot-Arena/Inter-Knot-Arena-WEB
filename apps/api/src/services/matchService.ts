@@ -333,10 +333,19 @@ export async function forceResolveMatch(
 ): Promise<Match> {
   const match = await repo.findMatch(matchId);
   if (match.state !== "RESOLVED") {
-    if (!canTransition(match.state, "RESOLVED")) {
-      throw new Error(`Cannot force-resolve from state ${match.state}`);
+    if (canTransition(match.state, "RESOLVED")) {
+      transitionMatch(match, "RESOLVED");
+    } else if (
+      canTransition(match.state, "DISPUTED") &&
+      canTransition("DISPUTED", "RESOLVED")
+    ) {
+      transitionMatch(match, "DISPUTED");
+      transitionMatch(match, "RESOLVED");
+    } else {
+      // System resolution may bypass non-terminal intermediate states on hard timeouts.
+      match.state = "RESOLVED";
+      match.updatedAt = now();
     }
-    transitionMatch(match, "RESOLVED");
   }
   await finalizeMatchResolution(repo, match, "MODERATION", winnerUserId, overrides);
   return match;

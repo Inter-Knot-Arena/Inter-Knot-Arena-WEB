@@ -6,9 +6,12 @@ export default function Disputes() {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [decisions, setDecisions] = useState<Record<string, string>>({});
   const [winners, setWinners] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
 
   const load = () => {
-    fetchDisputes().then(setDisputes);
+    fetchDisputes()
+      .then(setDisputes)
+      .catch(() => setError("Failed to load disputes."));
   };
 
   useEffect(() => {
@@ -21,8 +24,12 @@ export default function Disputes() {
       return;
     }
     const winnerUserId = winners[disputeId]?.trim() || undefined;
-    await resolveDispute(disputeId, decision, winnerUserId);
-    load();
+    try {
+      await resolveDispute(disputeId, decision, winnerUserId);
+      load();
+    } catch {
+      setError("Failed to resolve dispute.");
+    }
   };
 
   return (
@@ -31,6 +38,8 @@ export default function Disputes() {
         <h2>Moderation Queue</h2>
         <p>Review demos/proofs and issue decisions.</p>
       </section>
+
+      {error ? <div className="card">{error}</div> : null}
 
       <div className="grid">
         {disputes.length === 0 ? (

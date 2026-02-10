@@ -50,7 +50,7 @@ export default function Agents() {
     fetchPlayerRoster({ uid, region })
       .then((data) => setRoster(data))
       .catch(() => {
-        setError("Не удалось загрузить список агентов.");
+        setError("Failed to load your agent roster.");
         setRoster(null);
       })
       .finally(() => setLoading(false));
@@ -108,9 +108,9 @@ export default function Agents() {
       await importRosterFromEnka({ uid, region });
       const updated = await fetchPlayerRoster({ uid, region });
       setRoster(updated);
-    } catch (error) {
+    } catch (importError) {
       const message =
-        error instanceof Error ? error.message : "Импорт не удался. Проверь ENKA_BASE_URL.";
+        importError instanceof Error ? importError.message : "Import failed. Check ENKA settings.";
       setError(message);
     } finally {
       setImporting(false);
@@ -127,9 +127,8 @@ export default function Agents() {
       await upsertManualRosterAgents({ uid, region, agentIds: [agentId] });
       const updated = await fetchPlayerRoster({ uid, region });
       setRoster(updated);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Не удалось сохранить агента.";
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "Failed to save agent.";
       setError(message);
     } finally {
       setAddingAgentId(null);
@@ -156,12 +155,12 @@ export default function Agents() {
     return (
       <div className="mx-auto w-full max-w-[1100px] px-6 pb-16 pt-8">
         <div className="rounded-xl border border-border bg-ika-800/70 p-6">
-          <div className="text-lg font-semibold text-ink-900">Мои агенты</div>
+          <div className="text-lg font-semibold text-ink-900">My Agents</div>
           <p className="mt-2 text-sm text-ink-500">
-            Войдите в аккаунт, чтобы управлять своим ростером.
+            Sign in to manage your roster and import data from showcase.
           </p>
           <Button className="mt-4" asChild>
-            <a href="/signin">Войти</a>
+            <a href="/signin">Sign in</a>
           </Button>
         </div>
       </div>
@@ -172,12 +171,12 @@ export default function Agents() {
     return (
       <div className="mx-auto w-full max-w-[1100px] px-6 pb-16 pt-8">
         <div className="rounded-xl border border-border bg-ika-800/70 p-6">
-          <div className="text-lg font-semibold text-ink-900">Мои агенты</div>
+          <div className="text-lg font-semibold text-ink-900">My Agents</div>
           <p className="mt-2 text-sm text-ink-500">
-            Чтобы хранить список агентов, сначала привяжи UID.
+            Verify your UID first, then you can sync and manage your roster.
           </p>
           <Button className="mt-4" asChild>
-            <a href="/uid-verify">Верифицировать UID</a>
+            <a href="/uid-verify">Verify UID</a>
           </Button>
         </div>
       </div>
@@ -189,7 +188,7 @@ export default function Agents() {
       <div className="mx-auto w-full max-w-[1400px] px-6 pb-16 pt-8">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Мои агенты</div>
+            <div className="text-xs uppercase tracking-[0.2em] text-ink-500">My Agents</div>
             <h1 className="text-2xl font-display text-ink-900">UID {uid}</h1>
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge className="border border-border bg-ika-700/60 text-ink-700">
@@ -234,13 +233,11 @@ export default function Agents() {
         <div className="mt-6 rounded-xl border border-border bg-ika-800/70 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-ink-900">Твой текущий ростер</div>
-              <div className="text-xs text-ink-500">
-                Агентов в коллекции: {totalAgentsSaved ?? 0}
-              </div>
+              <div className="text-sm font-semibold text-ink-900">Current roster</div>
+              <div className="text-xs text-ink-500">Owned agents: {totalAgentsSaved ?? 0}</div>
             </div>
             <Input
-              placeholder="Поиск по имени"
+              placeholder="Search by name"
               value={searchOwned}
               onChange={(event) => setSearchOwned(event.target.value)}
               className="w-full md:w-72"
@@ -259,7 +256,7 @@ export default function Agents() {
             <RosterGrid items={ownedAgents} />
           ) : (
             <div className="rounded-xl border border-border bg-ika-800/70 p-6 text-sm text-ink-500">
-              Пока нет добавленных агентов. Импортируй из Showcase или добавь вручную.
+              No agents in roster yet. Import from showcase or add agents manually.
             </div>
           )}
         </div>
@@ -267,13 +264,13 @@ export default function Agents() {
         <div className="mt-8 rounded-xl border border-border bg-ika-800/70 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold text-ink-900">Добавить агента вручную</div>
+              <div className="text-sm font-semibold text-ink-900">Add agent manually</div>
               <div className="text-xs text-ink-500">
-                Выбирай из отсутствующих агентов и добавляй в ростер.
+                Pick from missing agents and add them into your roster list.
               </div>
             </div>
             <Input
-              placeholder="Найти агента"
+              placeholder="Find agent"
               value={searchAdd}
               onChange={(event) => setSearchAdd(event.target.value)}
               className="w-full md:w-72"
@@ -300,16 +297,14 @@ export default function Agents() {
                   onClick={() => handleAddAgent(item.agent.agentId)}
                   disabled={addingAgentId === item.agent.agentId}
                 >
-                  {addingAgentId === item.agent.agentId ? "Добавление..." : "Добавить"}
+                  {addingAgentId === item.agent.agentId ? "Adding..." : "Add"}
                 </Button>
               </div>
             ))}
           </div>
 
           {!loading && missingAgents.length === 0 ? (
-            <div className="mt-4 text-xs text-ink-500">
-              Все агенты уже добавлены.
-            </div>
+            <div className="mt-4 text-xs text-ink-500">All agents are already in your roster.</div>
           ) : null}
         </div>
       </div>
