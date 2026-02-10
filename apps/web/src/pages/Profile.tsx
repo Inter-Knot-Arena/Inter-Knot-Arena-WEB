@@ -518,7 +518,7 @@ export default function Profile() {
                     <div className="text-lg font-semibold text-ink-900">ELO across queues</div>
                   </div>
                 </div>
-                <div className="mx-auto w-full max-w-[1160px]">
+                <div className="w-full">
                   <div className="grid gap-4 lg:grid-cols-3">
                     {leagueCards.map((card) => (
                       <LeagueCard key={card.name} data={card} />
@@ -527,11 +527,11 @@ export default function Profile() {
                 </div>
               </div>
 
-              <div className="col-span-12 mx-auto w-full max-w-[1160px]">
+              <div className="col-span-12 w-full">
                 <SeasonPerformance standard={standardMeta} f2p={f2pMeta} />
               </div>
 
-              <div className="col-span-12 mx-auto grid w-full max-w-[1160px] gap-6 xl:grid-cols-12">
+              <div className="col-span-12 grid w-full gap-6 xl:grid-cols-12">
                 <div className="xl:col-span-7">
                   <TopAgents agents={topAgents} />
                 </div>
@@ -540,7 +540,7 @@ export default function Profile() {
                 </div>
               </div>
 
-              <div className="col-span-12 mx-auto w-full max-w-[1160px]">
+              <div className="col-span-12 w-full">
                 <RecentMatches matches={recentMatches} onViewAll={() => setTab("matches")} />
               </div>
             </div>
