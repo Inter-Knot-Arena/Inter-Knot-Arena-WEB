@@ -512,31 +512,35 @@ export default function Profile() {
           <TabsContent value="overview">
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12">
-                <div className="mb-4 text-center">
-                  <div className="mx-auto max-w-xl">
+                <div className="mb-4">
+                  <div>
                     <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Rating and leagues</div>
                     <div className="text-lg font-semibold text-ink-900">ELO across queues</div>
                   </div>
                 </div>
-                <div className="grid gap-4 lg:grid-cols-3">
-                  {leagueCards.map((card) => (
-                    <LeagueCard key={card.name} data={card} />
-                  ))}
+                <div className="mx-auto w-full max-w-[1160px]">
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    {leagueCards.map((card) => (
+                      <LeagueCard key={card.name} data={card} />
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              <div className="col-span-12">
+              <div className="col-span-12 mx-auto w-full max-w-[1160px]">
                 <SeasonPerformance standard={standardMeta} f2p={f2pMeta} />
               </div>
 
-              <div className="col-span-12 xl:col-span-7">
-                <TopAgents agents={topAgents} />
-              </div>
-              <div className="col-span-12 xl:col-span-5">
-                <DraftImpact yourBans={[]} bansAgainst={[]} pickSuccess="-" winrateDelta="-" />
+              <div className="col-span-12 mx-auto grid w-full max-w-[1160px] gap-6 xl:grid-cols-12">
+                <div className="xl:col-span-7">
+                  <TopAgents agents={topAgents} />
+                </div>
+                <div className="xl:col-span-5">
+                  <DraftImpact yourBans={[]} bansAgainst={[]} pickSuccess="-" winrateDelta="-" />
+                </div>
               </div>
 
-              <div className="col-span-12">
+              <div className="col-span-12 mx-auto w-full max-w-[1160px]">
                 <RecentMatches matches={recentMatches} onViewAll={() => setTab("matches")} />
               </div>
             </div>
