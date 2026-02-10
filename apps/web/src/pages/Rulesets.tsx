@@ -36,7 +36,7 @@ export default function Rulesets() {
             <p>{ruleset.description}</p>
             <div className="chip-row">
               <span className={ruleset.requireVerifier ? "badge" : "badge-outline"}>
-                {ruleset.requireVerifier ? "Verifier" : "No verifier"}
+                {ruleset.requireVerifier ? "Strict proof" : "Open proof"}
               </span>
               <span className={ruleset.requireInrunCheck ? "badge" : "badge-outline"}>
                 {ruleset.requireInrunCheck ? "In-run" : "No in-run"}

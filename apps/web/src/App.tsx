@@ -46,7 +46,16 @@ export default function App() {
         {featureFlags.enableAgentCatalog ? (
           <Route path="/players/:uid/roster" element={<PlayerRoster />} />
         ) : null}
-        <Route path="/disputes" element={<Disputes />} />
+        <Route
+          path="/disputes"
+          element={
+            <RequireAuth>
+              <RequireRole roles={["ADMIN", "STAFF", "MODER"]}>
+                <Disputes />
+              </RequireRole>
+            </RequireAuth>
+          }
+        />
         <Route
           path="/admin"
           element={

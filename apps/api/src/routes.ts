@@ -1,5 +1,5 @@
-import type { FastifyInstance } from "fastify";
-import type { DraftActionType, EvidenceRecord, EvidenceResult } from "@ika/shared";
+﻿import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { DraftActionType, EvidenceRecord, EvidenceResult, ResultProof, User } from "@ika/shared";
 import type { Repository } from "./repository/types.js";
 import type { StorageClient } from "./storage/types.js";
 import {
@@ -20,16 +20,54 @@ import {
   searchMatch
 } from "./services/matchmakingService.js";
 import { createId, now, requireArray, requireString } from "./utils.js";
+import { getAuthUser, type AuthContext } from "./auth/context.js";
+
+class HttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string
+  ) {
+    super(message);
+  }
+}
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
+  if (error instanceof HttpError) {
+    reply.code(error.status).send({ error: error.message });
+    return;
+  }
   const message = error instanceof Error ? error.message : "Unknown error";
   reply.code(400).send({ error: message });
+}
+
+function isModerator(user: User): boolean {
+  return user.roles.includes("MODER") || user.roles.includes("STAFF") || user.roles.includes("ADMIN");
+}
+
+function assertParticipant(user: User, match: { players: Array<{ userId: string }> }): void {
+  const isParticipant = match.players.some((player) => player.userId === user.id);
+  if (!isParticipant && !isModerator(user)) {
+    throw new HttpError(403, "Forbidden");
+  }
+}
+
+async function requireAuthUser(
+  request: FastifyRequest,
+  repo: Repository,
+  auth: AuthContext
+): Promise<User> {
+  const user = await getAuthUser(request, repo, auth);
+  if (!user) {
+    throw new HttpError(401, "Unauthorized");
+  }
+  return user;
 }
 
 export async function registerRoutes(
   app: FastifyInstance,
   repo: Repository,
-  storage: StorageClient
+  storage: StorageClient,
+  auth: AuthContext
 ) {
   app.get("/health", async () => ({ status: "ok" }));
 
@@ -43,6 +81,7 @@ export async function registerRoutes(
 
   app.post("/uploads/presign", async (request, reply) => {
     try {
+      await requireAuthUser(request, repo, auth);
       const body = request.body as {
         purpose?: string;
         contentType?: string;
@@ -77,10 +116,10 @@ export async function registerRoutes(
 
   app.post("/matchmaking/join", async (request, reply) => {
     try {
-      const body = request.body as { userId?: string; queueId?: string };
-      const userId = requireString(body?.userId, "userId");
+      const user = await requireAuthUser(request, repo, auth);
+      const body = request.body as { queueId?: string };
       const queueId = requireString(body?.queueId, "queueId");
-      const match = await createMatchFromQueue(repo, queueId, userId);
+      const match = await createMatchFromQueue(repo, queueId, user.id);
       reply.send(match);
     } catch (error) {
       sendError(reply, error);
@@ -89,10 +128,10 @@ export async function registerRoutes(
 
   app.post("/matchmaking/search", async (request, reply) => {
     try {
-      const body = request.body as { userId?: string; queueId?: string };
-      const userId = requireString(body?.userId, "userId");
+      const user = await requireAuthUser(request, repo, auth);
+      const body = request.body as { queueId?: string };
       const queueId = requireString(body?.queueId, "queueId");
-      const result = await searchMatch(repo, queueId, userId);
+      const result = await searchMatch(repo, queueId, user.id);
       reply.send(result);
     } catch (error) {
       sendError(reply, error);
@@ -101,10 +140,15 @@ export async function registerRoutes(
 
   app.get("/matchmaking/status/:ticketId", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const ticketId = requireString(
         (request.params as { ticketId?: string }).ticketId,
         "ticketId"
       );
+      const ticket = await repo.findMatchmakingEntry(ticketId);
+      if (ticket.userId !== user.id && !isModerator(user)) {
+        throw new HttpError(403, "Forbidden");
+      }
       const result = await getMatchmakingStatus(repo, ticketId);
       reply.send(result);
     } catch (error) {
@@ -114,8 +158,13 @@ export async function registerRoutes(
 
   app.post("/matchmaking/cancel", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const body = request.body as { ticketId?: string };
       const ticketId = requireString(body?.ticketId, "ticketId");
+      const ticket = await repo.findMatchmakingEntry(ticketId);
+      if (ticket.userId !== user.id && !isModerator(user)) {
+        throw new HttpError(403, "Forbidden");
+      }
       const result = await cancelMatchmaking(repo, ticketId);
       reply.send(result);
     } catch (error) {
@@ -125,8 +174,11 @@ export async function registerRoutes(
 
   app.get("/matches/:id", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
-      reply.send(await repo.findMatch(matchId));
+      const match = await repo.findMatch(matchId);
+      assertParticipant(user, match);
+      reply.send(match);
     } catch (error) {
       sendError(reply, error);
     }
@@ -134,11 +186,11 @@ export async function registerRoutes(
 
   app.post("/matches/:id/checkin", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
-      const body = request.body as { userId?: string };
-      const userId = requireString(body?.userId, "userId");
-      const match = await markCheckin(repo, matchId, userId);
-      reply.send(match);
+      const match = await repo.findMatch(matchId);
+      assertParticipant(user, match);
+      reply.send(await markCheckin(repo, matchId, user.id));
     } catch (error) {
       sendError(reply, error);
     }
@@ -146,34 +198,18 @@ export async function registerRoutes(
 
   app.post("/matches/:id/draft/action", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
+      const match = await repo.findMatch(matchId);
+      assertParticipant(user, match);
       const body = request.body as {
-        userId?: string;
         type?: DraftActionType;
         agentId?: string;
       };
-      const userId = requireString(body?.userId, "userId");
       const type = requireString(body?.type, "type") as DraftActionType;
       const agentId = requireString(body?.agentId, "agentId");
-      const match = await applyDraftAction(repo, matchId, { type, agentId, userId, timestamp: now() });
-      reply.send(match);
-    } catch (error) {
-      sendError(reply, error);
-    }
-  });
-
-  app.post("/matches/:id/verifier/session", async (request, reply) => {
-    try {
-      const matchId = requireString((request.params as { id?: string }).id, "matchId");
-      const match = await repo.findMatch(matchId);
-      const ruleset = await repo.findRuleset(match.rulesetId);
-      reply.send({
-        sessionToken: createId("vsess"),
-        nonce: createId("nonce"),
-        privacyMode: ruleset.privacyMode,
-        inrunFrequencySec: ruleset.inrunFrequencySec,
-        requireInrunCheck: ruleset.requireInrunCheck
-      });
+      const updated = await applyDraftAction(repo, matchId, { type, agentId, userId: user.id, timestamp: now() });
+      reply.send(updated);
     } catch (error) {
       sendError(reply, error);
     }
@@ -181,9 +217,11 @@ export async function registerRoutes(
 
   app.post("/matches/:id/evidence/precheck", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
+      const match = await repo.findMatch(matchId);
+      assertParticipant(user, match);
       const body = request.body as {
-        userId?: string;
         detectedAgents?: string[];
         confidence?: Record<string, number>;
         result?: EvidenceResult;
@@ -194,15 +232,15 @@ export async function registerRoutes(
         id: createId("ev"),
         type: "PRECHECK",
         timestamp: now(),
-        userId: body?.userId,
+        userId: user.id,
         detectedAgents: requireArray<string>(body?.detectedAgents, "detectedAgents"),
         confidence: body?.confidence ?? {},
         result: (body?.result ?? "LOW_CONF") as EvidenceResult,
         frameHash: body?.frameHash,
         cropUrl: body?.cropUrl
       };
-      const match = await recordPrecheck(repo, matchId, record);
-      reply.send(match);
+      const updated = await recordPrecheck(repo, matchId, record);
+      reply.send(updated);
     } catch (error) {
       sendError(reply, error);
     }
@@ -210,9 +248,11 @@ export async function registerRoutes(
 
   app.post("/matches/:id/evidence/inrun", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
+      const match = await repo.findMatch(matchId);
+      assertParticipant(user, match);
       const body = request.body as {
-        userId?: string;
         detectedAgents?: string[];
         confidence?: Record<string, number>;
         result?: EvidenceResult;
@@ -223,15 +263,15 @@ export async function registerRoutes(
         id: createId("ev"),
         type: "INRUN",
         timestamp: now(),
-        userId: body?.userId,
+        userId: user.id,
         detectedAgents: requireArray<string>(body?.detectedAgents, "detectedAgents"),
         confidence: body?.confidence ?? {},
         result: (body?.result ?? "LOW_CONF") as EvidenceResult,
         frameHash: body?.frameHash,
         cropUrl: body?.cropUrl
       };
-      const match = await recordInrun(repo, matchId, record);
-      reply.send(match);
+      const updated = await recordInrun(repo, matchId, record);
+      reply.send(updated);
     } catch (error) {
       sendError(reply, error);
     }
@@ -239,19 +279,40 @@ export async function registerRoutes(
 
   app.post("/matches/:id/result/submit", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
+      const match = await repo.findMatch(matchId);
+      assertParticipant(user, match);
       const body = request.body as {
         metricType?: string;
         value?: number | string;
         proofUrl?: string;
+        demoUrl?: string;
+        notes?: string;
       };
-      const match = await recordResult(repo, matchId, {
-        metricType: requireString(body?.metricType, "metricType") as "TIME_MS" | "SCORE" | "RANK_TIER",
-        value: body?.value ?? 0,
-        proofUrl: requireString(body?.proofUrl, "proofUrl"),
-        submittedAt: now()
-      });
-      reply.send(match);
+      const metricType = requireString(body?.metricType, "metricType") as "TIME_MS" | "SCORE" | "RANK_TIER";
+      const value = body?.value ?? 0;
+      const proofUrl = requireString(body?.proofUrl, "proofUrl");
+      const submittedAt = now();
+      const payload: ResultProof = {
+        metricType,
+        submittedAt,
+        userId: user.id,
+        value,
+        proofUrl,
+        entries: [
+          {
+            userId: user.id,
+            value,
+            proofUrl,
+            demoUrl: body?.demoUrl,
+            submittedAt
+          }
+        ],
+        notes: body?.notes
+      };
+      const updated = await recordResult(repo, matchId, payload);
+      reply.send(updated);
     } catch (error) {
       sendError(reply, error);
     }
@@ -259,10 +320,12 @@ export async function registerRoutes(
 
   app.post("/matches/:id/confirm", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
-      const body = request.body as { userId?: string };
-      const match = await confirmMatch(repo, matchId, requireString(body?.userId, "userId"));
-      reply.send(match);
+      const match = await repo.findMatch(matchId);
+      assertParticipant(user, match);
+      const updated = await confirmMatch(repo, matchId, user.id);
+      reply.send(updated);
     } catch (error) {
       sendError(reply, error);
     }
@@ -270,32 +333,46 @@ export async function registerRoutes(
 
   app.post("/matches/:id/dispute/open", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
-      const body = request.body as { userId?: string; reason?: string };
-      const dispute = await openDispute(
-        repo,
-        matchId,
-        requireString(body?.userId, "userId"),
-        requireString(body?.reason, "reason")
-      );
+      const match = await repo.findMatch(matchId);
+      assertParticipant(user, match);
+      const body = request.body as { reason?: string; evidenceUrls?: string[] };
+      const reason = requireString(body?.reason, "reason");
+      const evidenceUrls = body?.evidenceUrls?.filter((item) => typeof item === "string");
+      const dispute = await openDispute(repo, matchId, user.id, reason, evidenceUrls);
       reply.send(dispute);
     } catch (error) {
       sendError(reply, error);
     }
   });
 
-  app.get("/disputes/queue", async () => {
-    return repo.listOpenDisputes();
+  app.get("/disputes/queue", async (request, reply) => {
+    try {
+      const user = await requireAuthUser(request, repo, auth);
+      if (!isModerator(user)) {
+        throw new HttpError(403, "Forbidden");
+      }
+      reply.send(await repo.listOpenDisputes());
+    } catch (error) {
+      sendError(reply, error);
+    }
   });
 
   app.post("/disputes/:id/decision", async (request, reply) => {
     try {
+      const user = await requireAuthUser(request, repo, auth);
+      if (!isModerator(user)) {
+        throw new HttpError(403, "Forbidden");
+      }
       const disputeId = requireString((request.params as { id?: string }).id, "disputeId");
-      const body = request.body as { decision?: string };
+      const body = request.body as { decision?: string; winnerUserId?: string };
       const dispute = await resolveDispute(
         repo,
         disputeId,
-        requireString(body?.decision, "decision")
+        requireString(body?.decision, "decision"),
+        user.id,
+        body?.winnerUserId
       );
       reply.send(dispute);
     } catch (error) {

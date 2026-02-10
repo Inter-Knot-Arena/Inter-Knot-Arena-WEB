@@ -109,7 +109,7 @@ export default function Settings() {
       return { level: 5, label: "Ranked access" };
     }
     if (level < 10) {
-      return { level: 10, label: "Judge eligibility" };
+      return { level: 10, label: "Moderator eligibility" };
     }
     if (level < 20) {
       return { level: 20, label: "Advanced queues" };
@@ -348,7 +348,7 @@ export default function Settings() {
                       <Info className="h-4 w-4" />
                     </button>
                   </TooltipTrigger>
-                  <TooltipContent>Trust reflects completed matches, disputes, and verifier compliance.</TooltipContent>
+                  <TooltipContent>Trust reflects completed matches, disputes, and proof compliance.</TooltipContent>
                 </Tooltip>
               </div>
               <div className="mt-2 flex items-center gap-2 text-2xl font-semibold text-ink-900">
@@ -357,7 +357,7 @@ export default function Settings() {
               </div>
               <ul className="mt-3 space-y-1 text-xs text-ink-500">
                 <li>+ Completed matches without disputes</li>
-                <li>+ UID verification and verifier compliance</li>
+                <li>+ UID verification and proof compliance</li>
                 <li>- No-shows or repeated disputes</li>
               </ul>
             </div>
@@ -380,7 +380,7 @@ export default function Settings() {
                 Next unlock at level {nextUnlock.level}: {nextUnlock.label}.
               </div>
               <div className="mt-1 text-xs text-ink-500">
-                Earn XP by: completing matches, verifying UID, judging disputes.
+                Earn XP by: completing matches, verifying UID, moderating disputes.
               </div>
             </div>
 
@@ -451,7 +451,7 @@ export default function Settings() {
               />
               <ToggleRow
                 label="Show match history publicly"
-                description="Ranked history remains visible to judges and disputes."
+                description="Ranked history remains visible to moderators and dispute participants."
                 checked={showMatchHistoryPublicly}
                 onChange={setShowMatchHistoryPublicly}
               />

@@ -14,7 +14,7 @@ export interface EvidenceItem {
 }
 
 interface EvidencePanelProps {
-  verifierRequired: string[];
+  strictProofRequired: string[];
   lastPrecheck: string;
   lastPrecheckStatus?: "PASS" | "FAIL" | "NONE";
   inrunViolations: number;
@@ -23,7 +23,7 @@ interface EvidencePanelProps {
 }
 
 export function EvidencePanel({
-  verifierRequired,
+  strictProofRequired,
   lastPrecheck,
   lastPrecheckStatus,
   inrunViolations,
@@ -37,18 +37,18 @@ export function EvidencePanel({
   return (
     <Card className="border-border bg-ika-800/70">
       <CardHeader>
-        <CardTitle className="text-lg font-sans text-ink-900">Evidence and verifier</CardTitle>
-        <p className="text-sm text-ink-500">Verifier checks and stored proof artifacts.</p>
+        <CardTitle className="text-lg font-sans text-ink-900">Evidence and moderation</CardTitle>
+        <p className="text-sm text-ink-500">Pre/in-run checks, demos, and stored proof artifacts.</p>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-4 md:grid-cols-3">
           <div className="rounded-lg border border-border bg-ika-700/40 p-4">
             <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-500">
               <Eye className="h-4 w-4" />
-              Verifier required
+              Strict proof required
             </div>
             <div className="mt-2 text-sm font-semibold text-ink-900">
-              {verifierRequired.join(" and ")} ranked
+              {strictProofRequired.join(" and ")} ranked
             </div>
             <p className="text-xs text-ink-500">Standard and F2P queues enforce pre-check.</p>
           </div>

@@ -22,7 +22,7 @@ export const leagues: League[] = [
     id: "league_standard",
     name: "Standard",
     type: "STANDARD",
-    description: "Balanced competitive ruleset with enforced verifier."
+    description: "Balanced competitive ruleset with strict evidence checks."
   },
   {
     id: "league_unlimited",
@@ -217,7 +217,7 @@ export const rulesets: Ruleset[] = [
     leagueId: "league_standard",
     version: "v1.0",
     name: "Standard v1.0",
-    description: "Verifier required with in-run checks.",
+    description: "Strict pre-check and in-run evidence checks.",
     requireVerifier: true,
     requireInrunCheck: true,
     evidencePolicy: {
@@ -268,7 +268,7 @@ export const queues: QueueConfig[] = [
     rulesetId: "ruleset_standard_v1",
     challengeId: "challenge_weekly_12",
     name: "Standard Weekly",
-    description: "Verifier-required weekly time trial.",
+    description: "Strict-evidence weekly time trial.",
     requireVerifier: true
   },
   {

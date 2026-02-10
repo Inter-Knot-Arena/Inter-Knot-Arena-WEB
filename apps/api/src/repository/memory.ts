@@ -65,6 +65,22 @@ export function createMemoryRepository(): Repository {
     async listLeaderboard(leagueId: string) {
       return sortRatings(state.ratings, leagueId);
     },
+    async findRating(userId: string, leagueId: string) {
+      return (
+        state.ratings.find((item) => item.userId === userId && item.leagueId === leagueId) ?? null
+      );
+    },
+    async saveRating(rating: Rating) {
+      const index = state.ratings.findIndex(
+        (item) => item.userId === rating.userId && item.leagueId === rating.leagueId
+      );
+      if (index === -1) {
+        state.ratings.push(rating);
+      } else {
+        state.ratings[index] = rating;
+      }
+      return rating;
+    },
     async listMatchesByStates(states: MatchState[]) {
       return Array.from(state.matches.values()).filter((match) => states.includes(match.state));
     },
@@ -170,6 +186,9 @@ export function createMemoryRepository(): Repository {
     },
     async listOpenDisputes() {
       return Array.from(state.disputes.values()).filter((item) => item.status === "OPEN");
+    },
+    async listDisputesByMatch(matchId: string) {
+      return Array.from(state.disputes.values()).filter((item) => item.matchId === matchId);
     },
     async findDispute(disputeId: string) {
       const dispute = state.disputes.get(disputeId);

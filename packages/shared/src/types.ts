@@ -7,7 +7,7 @@ export interface League {
   description: string;
 }
 
-export type Role = "USER" | "VERIFIED" | "JUDGE" | "ADMIN" | "STAFF" | "MODER";
+export type Role = "USER" | "VERIFIED" | "ADMIN" | "STAFF" | "MODER";
 export type IdentityStatus = "UNVERIFIED" | "PENDING" | "VERIFIED" | "REJECTED";
 export type Region = "NA" | "EU" | "ASIA" | "SEA" | "OTHER";
 
@@ -340,9 +340,19 @@ export interface EvidenceRecord {
 
 export interface ResultProof {
   metricType: ChallengeMetricType;
-  value: number | string;
-  proofUrl: string;
   submittedAt: number;
+  value?: number | string;
+  proofUrl?: string;
+  userId?: string;
+  entries?: Array<{
+    userId: string;
+    value: number | string;
+    proofUrl: string;
+    demoUrl?: string;
+    submittedAt: number;
+  }>;
+  winnerUserId?: string;
+  notes?: string;
 }
 
 export interface Match {
@@ -361,6 +371,14 @@ export interface Match {
     result?: ResultProof;
   };
   confirmedBy: string[];
+  resolution?: {
+    finalizedAt: number;
+    source: "CONFIRMATION" | "MODERATION";
+    winnerUserId?: string;
+    ratingDelta?: Record<string, number>;
+    trustDelta?: Record<string, number>;
+    proxyXpDelta?: Record<string, number>;
+  };
   createdAt: number;
   updatedAt: number;
 }
@@ -374,6 +392,9 @@ export interface Dispute {
   reason: string;
   status: DisputeStatus;
   decision?: string;
+  evidenceUrls?: string[];
+  resolvedBy?: string;
+  winnerUserId?: string;
   createdAt: number;
   resolvedAt?: number;
 }

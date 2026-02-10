@@ -73,7 +73,7 @@ const configModules: ConfigModule[] = [
   {
     id: "rulesets",
     title: "Rulesets",
-    description: "League caps, verifier requirements, evidence policies.",
+    description: "League caps, proof requirements, evidence policies.",
     status: "Draft",
     updatedAt: "1d ago"
   },
@@ -302,9 +302,9 @@ export default function Admin() {
               icon={<RefreshCw className="h-4 w-4" />}
             />
             <OpsMetricCard
-              title="Verifier health"
-              value="Healthy"
-              description="Last heartbeat 4m ago"
+              title="Proof pipeline"
+              value="Stable"
+              description="Moderation queue synced"
               icon={<CheckCircle2 className="h-4 w-4" />}
             />
           </>

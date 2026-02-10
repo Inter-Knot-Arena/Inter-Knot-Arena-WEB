@@ -30,7 +30,7 @@ const flags = getFeatureFlags();
 await registerAuthRoutes(app, repo, auth);
 await registerUserRoutes(app, repo, auth);
 await registerIdentityRoutes(app, repo, auth);
-await registerRoutes(app, repo, storage);
+await registerRoutes(app, repo, storage, auth);
 
 if (flags.enableAgentCatalog || flags.enableEnkaImport) {
   const catalogStore = await createCatalogStore();
@@ -40,7 +40,7 @@ if (flags.enableAgentCatalog || flags.enableEnkaImport) {
   if (flags.enableEnkaImport) {
     const { client, config } = createCache();
     const rosterStore = await createRosterStore();
-    await registerRosterRoutes(app, repo, catalogStore, rosterStore, client, config.ttlMs);
+    await registerRosterRoutes(app, repo, catalogStore, rosterStore, client, config.ttlMs, auth);
   }
 }
 

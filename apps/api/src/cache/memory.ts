@@ -9,7 +9,7 @@ export function createMemoryCache(): CacheClient {
   const store = new Map<string, CacheEntry<unknown>>();
 
   return {
-    get(key) {
+    get<T>(key: string): T | null {
       const entry = store.get(key);
       if (!entry) {
         return null;
@@ -18,9 +18,9 @@ export function createMemoryCache(): CacheClient {
         store.delete(key);
         return null;
       }
-      return entry.value as unknown;
+      return entry.value as T;
     },
-    set(key, value, ttlMs) {
+    set<T>(key: string, value: T, ttlMs: number) {
       store.set(key, { value, expiresAt: Date.now() + ttlMs });
     }
   };

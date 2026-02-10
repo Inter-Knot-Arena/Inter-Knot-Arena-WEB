@@ -111,7 +111,8 @@ function normalizeDiscProps(value: unknown): DiscProperty[] | undefined {
       const level = asNumber(record.Level ?? record.level ?? record.PropertyLevel ?? record.propertyLevel);
       const rawValue =
         asNumber(record.Value ?? record.value ?? record.PropertyValue ?? record.propertyValue) ??
-        asString(record.Value ?? record.value ?? record.PropertyValue ?? record.propertyValue);
+        (asString(record.Value ?? record.value ?? record.PropertyValue ?? record.propertyValue) ??
+          undefined);
       return {
         propertyId,
         level,
@@ -304,7 +305,7 @@ function normalizeWeapon(record: UnknownRecord, mapping: EnkaMapping, unknownIds
     gameId: asNumber(rawId),
     level: asNumber(weaponRecord.level),
     breakLevel: asNumber(weaponRecord.breakLevel ?? weaponRecord.break ?? weaponRecord.promoteLevel),
-    rarity: asString(weaponRecord.rarity)
+    rarity: asString(weaponRecord.rarity) ?? undefined
   };
 }
 
@@ -339,8 +340,8 @@ function normalizeDiscs(record: UnknownRecord, mapping: EnkaMapping, unknownIds:
       return {
         discId: mapped ?? `enka:${rawId}`,
         slot: asNumber(discRecord.slot),
-        set: asString(discRecord.set),
-        mainStat: asString(discRecord.mainStat),
+        set: asString(discRecord.set) ?? undefined,
+        mainStat: asString(discRecord.mainStat) ?? undefined,
         subStats: asArray(discRecord.subStats).map((value) => String(value))
       };
     })

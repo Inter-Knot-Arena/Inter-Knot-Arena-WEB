@@ -450,7 +450,7 @@ export default function Profile() {
                   </div>
                 </div>
               </TooltipTrigger>
-              <TooltipContent>Next unlock at level 15: judge eligibility preview.</TooltipContent>
+              <TooltipContent>Next unlock at level 15: moderator eligibility preview.</TooltipContent>
             </Tooltip>
 
             <div className="rounded-xl border border-border bg-ika-800/70 px-4 py-3">
@@ -462,7 +462,7 @@ export default function Profile() {
                 {rankedEligible ? "Eligible" : "Locked"}
               </div>
               <div className="text-xs text-ink-500">
-                {rankedEligible ? "UID verified and verifier ready" : "Verify UID to unlock ranked"}
+                {rankedEligible ? "UID verified and proof flow ready" : "Verify UID to unlock ranked"}
               </div>
             </div>
 
@@ -474,13 +474,13 @@ export default function Profile() {
                 >
                   <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-500">
                     <Swords className="h-4 w-4" />
-                    Verifier status
+                    Proof status
                   </div>
                   <div className="mt-2 text-xl font-semibold text-ink-900">Required</div>
                   <div className="text-xs text-ink-500">Standard and F2P ranked</div>
                 </div>
               </TooltipTrigger>
-              <TooltipContent>Verifier checks are required before match start in ranked.</TooltipContent>
+              <TooltipContent>Pre-check proof is required before match start in ranked.</TooltipContent>
             </Tooltip>
           </div>
         </section>
@@ -586,7 +586,7 @@ export default function Profile() {
 
           <TabsContent value="evidence">
             <EvidencePanel
-              verifierRequired={["Standard", "F2P"]}
+              strictProofRequired={["Standard", "F2P"]}
               lastPrecheck="No checks yet"
               lastPrecheckStatus="NONE"
               inrunViolations={0}

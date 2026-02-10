@@ -68,6 +68,34 @@ class PostgresRepository implements Repository {
     return result.rows.map(mapRating);
   }
 
+  async findRating(userId: string, leagueId: string): Promise<Rating | null> {
+    const result = await this.pool.query(
+      "SELECT * FROM ratings WHERE user_id = $1 AND league_id = $2",
+      [userId, leagueId]
+    );
+    const row = result.rows[0];
+    return row ? mapRating(row) : null;
+  }
+
+  async saveRating(rating: Rating): Promise<Rating> {
+    await this.pool.query(
+      `INSERT INTO ratings (user_id, league_id, elo, provisional_matches, updated_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (user_id, league_id) DO UPDATE
+       SET elo = EXCLUDED.elo,
+           provisional_matches = EXCLUDED.provisional_matches,
+           updated_at = EXCLUDED.updated_at`,
+      [
+        rating.userId,
+        rating.leagueId,
+        rating.elo,
+        rating.provisionalMatches,
+        rating.updatedAt
+      ]
+    );
+    return rating;
+  }
+
   async listMatchesByStates(states: MatchState[]): Promise<Match[]> {
     if (states.length === 0) {
       return [];
@@ -227,10 +255,11 @@ class PostgresRepository implements Repository {
          draft,
          evidence,
          confirmed_by,
+         resolution,
          created_at,
          updated_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         payload.id,
         payload.queueId,
@@ -243,6 +272,7 @@ class PostgresRepository implements Repository {
         payload.draft,
         payload.evidence,
         payload.confirmedBy,
+        payload.resolution,
         payload.createdAt,
         payload.updatedAt
       ]
@@ -264,9 +294,10 @@ class PostgresRepository implements Repository {
            draft = $8,
            evidence = $9,
            confirmed_by = $10,
-           created_at = $11,
-           updated_at = $12
-       WHERE id = $13`,
+           resolution = $11,
+           created_at = $12,
+           updated_at = $13
+       WHERE id = $14`,
       [
         payload.queueId,
         payload.state,
@@ -278,6 +309,7 @@ class PostgresRepository implements Repository {
         payload.draft,
         payload.evidence,
         payload.confirmedBy,
+        payload.resolution,
         payload.createdAt,
         payload.updatedAt,
         payload.id
@@ -384,6 +416,14 @@ class PostgresRepository implements Repository {
     return result.rows.map(mapDispute);
   }
 
+  async listDisputesByMatch(matchId: string): Promise<Dispute[]> {
+    const result = await this.pool.query(
+      "SELECT * FROM disputes WHERE match_id = $1 ORDER BY created_at ASC",
+      [matchId]
+    );
+    return result.rows.map(mapDispute);
+  }
+
   async findDispute(disputeId: string): Promise<Dispute> {
     const result = await this.pool.query("SELECT * FROM disputes WHERE id = $1", [disputeId]);
     const row = result.rows[0];
@@ -402,10 +442,13 @@ class PostgresRepository implements Repository {
          reason,
          status,
          decision,
+         evidence_urls,
+         resolved_by,
+         winner_user_id,
          created_at,
          resolved_at
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         dispute.id,
         dispute.matchId,
@@ -413,6 +456,9 @@ class PostgresRepository implements Repository {
         dispute.reason,
         dispute.status,
         dispute.decision ?? null,
+        toJson(dispute.evidenceUrls),
+        dispute.resolvedBy ?? null,
+        dispute.winnerUserId ?? null,
         dispute.createdAt,
         dispute.resolvedAt ?? null
       ]
@@ -428,15 +474,21 @@ class PostgresRepository implements Repository {
            reason = $3,
            status = $4,
            decision = $5,
-           created_at = $6,
-           resolved_at = $7
-       WHERE id = $8`,
+           evidence_urls = $6,
+           resolved_by = $7,
+           winner_user_id = $8,
+           created_at = $9,
+           resolved_at = $10
+       WHERE id = $11`,
       [
         dispute.matchId,
         dispute.openedBy,
         dispute.reason,
         dispute.status,
         dispute.decision ?? null,
+        toJson(dispute.evidenceUrls),
+        dispute.resolvedBy ?? null,
+        dispute.winnerUserId ?? null,
         dispute.createdAt,
         dispute.resolvedAt ?? null,
         dispute.id
@@ -577,6 +629,7 @@ function mapMatch(row: Record<string, unknown>): Match {
       result: evidence.result ?? undefined
     },
     confirmedBy: (row.confirmed_by as Match["confirmedBy"]) ?? [],
+    resolution: (row.resolution as Match["resolution"]) ?? undefined,
     createdAt: toNumber(row.created_at),
     updatedAt: toNumber(row.updated_at)
   };
@@ -602,6 +655,9 @@ function mapDispute(row: Record<string, unknown>): Dispute {
     reason: String(row.reason),
     status: row.status as Dispute["status"],
     decision: (row.decision as string | null) ?? undefined,
+    evidenceUrls: parseJson<string[]>(row.evidence_urls, []),
+    resolvedBy: (row.resolved_by as string | null) ?? undefined,
+    winnerUserId: (row.winner_user_id as string | null) ?? undefined,
     createdAt: toNumber(row.created_at),
     resolvedAt: row.resolved_at ? toNumber(row.resolved_at) : undefined
   };
@@ -625,6 +681,7 @@ function serializeMatch(match: Match) {
     draft: toJson(match.draft),
     evidence: toJson(evidence),
     confirmedBy: toJson(match.confirmedBy ?? []),
+    resolution: toJson(match.resolution),
     createdAt: match.createdAt,
     updatedAt: match.updatedAt
   };

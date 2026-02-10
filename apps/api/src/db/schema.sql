@@ -174,9 +174,12 @@ CREATE TABLE IF NOT EXISTS matches (
   draft jsonb NOT NULL,
   evidence jsonb NOT NULL,
   confirmed_by jsonb NOT NULL,
+  resolution jsonb,
   created_at bigint NOT NULL,
   updated_at bigint NOT NULL
 );
+
+ALTER TABLE matches ADD COLUMN IF NOT EXISTS resolution jsonb;
 
 CREATE TABLE IF NOT EXISTS matchmaking_queue (
   id text PRIMARY KEY,
@@ -195,9 +198,16 @@ CREATE TABLE IF NOT EXISTS disputes (
   reason text NOT NULL,
   status text NOT NULL,
   decision text,
+  evidence_urls jsonb,
+  resolved_by text REFERENCES users(id) ON DELETE SET NULL,
+  winner_user_id text REFERENCES users(id) ON DELETE SET NULL,
   created_at bigint NOT NULL,
   resolved_at bigint
 );
+
+ALTER TABLE disputes ADD COLUMN IF NOT EXISTS evidence_urls jsonb;
+ALTER TABLE disputes ADD COLUMN IF NOT EXISTS resolved_by text REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE disputes ADD COLUMN IF NOT EXISTS winner_user_id text REFERENCES users(id) ON DELETE SET NULL;
 
 CREATE TABLE IF NOT EXISTS player_agent_states (
   uid text NOT NULL,

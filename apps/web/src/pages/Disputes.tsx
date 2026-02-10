@@ -5,6 +5,7 @@ import { fetchDisputes, resolveDispute } from "../api";
 export default function Disputes() {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [decisions, setDecisions] = useState<Record<string, string>>({});
+  const [winners, setWinners] = useState<Record<string, string>>({});
 
   const load = () => {
     fetchDisputes().then(setDisputes);
@@ -19,15 +20,16 @@ export default function Disputes() {
     if (!decision) {
       return;
     }
-    await resolveDispute(disputeId, decision);
+    const winnerUserId = winners[disputeId]?.trim() || undefined;
+    await resolveDispute(disputeId, decision, winnerUserId);
     load();
   };
 
   return (
     <div className="page">
       <section className="section-header">
-        <h2>Judge Queue</h2>
-        <p>Review verifier logs and issue decisions.</p>
+        <h2>Moderation Queue</h2>
+        <p>Review demos/proofs and issue decisions.</p>
       </section>
 
       <div className="grid">
@@ -50,6 +52,16 @@ export default function Disputes() {
                     setDecisions((prev) => ({ ...prev, [dispute.id]: event.target.value }))
                   }
                   placeholder="Decision summary"
+                />
+              </label>
+              <label>
+                Winner user ID (optional)
+                <input
+                  value={winners[dispute.id] ?? ""}
+                  onChange={(event) =>
+                    setWinners((prev) => ({ ...prev, [dispute.id]: event.target.value }))
+                  }
+                  placeholder="user_..."
                 />
               </label>
               <div className="card-actions">

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -15,7 +15,7 @@ export interface RulesetPreview {
   id: string;
   name: string;
   league: string;
-  status: "Verifier" | "Open";
+  status: "Strict" | "Open";
 }
 
 interface CatalogPreviewGridProps {
@@ -106,7 +106,7 @@ export function CatalogPreviewGrid({ agents, rulesets }: CatalogPreviewGridProps
                   <div className="font-semibold text-ink-900">{agent.name}</div>
                   <div className="mt-1 flex flex-wrap gap-2 text-xs text-ink-500">
                     <span>{agent.attribute}</span>
-                    <span>•</span>
+                    <span>·</span>
                     <span>{agent.role}</span>
                   </div>
                 </div>
@@ -131,7 +131,7 @@ export function CatalogPreviewGrid({ agents, rulesets }: CatalogPreviewGridProps
                   <div className="text-sm font-semibold text-ink-900">{rule.name}</div>
                   <Badge
                     className={
-                      rule.status === "Verifier"
+                      rule.status === "Strict"
                         ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-200"
                         : "border border-border bg-ika-700/70 text-ink-700"
                     }

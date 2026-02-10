@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+﻿import { Link } from "react-router-dom";
 import { ArrowRight, BadgeCheck, Calendar, ShieldCheck } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -87,13 +87,13 @@ export function HomeHeader({ state, season, primaryAction, secondaryAction }: Ho
             </div>
             <div className="mt-3 text-lg font-semibold text-ink-900">Rulesets are versioned</div>
             <p className="mt-2 text-sm text-ink-500">
-              Standard and F2P ranked require Verifier checks before the run.
+              Standard and F2P ranked require strict pre-check proofs before the run.
             </p>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Badge className="border border-border bg-ika-700/70 text-ink-700">
               <BadgeCheck className="mr-1 h-3.5 w-3.5" />
-              Verifier required
+              Strict proof
             </Badge>
             <Badge className="border border-border bg-ika-700/70 text-ink-700">v1.0 rulesets</Badge>
             <Button asChild size="sm" variant="outline" className="ml-auto">
@@ -105,3 +105,4 @@ export function HomeHeader({ state, season, primaryAction, secondaryAction }: Ho
     </section>
   );
 }
+

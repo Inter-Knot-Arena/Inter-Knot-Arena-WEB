@@ -158,7 +158,7 @@ Use `POST /uploads/presign` to get a pre-signed PUT URL.
 ## Notes
 
 - API data is stored in memory and resets on restart unless Postgres is configured.
-- The Verifier app is not implemented yet; the API exposes placeholders for verifier sessions and evidence uploads.
+- Desktop Verifier app is out of scope in this build; evidence is submitted via web flows and moderated disputes.
 
 ## Migration plan (Postgres + Redis)
 

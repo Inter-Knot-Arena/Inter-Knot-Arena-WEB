@@ -111,7 +111,6 @@ export default function MatchRoom() {
     try {
       setError(null);
       const updated = await submitPrecheck(match.id, {
-        userId: currentUserId,
         detectedAgents: evidenceAgents,
         result,
         confidence: Object.fromEntries(evidenceAgents.map((agentId) => [agentId, 0.92]))
@@ -126,7 +125,6 @@ export default function MatchRoom() {
     try {
       setError(null);
       const updated = await submitInrun(match.id, {
-        userId: currentUserId,
         detectedAgents: evidenceAgents,
         result,
         confidence: Object.fromEntries(evidenceAgents.map((agentId) => [agentId, 0.88]))
@@ -349,7 +347,7 @@ export default function MatchRoom() {
       <section className="section split">
         <div>
           <h3>Disputes</h3>
-          <p>Open a dispute if verifier evidence is contested.</p>
+          <p>Open a dispute if proofs or demo evidence are contested.</p>
         </div>
         <div className="card">
           <label>

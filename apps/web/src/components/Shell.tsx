@@ -188,7 +188,7 @@ export default function Shell({ children }: ShellProps) {
       <main className="app-main">{children}</main>
       <footer className="app-footer">
         <div>Inter-Knot Arena beta</div>
-        <div>Verifier-ready, API-free, proof-driven ranking.</div>
+        <div>API-free, proof-driven ranking with moderation review.</div>
       </footer>
     </div>
   );

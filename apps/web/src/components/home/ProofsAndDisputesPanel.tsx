@@ -38,7 +38,7 @@ export function ProofsAndDisputesPanel({
         <div className="flex items-center justify-between rounded-lg border border-border bg-ika-700/30 px-4 py-3">
           <span className="flex items-center gap-2">
             <Gavel className="h-4 w-4 text-ink-500" />
-            Judge decisions
+            Moderator decisions
           </span>
           <span className="font-semibold text-ink-900">{decisions}</span>
         </div>

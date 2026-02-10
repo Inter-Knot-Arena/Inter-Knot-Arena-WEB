@@ -29,9 +29,9 @@ const leaderboardRows: LeaderboardRow[] = [
 const updates: UpdateItem[] = [
   {
     id: "u1",
-    title: "Verifier 0.3.2 rollout",
-    summary: "Improved pre-check detection and added retry capture shortcuts.",
-    type: "verifier",
+    title: "Moderation flow upgrade",
+    summary: "Dispute queue now prioritizes demo-first evidence review.",
+    type: "moderation",
     date: "2 days ago"
   },
   {
@@ -87,7 +87,8 @@ function EloMiniTab({
   }, []);
 
   const selected = options.find((option) => option.id === value) ?? options[0];
-  const eloLabel = selected.elo ? `${selected.elo} ELO` : "Unrated";
+  const selectedSafe = selected ?? { id: "unrated", label: "Unrated", elo: null };
+  const eloLabel = selectedSafe.elo ? `${selectedSafe.elo} ELO` : "Unrated";
 
   return (
     <div ref={ref} className="flex flex-col items-end gap-2">
@@ -99,14 +100,14 @@ function EloMiniTab({
       >
         <span className="text-ink-500">ELO</span>
         <span>{disabled ? "Sign in" : eloLabel}</span>
-        <span className="text-xs text-ink-500">{selected.label}</span>
+        <span className="text-xs text-ink-500">{selectedSafe.label}</span>
         <ChevronDown className="h-4 w-4 text-ink-500" />
       </button>
       {open && !disabled ? (
         <div className="w-56 rounded-xl border border-border bg-ika-900/95 p-2 shadow-card">
           {options.map((option) => {
             const optionLabel = option.elo ? `${option.elo} ELO` : "Unrated";
-            const isActive = option.id === selected.id;
+            const isActive = option.id === selectedSafe.id;
             return (
               <button
                 key={option.id}

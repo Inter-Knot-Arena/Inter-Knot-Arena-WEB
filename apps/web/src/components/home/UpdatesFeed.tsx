@@ -8,7 +8,7 @@ export interface UpdateItem {
   id: string;
   title: string;
   summary: string;
-  type: "verifier" | "ruleset" | "season";
+  type: "moderation" | "ruleset" | "season";
   date: string;
 }
 
@@ -18,7 +18,7 @@ interface UpdatesFeedProps {
 }
 
 const iconMap: Record<UpdateItem["type"], JSX.Element> = {
-  verifier: <Wrench className="h-4 w-4" />,
+  moderation: <Wrench className="h-4 w-4" />,
   ruleset: <GitBranch className="h-4 w-4" />,
   season: <Bell className="h-4 w-4" />
 };

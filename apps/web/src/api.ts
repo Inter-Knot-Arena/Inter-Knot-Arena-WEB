@@ -52,7 +52,7 @@ const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
 async function safeFetch<T>(path: string, fallback: T): Promise<T> {
   try {
-    const response = await fetch(`${API_BASE}${path}`);
+    const response = await fetch(`${API_BASE}${path}`, { credentials: "include" });
     if (!response.ok) {
       return fallback;
     }
@@ -67,6 +67,7 @@ async function postJson<T>(path: string, payload: unknown, fallback: T): Promise
     const response = await fetch(`${API_BASE}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify(payload)
     });
     if (!response.ok) {
@@ -145,12 +146,27 @@ export function fetchUsers(): Promise<User[]> {
 }
 
 export function fetchProfile(userId: string): Promise<ProfileSummary> {
-  const fallback = profiles.find((item) => item.user.id === userId) ?? profiles[0];
+  const fallbackUser: User = users[0] ?? {
+    id: "user_demo",
+    email: "demo@interknot.dev",
+    displayName: "Demo User",
+    avatarUrl: null,
+    region: "NA",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    roles: ["USER"],
+    trustScore: 100,
+    proxyLevel: { level: 1, xp: 0, nextXp: 100 },
+    verification: { status: "UNVERIFIED" },
+    privacy: { showUidPublicly: false, showMatchHistoryPublicly: true }
+  };
+  const defaultProfile: ProfileSummary = profiles[0] ?? { user: fallbackUser, ratings: [] };
+  const fallback = profiles.find((item) => item.user.id === userId) ?? defaultProfile;
   return safeFetch<ProfileSummary>(`/profiles/${userId}`, fallback);
 }
 
 export function joinMatchmaking(userId: string, queueId: string): Promise<Match> {
-  return postJson<Match>("/matchmaking/join", { userId, queueId }, demoMatch);
+  return postJson<Match>("/matchmaking/join", { queueId }, demoMatch);
 }
 
 export function startMatchSearch(
@@ -159,7 +175,7 @@ export function startMatchSearch(
 ): Promise<MatchmakingSearchResponse> {
   return postJson<MatchmakingSearchResponse>(
     "/matchmaking/search",
-    { userId, queueId },
+    { queueId },
     { status: "MATCH_FOUND", ticketId: "ticket_demo", match: demoMatch }
   );
 }
@@ -180,7 +196,7 @@ export function cancelMatchSearch(ticketId: string): Promise<MatchmakingCancelRe
 }
 
 export function checkinMatch(matchId: string, userId: string): Promise<Match> {
-  return postJson<Match>(`/matches/${matchId}/checkin`, { userId }, demoMatch);
+  return postJson<Match>(`/matches/${matchId}/checkin`, {}, demoMatch);
 }
 
 export function submitDraftAction(
@@ -189,13 +205,12 @@ export function submitDraftAction(
   type: DraftActionType,
   agentId: string
 ): Promise<Match> {
-  return postJson<Match>(`/matches/${matchId}/draft/action`, { userId, type, agentId }, demoMatch);
+  return postJson<Match>(`/matches/${matchId}/draft/action`, { type, agentId }, demoMatch);
 }
 
 export function submitPrecheck(
   matchId: string,
   payload: {
-    userId: string;
     detectedAgents: string[];
     confidence?: Record<string, number>;
     result: EvidenceResult;
@@ -209,7 +224,6 @@ export function submitPrecheck(
 export function submitInrun(
   matchId: string,
   payload: {
-    userId: string;
     detectedAgents: string[];
     confidence?: Record<string, number>;
     result: EvidenceResult;
@@ -232,20 +246,22 @@ export function submitResult(
 }
 
 export function confirmMatchResult(matchId: string, userId: string): Promise<Match> {
-  return postJson<Match>(`/matches/${matchId}/confirm`, { userId }, demoMatch);
+  return postJson<Match>(`/matches/${matchId}/confirm`, {}, demoMatch);
 }
 
 export function openDispute(
   matchId: string,
   userId: string,
-  reason: string
+  reason: string,
+  evidenceUrls?: string[]
 ): Promise<Dispute> {
-  return postJson<Dispute>(`/matches/${matchId}/dispute/open`, { userId, reason }, {
+  return postJson<Dispute>(`/matches/${matchId}/dispute/open`, { reason, evidenceUrls }, {
     id: "dispute_demo",
     matchId,
-    openedBy: userId,
+    openedBy: userId || "user_demo",
     reason,
     status: "OPEN",
+    evidenceUrls,
     createdAt: Date.now()
   });
 }
@@ -254,14 +270,19 @@ export function fetchDisputes(): Promise<Dispute[]> {
   return safeFetch<Dispute[]>("/disputes/queue", []);
 }
 
-export function resolveDispute(disputeId: string, decision: string): Promise<Dispute> {
-  return postJson<Dispute>(`/disputes/${disputeId}/decision`, { decision }, {
+export function resolveDispute(
+  disputeId: string,
+  decision: string,
+  winnerUserId?: string
+): Promise<Dispute> {
+  return postJson<Dispute>(`/disputes/${disputeId}/decision`, { decision, winnerUserId }, {
     id: disputeId,
     matchId: "match_demo",
     openedBy: "user_ellen",
     reason: "demo",
     status: "RESOLVED",
     decision,
+    winnerUserId,
     createdAt: Date.now()
   });
 }
@@ -364,6 +385,7 @@ export async function importRosterFromEnka(payload: {
   const response = await fetch(`${API_BASE}/players/${payload.uid}/import/enka`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({ region: payload.region, force: payload.force })
   });
   if (!response.ok) {

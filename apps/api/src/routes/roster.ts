@@ -5,12 +5,14 @@ import type { CacheClient } from "../cache/types.js";
 import type { PlayerAgentStateStore } from "../roster/types.js";
 import { computeEligibility, mergePlayerAgentDynamicAccumulative } from "@ika/shared";
 import type {
+  PlayerAgentDynamic,
   PlayerRosterImportSummary,
   PlayerRosterView,
   Region,
   Ruleset
 } from "@ika/shared";
 import { normalizeEnkaPayload } from "../enka/normalize.js";
+import { getAuthUser, type AuthContext } from "../auth/context.js";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
@@ -99,7 +101,8 @@ export async function registerRosterRoutes(
   catalog: CatalogStore,
   rosterStore: PlayerAgentStateStore,
   cache: CacheClient,
-  cacheTtlMs: number
+  cacheTtlMs: number,
+  auth: AuthContext
 ) {
   app.get("/players/:uid/roster", async (request, reply) => {
     try {
@@ -144,10 +147,21 @@ export async function registerRosterRoutes(
 
   app.post("/players/:uid/import/enka", async (request, reply) => {
     try {
+      const user = await getAuthUser(request, repo, auth);
+      if (!user) {
+        reply.code(401).send({ error: "Unauthorized" });
+        return;
+      }
       const params = request.params as { uid?: string };
       const uid = params.uid ?? "";
       if (!validateUid(uid)) {
         throw new Error("Invalid UID");
+      }
+      const canModerate =
+        user.roles.includes("MODER") || user.roles.includes("STAFF") || user.roles.includes("ADMIN");
+      if (user.verification.uid !== uid && !canModerate) {
+        reply.code(403).send({ error: "Forbidden" });
+        return;
       }
 
       const body = request.body as { region?: string; force?: boolean };
@@ -169,7 +183,7 @@ export async function registerRosterRoutes(
       const cacheKey = `enka:${limitKey}`;
       const cached = !force ? cache.get<{ payload: unknown; fetchedAt: string }>(cacheKey) : null;
       let fetchedAt = cached?.fetchedAt ?? new Date().toISOString();
-      let payload = cached?.payload ?? null;
+      let payload: unknown = cached?.payload ?? null;
 
       if (!payload) {
         fetchedAt = new Date().toISOString();
@@ -219,15 +233,12 @@ export async function registerRosterRoutes(
             if (!existing) {
               newAgentsCount += 1;
             } else {
-              const strip = (state: Record<string, unknown>) => {
-                const clone = { ...state };
-                delete clone.lastImportedAt;
-                delete clone.lastShowcaseSeenAt;
-                delete clone.updatedAt;
-                return clone;
+              const stripTimestamps = (state: PlayerAgentDynamic) => {
+                const { lastImportedAt, lastShowcaseSeenAt, updatedAt, ...rest } = state;
+                return rest;
               };
-              const existingComparable = JSON.stringify(strip(existing as Record<string, unknown>));
-              const mergedComparable = JSON.stringify(strip(mergedState as Record<string, unknown>));
+              const existingComparable = JSON.stringify(stripTimestamps(existing));
+              const mergedComparable = JSON.stringify(stripTimestamps(mergedState));
               if (existingComparable === mergedComparable) {
                 unchangedCount += 1;
               } else {
@@ -248,7 +259,10 @@ export async function registerRosterRoutes(
             ...merged.map((item) => String(item.agentGameId ?? item.agentId)),
             ...unknownIds
               .filter((id) => id.startsWith("character:"))
-              .map((id) => id.split(":")[1])
+              .flatMap((id) => {
+                const [, rawId] = id.split(":");
+                return rawId ? [rawId] : [];
+              })
           ];
 
           await rosterStore.saveSnapshot({
@@ -274,10 +288,21 @@ export async function registerRosterRoutes(
 
   app.post("/players/:uid/roster/manual", async (request, reply) => {
     try {
+      const user = await getAuthUser(request, repo, auth);
+      if (!user) {
+        reply.code(401).send({ error: "Unauthorized" });
+        return;
+      }
       const params = request.params as { uid?: string };
       const uid = params.uid ?? "";
       if (!validateUid(uid)) {
         throw new Error("Invalid UID");
+      }
+      const canModerate =
+        user.roles.includes("MODER") || user.roles.includes("STAFF") || user.roles.includes("ADMIN");
+      if (user.verification.uid !== uid && !canModerate) {
+        reply.code(403).send({ error: "Forbidden" });
+        return;
       }
 
       const body = request.body as {
@@ -313,7 +338,7 @@ export async function registerRosterRoutes(
       }
 
       const now = new Date().toISOString();
-      const states = incomingAgents.map((agent) => {
+      const states: PlayerAgentDynamic[] = incomingAgents.map((agent) => {
         if (!catalogIds.has(agent.agentId)) {
           throw new Error(`Unknown agentId ${agent.agentId}`);
         }

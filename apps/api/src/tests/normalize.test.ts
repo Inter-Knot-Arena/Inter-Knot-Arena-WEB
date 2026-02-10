@@ -58,8 +58,10 @@ test("normalizeEnkaPayload maps weapons and discs", () => {
 
   const result = normalizeEnkaPayload(payload, mapping, "2025-01-01T00:00:00.000Z", discSetMap);
   assert.equal(result.agents.length, 1);
-  assert.equal(result.agents[0].weapon?.weaponId, "weapon_ellen_signature");
-  assert.equal(result.agents[0].discs?.[0].discId, "disc_ice_melody");
+  const [agent] = result.agents;
+  assert.ok(agent);
+  assert.equal(agent.weapon?.weaponId, "weapon_ellen_signature");
+  assert.equal(agent.discs?.[0]?.discId, "disc_ice_melody");
 });
 
 test("normalizeEnkaPayload maps equipped discs with set info", () => {
@@ -87,10 +89,12 @@ test("normalizeEnkaPayload maps equipped discs with set info", () => {
 
   const result = normalizeEnkaPayload(payload, mapping, "2025-01-01T00:00:00.000Z", discSetMap);
   assert.equal(result.agents.length, 1);
-  const disc = result.agents[0].discs?.[0];
+  const [agent] = result.agents;
+  assert.ok(agent);
+  const disc = agent.discs?.[0];
   assert.equal(disc?.setGameId, 31000);
   assert.equal(disc?.slot, 1);
   assert.equal(disc?.setName, "Woodpecker Electro");
-  assert.equal(disc?.mainProps?.[0].propertyId, 101);
-  assert.equal(disc?.subProps?.[0].propertyId, 201);
+  assert.equal(disc?.mainProps?.[0]?.propertyId, 101);
+  assert.equal(disc?.subProps?.[0]?.propertyId, 201);
 });

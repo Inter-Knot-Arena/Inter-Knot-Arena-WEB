@@ -120,7 +120,7 @@ export default function Matchmaking() {
       return;
     }
     if (isQueueLocked) {
-      setStatus("Verifier and UID verification are required for this league.");
+      setStatus("UID verification and strict proof flow are required for this league.");
       return;
     }
     setStatus("Waiting for opponent...");
@@ -186,7 +186,7 @@ export default function Matchmaking() {
               <p>{selectedLeague?.description ?? "Competitive queue overview."}</p>
               <div className="chip-row">
                 <span className={leagueQueue?.requireVerifier ? "badge" : "badge-outline"}>
-                  {leagueQueue?.requireVerifier ? "Verifier required" : "Open queue"}
+                  {leagueQueue?.requireVerifier ? "Strict proof required" : "Open queue"}
                 </span>
               </div>
               <div className="meta-row">

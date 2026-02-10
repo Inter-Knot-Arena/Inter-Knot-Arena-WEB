@@ -41,7 +41,7 @@ export async function searchMatch(
   queueId: string,
   userId: string
 ): Promise<MatchmakingSearchResponse> {
-  await repo.findQueue(queueId);
+  await ensureQueueAccess(repo, queueId, userId);
   const existing = await repo.findMatchmakingEntryByUser(queueId, userId);
   if (existing) {
     if (existing.status === "MATCH_FOUND" && existing.matchId) {
@@ -148,4 +148,11 @@ function buildTicket(
     createdAt: timestamp,
     updatedAt: timestamp
   };
+}
+
+async function ensureQueueAccess(repo: Repository, queueId: string, userId: string): Promise<void> {
+  const [queue, user] = await Promise.all([repo.findQueue(queueId), repo.findUser(userId)]);
+  if (queue.requireVerifier && user.verification.status !== "VERIFIED") {
+    throw new Error("This queue requires UID-verified account.");
+  }
 }

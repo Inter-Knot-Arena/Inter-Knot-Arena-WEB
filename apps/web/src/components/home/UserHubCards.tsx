@@ -31,7 +31,7 @@ interface ProxyData {
 
 interface VerificationData {
   status: "VERIFIED" | "UNVERIFIED" | "PENDING";
-  verifierStatus: string;
+  proofStatus: string;
 }
 
 interface UserHubCardsProps {
@@ -137,8 +137,7 @@ export function UserHubCards({ state, eloSummary, trust, proxy, verification }: 
           {verification?.status ?? "UNVERIFIED"}
         </div>
         <div className="mt-2 text-sm text-ink-500">
-          Verifier status:{" "}
-          <span className="text-ink-700">{verification?.verifierStatus ?? "Not linked"}</span>
+          Proof status: <span className="text-ink-700">{verification?.proofStatus ?? "Not linked"}</span>
         </div>
         <div className="mt-4 flex items-center justify-between">
           <Button asChild size="sm" variant="outline">
