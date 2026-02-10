@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { User } from "@ika/shared";
 import { fetchAuthMe, logout as apiLogout } from "../api";
@@ -17,12 +17,24 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const isMountedRef = useRef(true);
+  const refreshSeqRef = useRef(0);
 
   const refresh = useCallback(async () => {
+    const requestSeq = refreshSeqRef.current + 1;
+    refreshSeqRef.current = requestSeq;
     setIsLoading(true);
-    const current = await fetchAuthMe();
-    setUser(current);
-    setIsLoading(false);
+    try {
+      const current = await fetchAuthMe();
+      if (!isMountedRef.current || refreshSeqRef.current !== requestSeq) {
+        return;
+      }
+      setUser(current);
+    } finally {
+      if (isMountedRef.current && refreshSeqRef.current === requestSeq) {
+        setIsLoading(false);
+      }
+    }
   }, []);
 
   const logout = useCallback(async () => {
@@ -31,11 +43,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore logout failures and clear local state.
     }
+    if (!isMountedRef.current) {
+      return;
+    }
     setUser(null);
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
-    refresh();
+    isMountedRef.current = true;
+    void refresh();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [refresh]);
 
   const value = useMemo<AuthContextValue>(
