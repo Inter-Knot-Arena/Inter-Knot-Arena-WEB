@@ -6,6 +6,7 @@ import { TooltipProvider } from "../components/ui/tooltip";
 import { HomeHeader, type UserState } from "../components/home/HomeHeader";
 import { LeaderboardPreviewTable, type LeaderboardRow } from "../components/home/LeaderboardPreviewTable";
 import { UpdatesFeed, type UpdateItem } from "../components/home/UpdatesFeed";
+import { isUidVerified } from "../lib/verification";
 import {
   fetchAnalyticsSeasonReport,
   fetchLeaderboard,
@@ -143,7 +144,7 @@ export default function Home() {
   const { user, isLoading } = useAuth();
   const userState: UserState = !user
     ? "guest"
-    : user.verification.status === "VERIFIED"
+    : isUidVerified(user.verification.status)
       ? "verified"
       : "unverified";
 
