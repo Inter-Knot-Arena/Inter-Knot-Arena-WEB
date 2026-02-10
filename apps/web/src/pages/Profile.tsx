@@ -512,8 +512,8 @@ export default function Profile() {
           <TabsContent value="overview">
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12">
-                <div className="mb-4">
-                  <div>
+                <div className="mb-4 text-center">
+                  <div className="mx-auto max-w-xl">
                     <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Rating and leagues</div>
                     <div className="text-lg font-semibold text-ink-900">ELO across queues</div>
                   </div>
@@ -561,7 +561,7 @@ export default function Profile() {
 
           <TabsContent value="agents">
             {featureFlags.enableAgentCatalog ? (
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-5">
                 <div className="text-sm text-ink-500">
                   Showcase roster combines catalog data with imported agent states.
                 </div>
