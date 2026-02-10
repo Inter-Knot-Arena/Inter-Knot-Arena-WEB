@@ -1,14 +1,17 @@
-﻿import type {
+import type {
   Agent,
   Challenge,
   Dispute,
   League,
   Match,
   MatchState,
+  OAuthAccount,
+  PasswordAccount,
   QueueConfig,
   Rating,
   Ruleset,
   Season,
+  Session,
   User
 } from "@ika/shared";
 
@@ -20,6 +23,16 @@ export interface MatchmakingEntry {
   userId: string;
   status: MatchmakingEntryStatus;
   matchId?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface OAuthAccountRecord extends OAuthAccount {
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PasswordAccountRecord extends PasswordAccount {
   createdAt: number;
   updatedAt: number;
 }
@@ -59,4 +72,17 @@ export interface Repository {
   findDispute(disputeId: string): Promise<Dispute>;
   createDispute(dispute: Dispute): Promise<Dispute>;
   saveDispute(dispute: Dispute): Promise<Dispute>;
+  findOAuthAccount(
+    provider: OAuthAccount["provider"],
+    providerAccountId: string
+  ): Promise<OAuthAccountRecord | null>;
+  findOAuthAccountByEmail(email: string): Promise<OAuthAccountRecord | null>;
+  saveOAuthAccount(account: OAuthAccountRecord): Promise<OAuthAccountRecord>;
+  findPasswordAccountByEmail(email: string): Promise<PasswordAccountRecord | null>;
+  findPasswordAccountByUserId(userId: string): Promise<PasswordAccountRecord | null>;
+  savePasswordAccount(account: PasswordAccountRecord): Promise<PasswordAccountRecord>;
+  createSession(session: Session): Promise<Session>;
+  findSession(sessionId: string): Promise<Session | null>;
+  deleteSession(sessionId: string): Promise<void>;
+  purgeExpiredSessions(nowTimestamp: number): Promise<void>;
 }

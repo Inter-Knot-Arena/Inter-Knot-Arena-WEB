@@ -1,4 +1,4 @@
-﻿import type { Dispute, Match, MatchState, Rating } from "@ika/shared";
+import type { Dispute, Match, MatchState, Rating, Session } from "@ika/shared";
 import {
   agents,
   challenges,
@@ -9,7 +9,12 @@ import {
   seasons,
   users
 } from "../seed.js";
-import type { MatchmakingEntry, Repository } from "./types.js";
+import type {
+  MatchmakingEntry,
+  OAuthAccountRecord,
+  PasswordAccountRecord,
+  Repository
+} from "./types.js";
 
 interface MemoryState {
   agents: typeof agents;
@@ -23,6 +28,9 @@ interface MemoryState {
   matches: Map<string, Match>;
   disputes: Map<string, Dispute>;
   matchmakingQueue: Map<string, MatchmakingEntry>;
+  oauthAccounts: Map<string, OAuthAccountRecord>;
+  passwordAccountsByEmail: Map<string, PasswordAccountRecord>;
+  sessions: Map<string, Session>;
 }
 
 export function createMemoryRepository(): Repository {
@@ -37,7 +45,10 @@ export function createMemoryRepository(): Repository {
     queues,
     matches: new Map(),
     disputes: new Map(),
-    matchmakingQueue: new Map()
+    matchmakingQueue: new Map(),
+    oauthAccounts: new Map(),
+    passwordAccountsByEmail: new Map(),
+    sessions: new Map()
   };
 
   return {
@@ -204,6 +215,55 @@ export function createMemoryRepository(): Repository {
     async saveDispute(dispute: Dispute) {
       state.disputes.set(dispute.id, dispute);
       return dispute;
+    },
+    async findOAuthAccount(provider, providerAccountId) {
+      return state.oauthAccounts.get(`${provider}:${providerAccountId}`) ?? null;
+    },
+    async findOAuthAccountByEmail(email) {
+      for (const account of state.oauthAccounts.values()) {
+        if (account.email === email) {
+          return account;
+        }
+      }
+      return null;
+    },
+    async saveOAuthAccount(account) {
+      state.oauthAccounts.set(`${account.provider}:${account.providerAccountId}`, account);
+      return account;
+    },
+    async findPasswordAccountByEmail(email) {
+      return state.passwordAccountsByEmail.get(email.toLowerCase()) ?? null;
+    },
+    async findPasswordAccountByUserId(userId) {
+      for (const account of state.passwordAccountsByEmail.values()) {
+        if (account.userId === userId) {
+          return account;
+        }
+      }
+      return null;
+    },
+    async savePasswordAccount(account) {
+      const normalizedEmail = account.email.toLowerCase();
+      const payload = { ...account, email: normalizedEmail };
+      state.passwordAccountsByEmail.set(normalizedEmail, payload);
+      return payload;
+    },
+    async createSession(session) {
+      state.sessions.set(session.id, session);
+      return session;
+    },
+    async findSession(sessionId) {
+      return state.sessions.get(sessionId) ?? null;
+    },
+    async deleteSession(sessionId) {
+      state.sessions.delete(sessionId);
+    },
+    async purgeExpiredSessions(nowTimestamp) {
+      for (const [sessionId, session] of state.sessions.entries()) {
+        if (session.expiresAt <= nowTimestamp) {
+          state.sessions.delete(sessionId);
+        }
+      }
     }
   };
 }

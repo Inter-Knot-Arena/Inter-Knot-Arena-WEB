@@ -6,36 +6,67 @@ export interface OAuthAccountRecord extends OAuthAccount {
   updatedAt: number;
 }
 
-export interface OAuthAccountStore {
-  findByProviderAccountId(provider: OAuthAccount["provider"], providerAccountId: string): OAuthAccountRecord | null;
-  findByEmail(email: string): OAuthAccountRecord | null;
-  save(account: OAuthAccountRecord): OAuthAccountRecord;
+export interface OAuthAccountPersistenceAdapter {
+  findByProviderAccountId(
+    provider: OAuthAccount["provider"],
+    providerAccountId: string
+  ): Promise<OAuthAccountRecord | null>;
+  findByEmail(email: string): Promise<OAuthAccountRecord | null>;
+  save(account: OAuthAccountRecord): Promise<OAuthAccountRecord>;
 }
 
-export function createOAuthAccountStore(): OAuthAccountStore {
+export interface OAuthAccountStore {
+  findByProviderAccountId(
+    provider: OAuthAccount["provider"],
+    providerAccountId: string
+  ): Promise<OAuthAccountRecord | null>;
+  findByEmail(email: string): Promise<OAuthAccountRecord | null>;
+  save(account: OAuthAccountRecord): Promise<OAuthAccountRecord>;
+}
+
+export function createOAuthAccountStore(
+  adapter?: OAuthAccountPersistenceAdapter
+): OAuthAccountStore {
   const byProvider = new Map<string, OAuthAccountRecord>();
 
   return {
-    findByProviderAccountId(provider, providerAccountId) {
-      return byProvider.get(`${provider}:${providerAccountId}`) ?? null;
+    async findByProviderAccountId(provider, providerAccountId) {
+      const key = `${provider}:${providerAccountId}`;
+      const cached = byProvider.get(key);
+      if (cached) {
+        return cached;
+      }
+      const persisted = await adapter?.findByProviderAccountId(provider, providerAccountId);
+      if (persisted) {
+        byProvider.set(key, persisted);
+      }
+      return persisted ?? null;
     },
-    findByEmail(email) {
+    async findByEmail(email) {
       for (const record of byProvider.values()) {
         if (record.email === email) {
           return record;
         }
       }
-      return null;
+      const persisted = await adapter?.findByEmail(email);
+      if (persisted) {
+        byProvider.set(`${persisted.provider}:${persisted.providerAccountId}`, persisted);
+      }
+      return persisted ?? null;
     },
-    save(account) {
+    async save(account) {
       const timestamp = now();
-      const existing = this.findByProviderAccountId(account.provider, account.providerAccountId);
+      const key = `${account.provider}:${account.providerAccountId}`;
+      const existing = (await this.findByProviderAccountId(account.provider, account.providerAccountId)) ?? null;
       const payload: OAuthAccountRecord = {
         ...account,
         createdAt: existing?.createdAt ?? timestamp,
         updatedAt: timestamp
       };
-      byProvider.set(`${account.provider}:${account.providerAccountId}`, payload);
+      byProvider.set(key, payload);
+      if (adapter) {
+        await adapter.save(payload);
+      }
       return payload;
     }
   };

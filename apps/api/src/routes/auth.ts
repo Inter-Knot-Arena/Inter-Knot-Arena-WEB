@@ -137,7 +137,7 @@ export async function registerAuthRoutes(
 
       const nameFromEmail = profile.email.split("@")[0] ?? profile.email;
       const displayName = profile.name ?? nameFromEmail;
-      const existingAccount = auth.oauthStore.findByProviderAccountId("google", profile.sub);
+      const existingAccount = await auth.oauthStore.findByProviderAccountId("google", profile.sub);
       let user = null as Awaited<ReturnType<typeof repo.findUser>> | null;
       if (existingAccount) {
         try {
@@ -185,7 +185,7 @@ export async function registerAuthRoutes(
         resolvedUser = updatedUser;
       }
 
-      auth.oauthStore.save({
+      await auth.oauthStore.save({
         provider: "google",
         providerAccountId: profile.sub,
         userId: resolvedUser.id,
@@ -194,7 +194,7 @@ export async function registerAuthRoutes(
         updatedAt: now()
       });
 
-      const session = auth.sessionStore.createSession(resolvedUser.id);
+      const session = await auth.sessionStore.createSession(resolvedUser.id);
       setSessionCookie(reply, session.id, auth.config.sessionSecret, {
         secure: process.env.NODE_ENV === "production",
         ttlMs: auth.config.sessionTtlMs
@@ -223,9 +223,13 @@ export async function registerAuthRoutes(
     try {
       if (!auth.config.authDisabled) {
         ensureSessionSecret(auth);
-        const session = getSessionFromRequest(request, auth.sessionStore, auth.config.sessionSecret);
+        const session = await getSessionFromRequest(
+          request,
+          auth.sessionStore,
+          auth.config.sessionSecret
+        );
         if (session) {
-          auth.sessionStore.deleteSession(session.id);
+          await auth.sessionStore.deleteSession(session.id);
         }
       }
       clearSessionCookie(reply, SESSION_COOKIE_NAME);
@@ -264,7 +268,7 @@ export async function registerAuthRoutes(
       }
 
       let user = await repo.findUserByEmail(email);
-      const existingPassword = auth.passwordStore.findByEmail(email);
+      const existingPassword = await auth.passwordStore.findByEmail(email);
       if (existingPassword) {
         reply.code(409).send({ error: "Email already registered" });
         return;
@@ -312,7 +316,7 @@ export async function registerAuthRoutes(
       }
 
       const { hash, salt } = hashPassword(password);
-      auth.passwordStore.save({
+      await auth.passwordStore.save({
         userId: user.id,
         email,
         passwordHash: hash,
@@ -321,7 +325,7 @@ export async function registerAuthRoutes(
         updatedAt: now()
       });
 
-      const session = auth.sessionStore.createSession(user.id);
+      const session = await auth.sessionStore.createSession(user.id);
       setSessionCookie(reply, session.id, auth.config.sessionSecret, {
         secure: process.env.NODE_ENV === "production",
         ttlMs: auth.config.sessionTtlMs
@@ -349,7 +353,7 @@ export async function registerAuthRoutes(
         return;
       }
 
-      const account = auth.passwordStore.findByEmail(email);
+      const account = await auth.passwordStore.findByEmail(email);
       if (!account || !verifyPassword(password, account.passwordSalt, account.passwordHash)) {
         reply.code(401).send({ error: "Invalid credentials" });
         return;
@@ -361,7 +365,7 @@ export async function registerAuthRoutes(
         user = { ...user, roles: updatedRoles, updatedAt: now() };
         await repo.saveUser(user);
       }
-      const session = auth.sessionStore.createSession(user.id);
+      const session = await auth.sessionStore.createSession(user.id);
       setSessionCookie(reply, session.id, auth.config.sessionSecret, {
         secure: process.env.NODE_ENV === "production",
         ttlMs: auth.config.sessionTtlMs

@@ -6,10 +6,17 @@ import { createId, now } from "../utils.js";
 export const SESSION_COOKIE_NAME = "ika_session";
 
 export interface SessionStore {
-  createSession(userId: string): Session;
-  getSession(sessionId: string): Session | null;
-  deleteSession(sessionId: string): void;
-  purgeExpired(): void;
+  createSession(userId: string): Promise<Session>;
+  getSession(sessionId: string): Promise<Session | null>;
+  deleteSession(sessionId: string): Promise<void>;
+  purgeExpired(referenceTimestamp?: number): Promise<void>;
+}
+
+export interface SessionPersistenceAdapter {
+  createSession(session: Session): Promise<void>;
+  getSession(sessionId: string): Promise<Session | null>;
+  deleteSession(sessionId: string): Promise<void>;
+  purgeExpired(nowTimestamp: number): Promise<void>;
 }
 
 export interface SessionCookieOptions {
@@ -18,11 +25,14 @@ export interface SessionCookieOptions {
   cookieName?: string;
 }
 
-export function createSessionStore(ttlMs = 1000 * 60 * 60 * 24 * 7): SessionStore {
+export function createSessionStore(
+  ttlMs = 1000 * 60 * 60 * 24 * 7,
+  adapter?: SessionPersistenceAdapter
+): SessionStore {
   const sessions = new Map<string, Session>();
 
   return {
-    createSession(userId: string) {
+    async createSession(userId: string) {
       const createdAt = now();
       const session: Session = {
         id: createId("sess"),
@@ -31,21 +41,31 @@ export function createSessionStore(ttlMs = 1000 * 60 * 60 * 24 * 7): SessionStor
         expiresAt: createdAt + ttlMs
       };
       sessions.set(session.id, session);
+      await adapter?.createSession(session);
       return session;
     },
-    getSession(sessionId: string) {
-      return sessions.get(sessionId) ?? null;
+    async getSession(sessionId: string) {
+      const cached = sessions.get(sessionId);
+      if (cached) {
+        return cached;
+      }
+      const persisted = await adapter?.getSession(sessionId);
+      if (persisted) {
+        sessions.set(sessionId, persisted);
+      }
+      return persisted ?? null;
     },
-    deleteSession(sessionId: string) {
+    async deleteSession(sessionId: string) {
       sessions.delete(sessionId);
+      await adapter?.deleteSession(sessionId);
     },
-    purgeExpired() {
-      const timestamp = now();
+    async purgeExpired(referenceTimestamp = now()) {
       for (const [id, session] of sessions.entries()) {
-        if (session.expiresAt <= timestamp) {
+        if (session.expiresAt <= referenceTimestamp) {
           sessions.delete(id);
         }
       }
+      await adapter?.purgeExpired(referenceTimestamp);
     }
   };
 }
@@ -72,12 +92,12 @@ export function verifySessionCookie(value: string, secret: string): string | nul
   return sessionId;
 }
 
-export function getSessionFromRequest(
+export async function getSessionFromRequest(
   request: FastifyRequest,
   store: SessionStore,
   secret: string,
   cookieName = SESSION_COOKIE_NAME
-): Session | null {
+): Promise<Session | null> {
   const raw = request.cookies?.[cookieName];
   if (!raw) {
     return null;
@@ -86,12 +106,12 @@ export function getSessionFromRequest(
   if (!sessionId) {
     return null;
   }
-  const session = store.getSession(sessionId);
+  const session = await store.getSession(sessionId);
   if (!session) {
     return null;
   }
   if (session.expiresAt <= now()) {
-    store.deleteSession(sessionId);
+    await store.deleteSession(sessionId);
     return null;
   }
   return session;

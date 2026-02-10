@@ -25,7 +25,7 @@ await app.register(cookie);
 
 const repo = await createRepository();
 const storage = createStorage();
-const auth = createAuthContext();
+const auth = createAuthContext(repo);
 const flags = getFeatureFlags();
 await registerAuthRoutes(app, repo, auth);
 await registerUserRoutes(app, repo, auth);
@@ -43,6 +43,10 @@ if (flags.enableAgentCatalog || flags.enableEnkaImport) {
     await registerRosterRoutes(app, repo, catalogStore, rosterStore, client, config.ttlMs, auth);
   }
 }
+
+setInterval(() => {
+  void auth.sessionStore.purgeExpired();
+}, 60_000).unref();
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";

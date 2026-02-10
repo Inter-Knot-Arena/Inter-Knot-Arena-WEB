@@ -1,19 +1,26 @@
-﻿import type {
+import type {
   Agent,
   Challenge,
   Dispute,
   League,
   Match,
   MatchState,
+  OAuthAccount,
   QueueConfig,
   Rating,
   Ruleset,
   Season,
+  Session,
   User
 } from "@ika/shared";
 import type { Pool } from "pg";
 import { getPool } from "../db/pool.js";
-import type { MatchmakingEntry, Repository } from "./types.js";
+import type {
+  MatchmakingEntry,
+  OAuthAccountRecord,
+  PasswordAccountRecord,
+  Repository
+} from "./types.js";
 
 export function createPostgresRepository(): Repository {
   return new PostgresRepository(getPool());
@@ -499,6 +506,154 @@ class PostgresRepository implements Repository {
     }
     return dispute;
   }
+
+  async findOAuthAccount(
+    provider: OAuthAccount["provider"],
+    providerAccountId: string
+  ): Promise<OAuthAccountRecord | null> {
+    const result = await this.pool.query(
+      `SELECT *
+       FROM oauth_accounts
+       WHERE provider = $1 AND provider_account_id = $2`,
+      [provider, providerAccountId]
+    );
+    const row = result.rows[0];
+    return row ? mapOAuthAccount(row) : null;
+  }
+
+  async findOAuthAccountByEmail(email: string): Promise<OAuthAccountRecord | null> {
+    const result = await this.pool.query(
+      `SELECT *
+       FROM oauth_accounts
+       WHERE email = $1
+       ORDER BY updated_at DESC
+       LIMIT 1`,
+      [email]
+    );
+    const row = result.rows[0];
+    return row ? mapOAuthAccount(row) : null;
+  }
+
+  async saveOAuthAccount(account: OAuthAccountRecord): Promise<OAuthAccountRecord> {
+    await this.pool.query(
+      `INSERT INTO oauth_accounts (
+         provider,
+         provider_account_id,
+         user_id,
+         email,
+         created_at,
+         updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (provider, provider_account_id) DO UPDATE
+       SET user_id = EXCLUDED.user_id,
+           email = EXCLUDED.email,
+           created_at = EXCLUDED.created_at,
+           updated_at = EXCLUDED.updated_at`,
+      [
+        account.provider,
+        account.providerAccountId,
+        account.userId,
+        account.email,
+        account.createdAt,
+        account.updatedAt
+      ]
+    );
+    return account;
+  }
+
+  async findPasswordAccountByEmail(email: string): Promise<PasswordAccountRecord | null> {
+    const result = await this.pool.query(
+      `SELECT *
+       FROM password_accounts
+       WHERE email = $1`,
+      [email]
+    );
+    const row = result.rows[0];
+    return row ? mapPasswordAccount(row) : null;
+  }
+
+  async findPasswordAccountByUserId(userId: string): Promise<PasswordAccountRecord | null> {
+    const result = await this.pool.query(
+      `SELECT *
+       FROM password_accounts
+       WHERE user_id = $1
+       ORDER BY updated_at DESC
+       LIMIT 1`,
+      [userId]
+    );
+    const row = result.rows[0];
+    return row ? mapPasswordAccount(row) : null;
+  }
+
+  async savePasswordAccount(account: PasswordAccountRecord): Promise<PasswordAccountRecord> {
+    await this.pool.query(
+      `INSERT INTO password_accounts (
+         user_id,
+         email,
+         password_hash,
+         password_salt,
+         created_at,
+         updated_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (email) DO UPDATE
+       SET user_id = EXCLUDED.user_id,
+           password_hash = EXCLUDED.password_hash,
+           password_salt = EXCLUDED.password_salt,
+           created_at = EXCLUDED.created_at,
+           updated_at = EXCLUDED.updated_at`,
+      [
+        account.userId,
+        account.email,
+        account.passwordHash,
+        account.passwordSalt,
+        account.createdAt,
+        account.updatedAt
+      ]
+    );
+    return account;
+  }
+
+  async createSession(session: Session): Promise<Session> {
+    await this.pool.query(
+      `INSERT INTO sessions (id, user_id, created_at, expires_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (id) DO UPDATE
+       SET user_id = EXCLUDED.user_id,
+           created_at = EXCLUDED.created_at,
+           expires_at = EXCLUDED.expires_at`,
+      [session.id, session.userId, session.createdAt, session.expiresAt]
+    );
+    return session;
+  }
+
+  async findSession(sessionId: string): Promise<Session | null> {
+    const result = await this.pool.query(
+      `SELECT *
+       FROM sessions
+       WHERE id = $1`,
+      [sessionId]
+    );
+    const row = result.rows[0];
+    return row ? mapSession(row) : null;
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM sessions
+       WHERE id = $1`,
+      [sessionId]
+    );
+  }
+
+  async purgeExpiredSessions(nowTimestamp: number): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM sessions
+       WHERE expires_at <= $1`,
+      [nowTimestamp]
+    );
+  }
 }
 
 function toJson(value: unknown): string | null {
@@ -663,6 +818,37 @@ function mapDispute(row: Record<string, unknown>): Dispute {
   };
 }
 
+function mapOAuthAccount(row: Record<string, unknown>): OAuthAccountRecord {
+  return {
+    provider: String(row.provider) as OAuthAccount["provider"],
+    providerAccountId: String(row.provider_account_id),
+    userId: String(row.user_id),
+    email: String(row.email),
+    createdAt: toNumber(row.created_at),
+    updatedAt: toNumber(row.updated_at)
+  };
+}
+
+function mapPasswordAccount(row: Record<string, unknown>): PasswordAccountRecord {
+  return {
+    userId: String(row.user_id),
+    email: String(row.email),
+    passwordHash: String(row.password_hash),
+    passwordSalt: String(row.password_salt),
+    createdAt: toNumber(row.created_at),
+    updatedAt: toNumber(row.updated_at)
+  };
+}
+
+function mapSession(row: Record<string, unknown>): Session {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    createdAt: toNumber(row.created_at),
+    expiresAt: toNumber(row.expires_at)
+  };
+}
+
 function serializeMatch(match: Match) {
   const evidence = {
     precheck: match.evidence.precheck ?? [],
@@ -743,3 +929,4 @@ function normalizeProxyLevel(value: unknown, fallback: User["proxyLevel"]): User
   }
   return parseJson<User["proxyLevel"]>(value, fallback);
 }
+

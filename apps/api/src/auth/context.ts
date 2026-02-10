@@ -28,7 +28,7 @@ export interface AuthContext {
   passwordStore: ReturnType<typeof createPasswordAccountStore>;
 }
 
-export function createAuthContext(): AuthContext {
+export function createAuthContext(repo: Repository): AuthContext {
   const webOrigin = process.env.WEB_ORIGIN ?? "http://localhost:5173";
   const apiOrigin = process.env.API_ORIGIN ?? "http://localhost:4000";
   const sessionTtlDays = Number(process.env.SESSION_TTL_DAYS ?? 7);
@@ -49,10 +49,30 @@ export function createAuthContext(): AuthContext {
       passwordMinLength,
       authDisabled: process.env.AUTH_DISABLED === "true"
     },
-    sessionStore: createSessionStore(sessionTtlDays * 24 * 60 * 60 * 1000),
+    sessionStore: createSessionStore(sessionTtlDays * 24 * 60 * 60 * 1000, {
+      createSession: async (session) => {
+        await repo.createSession(session);
+      },
+      getSession: async (sessionId) => repo.findSession(sessionId),
+      deleteSession: async (sessionId) => {
+        await repo.deleteSession(sessionId);
+      },
+      purgeExpired: async (timestamp) => {
+        await repo.purgeExpiredSessions(timestamp);
+      }
+    }),
     stateStore: createGoogleAuthStateStore(stateTtlSec * 1000),
-    oauthStore: createOAuthAccountStore(),
-    passwordStore: createPasswordAccountStore()
+    oauthStore: createOAuthAccountStore({
+      findByProviderAccountId: async (provider, providerAccountId) =>
+        repo.findOAuthAccount(provider, providerAccountId),
+      findByEmail: async (email) => repo.findOAuthAccountByEmail(email),
+      save: async (account) => repo.saveOAuthAccount(account)
+    }),
+    passwordStore: createPasswordAccountStore({
+      findByEmail: async (email) => repo.findPasswordAccountByEmail(email),
+      findByUserId: async (userId) => repo.findPasswordAccountByUserId(userId),
+      save: async (account) => repo.savePasswordAccount(account)
+    })
   };
 }
 
@@ -68,14 +88,18 @@ export async function getAuthUser(
   if (!auth.config.sessionSecret) {
     return null;
   }
-  const session = getSessionFromRequest(request, auth.sessionStore, auth.config.sessionSecret);
+  const session = await getSessionFromRequest(
+    request,
+    auth.sessionStore,
+    auth.config.sessionSecret
+  );
   if (!session) {
     return null;
   }
   try {
     return await repo.findUser(session.userId);
   } catch {
-    auth.sessionStore.deleteSession(session.id);
+    await auth.sessionStore.deleteSession(session.id);
     return null;
   }
 }

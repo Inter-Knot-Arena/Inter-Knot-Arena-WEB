@@ -145,6 +145,16 @@ CREATE TABLE IF NOT EXISTS oauth_accounts (
   PRIMARY KEY (provider, provider_account_id)
 );
 
+CREATE TABLE IF NOT EXISTS password_accounts (
+  user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email text NOT NULL UNIQUE,
+  password_hash text NOT NULL,
+  password_salt text NOT NULL,
+  created_at bigint NOT NULL,
+  updated_at bigint NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_password_accounts_user_id ON password_accounts (user_id);
+
 CREATE TABLE IF NOT EXISTS sessions (
   id text PRIMARY KEY,
   user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
