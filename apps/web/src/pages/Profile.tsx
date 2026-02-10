@@ -32,6 +32,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../com
 import { fetchLeagues, fetchProfile } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 import { featureFlags } from "../flags";
+import { isUidVerified, normalizedVerificationStatus, uidStatusLabel } from "../lib/verification";
 import { defaultEloConfig, resolveK, type League, type LeagueType, type ProfileSummary } from "@ika/shared";
 
 const leagueOrder: LeagueType[] = ["STANDARD", "F2P", "UNLIMITED"];
@@ -142,7 +143,7 @@ export default function Profile() {
   const profileId = id ?? user?.id ?? null;
   const profileUser = profile?.user ?? user;
   const ratings = profile?.ratings ?? [];
-  const isSelf = profileUser?.id && user?.id ? profileUser.id === user.id : true;
+  const isSelf = Boolean(profileUser?.id && user?.id && profileUser.id === user.id);
   const displayRoles = useMemo(() => {
     const roles = profileUser?.roles ?? [];
     const elevated = roles.filter((role) => role !== "USER");
@@ -317,12 +318,12 @@ export default function Profile() {
     dispute: match.disputeStatus
   }));
 
-  const rankedEligible = profileUser?.verification.status === "VERIFIED";
+  const verificationStatus = normalizedVerificationStatus(profileUser?.verification.status);
+  const rankedEligible = isUidVerified(verificationStatus);
   const avatarInitials = profileUser ? initialsForName(profileUser.displayName) : "??";
   const displayName = profileUser?.displayName ?? "Player";
   const regionLabel = profileUser?.region ?? "NA";
-  const verificationStatus = profileUser?.verification.status ?? "UNVERIFIED";
-  const uidLabel = profileUser?.verification.uid ? "UID verified" : "UID pending";
+  const uidLabel = uidStatusLabel(verificationStatus);
   const rosterUid = profileUser?.verification.uid;
 
   return (
@@ -387,10 +388,12 @@ export default function Profile() {
                 Season 01 - 60 days left
               </Badge>
               <div className="flex flex-wrap gap-2">
-                <Button size="sm">
-                  <Swords className="mr-2 h-4 w-4" />
-                  Challenge
-                </Button>
+                {!isSelf ? (
+                  <Button size="sm">
+                    <Swords className="mr-2 h-4 w-4" />
+                    Challenge
+                  </Button>
+                ) : null}
                 {!isSelf ? (
                   <Button variant="outline" size="sm">
                     <Flag className="mr-2 h-4 w-4" />
@@ -409,7 +412,7 @@ export default function Profile() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
-                  className="rounded-xl border border-border bg-ika-800/70 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                  className="flex h-full min-h-[136px] flex-col rounded-xl border border-border bg-ika-800/70 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
                   tabIndex={0}
                 >
                   <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-500">
@@ -417,7 +420,7 @@ export default function Profile() {
                     Trust score
                   </div>
                   <div className="mt-2 text-xl font-semibold text-ink-900">{trustScore}</div>
-                  <div className="text-xs text-ink-500">
+                  <div className="mt-auto text-xs text-ink-500">
                     {rankedEligible ? "Verified account" : "Verification pending"}
                   </div>
                 </div>
@@ -430,7 +433,7 @@ export default function Profile() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
-                  className="rounded-xl border border-border bg-ika-800/70 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                  className="flex h-full min-h-[136px] flex-col rounded-xl border border-border bg-ika-800/70 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
                   tabIndex={0}
                 >
                   <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-500">
@@ -441,19 +444,19 @@ export default function Profile() {
                     <span>
                       {proxyLevel}/{proxyCap}
                     </span>
-                    <span className="text-xs text-ink-500">
-                      Next: {profileUser?.proxyLevel.nextXp ?? "--"} XP
-                    </span>
                   </div>
                   <div className="mt-2">
                     <Progress value={proxyProgress} />
+                  </div>
+                  <div className="mt-auto pt-2 text-xs text-ink-500">
+                    Next: {profileUser?.proxyLevel.nextXp ?? "--"} XP
                   </div>
                 </div>
               </TooltipTrigger>
               <TooltipContent>Next unlock at level 15: moderator eligibility preview.</TooltipContent>
             </Tooltip>
 
-            <div className="rounded-xl border border-border bg-ika-800/70 px-4 py-3">
+            <div className="flex h-full min-h-[136px] flex-col rounded-xl border border-border bg-ika-800/70 px-4 py-3">
               <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-500">
                 <CheckCircle2 className="h-4 w-4" />
                 Ranked eligibility
@@ -461,7 +464,7 @@ export default function Profile() {
               <div className="mt-2 text-xl font-semibold text-ink-900">
                 {rankedEligible ? "Eligible" : "Locked"}
               </div>
-              <div className="text-xs text-ink-500">
+              <div className="mt-auto text-xs text-ink-500">
                 {rankedEligible ? "UID verified and proof flow ready" : "Verify UID to unlock ranked"}
               </div>
             </div>
@@ -469,7 +472,7 @@ export default function Profile() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div
-                  className="rounded-xl border border-border bg-ika-800/70 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                  className="flex h-full min-h-[136px] flex-col rounded-xl border border-border bg-ika-800/70 px-4 py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
                   tabIndex={0}
                 >
                   <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-500">
@@ -477,7 +480,7 @@ export default function Profile() {
                     Proof status
                   </div>
                   <div className="mt-2 text-xl font-semibold text-ink-900">Required</div>
-                  <div className="text-xs text-ink-500">Standard and F2P ranked</div>
+                  <div className="mt-auto text-xs text-ink-500">Standard and F2P ranked</div>
                 </div>
               </TooltipTrigger>
               <TooltipContent>Pre-check proof is required before match start in ranked.</TooltipContent>
