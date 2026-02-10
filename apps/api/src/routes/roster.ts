@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import https from "node:https";
 import type { Repository } from "../repository/types.js";
 import type { CatalogStore } from "../catalog/store.js";
 import type { CacheClient } from "../cache/types.js";
@@ -45,6 +46,13 @@ class EnkaHttpError extends Error {
   }
 }
 
+class EnkaTimeoutError extends Error {
+  constructor(public readonly requestUrl: string) {
+    super("Enka request timed out");
+    this.name = "AbortError";
+  }
+}
+
 function validateUid(uid: string): boolean {
   return /^\d{6,12}$/.test(uid);
 }
@@ -71,17 +79,8 @@ async function fetchJsonWithRetry(url: string, timeoutMs: number): Promise<unkno
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: ENKA_REQUEST_HEADERS
-      });
-      if (!response.ok) {
-        throw new EnkaHttpError(response.status, url);
-      }
-      return (await response.json()) as unknown;
+      return await fetchJsonViaHttps(url, timeoutMs);
     } catch (error) {
       lastError = error;
       const canRetry =
@@ -89,12 +88,41 @@ async function fetchJsonWithRetry(url: string, timeoutMs: number): Promise<unkno
       if (attempt < attempts - 1 && canRetry) {
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
-    } finally {
-      clearTimeout(timeout);
     }
   }
 
   throw lastError;
+}
+
+function fetchJsonViaHttps(url: string, timeoutMs: number): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, { headers: ENKA_REQUEST_HEADERS }, (response) => {
+      const status = Number(response.statusCode ?? 0);
+      let body = "";
+      response.setEncoding("utf8");
+
+      response.on("data", (chunk: string) => {
+        body += chunk;
+      });
+      response.on("error", reject);
+      response.on("end", () => {
+        if (status < 200 || status >= 300) {
+          reject(new EnkaHttpError(status, url));
+          return;
+        }
+        try {
+          resolve(JSON.parse(body) as unknown);
+        } catch {
+          reject(new Error("Invalid Enka JSON response"));
+        }
+      });
+    });
+
+    request.on("error", reject);
+    request.setTimeout(timeoutMs, () => {
+      request.destroy(new EnkaTimeoutError(url));
+    });
+  });
 }
 
 async function fetchEnkaPayload(uid: string, region: Region, timeoutMs: number): Promise<unknown> {
