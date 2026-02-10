@@ -57,8 +57,8 @@ export function AgentGrid({ agents }: AgentGridProps) {
         <CardTitle className="text-lg font-sans text-ink-900">Roster</CardTitle>
         <p className="text-sm text-ink-500">Filter roster eligibility and ranked usage.</p>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-[1.2fr,1fr,1fr,1fr]">
+      <CardContent className="space-y-4 overflow-hidden">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink-500" />
             <Input
@@ -108,9 +108,9 @@ export function AgentGrid({ agents }: AgentGridProps) {
             No agents match the selected filters.
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {filteredAgents.map((agent) => (
-              <div key={agent.id} className="rounded-xl border border-border bg-ika-800/60 p-4">
+              <div key={agent.id} className="flex h-full flex-col rounded-xl border border-border bg-ika-800/60 p-4">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-semibold text-ink-900">{agent.name}</div>
                   <Badge className="bg-ika-700/70 text-ink-700">{agent.role}</Badge>
@@ -138,7 +138,7 @@ export function AgentGrid({ agents }: AgentGridProps) {
                     </Badge>
                   )}
                 </div>
-                <div className="mt-3 text-xs text-ink-500">
+                <div className="mt-auto pt-3 text-xs text-ink-500">
                   Used in ranked: <span className="font-semibold text-ink-900">{agent.rankedUsage}</span>
                 </div>
               </div>
