@@ -4,7 +4,6 @@ import {
   Calendar,
   CheckCircle2,
   Flag,
-  Globe,
   MapPin,
   Share2,
   Shield,
@@ -328,7 +327,7 @@ export default function Profile() {
 
   return (
     <TooltipProvider>
-      <div className="mx-auto w-full max-w-[1440px] px-6 pb-16 pt-8">
+      <div className="mx-auto w-full max-w-[1280px] px-6 pb-16 pt-8">
         {loadError ? (
           <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
             {loadError}
@@ -367,10 +366,6 @@ export default function Profile() {
                   <span className="flex items-center gap-1">
                     <ShieldCheck className="h-4 w-4" />
                     {uidLabel}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Globe className="h-4 w-4" />
-                    Region {regionLabel}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -489,8 +484,8 @@ export default function Profile() {
         </section>
 
         <Tabs value={tab} onValueChange={setTab} className="mt-8">
-          <div className="sticky top-24 z-20 bg-ika-900/90 pb-3 pt-3">
-            <div className="mx-auto w-full max-w-[1280px] rounded-lg border border-border bg-ika-800/70 p-1">
+          <div className="sticky top-24 z-20">
+            <div className="rounded-lg border border-border bg-ika-800/70 p-1">
               <TabsList className="w-full border-0 bg-transparent p-0">
               <TabsTrigger value="overview" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500">
                 Overview
@@ -515,14 +510,13 @@ export default function Profile() {
           </div>
 
           <TabsContent value="overview">
-            <div className="mx-auto grid w-full max-w-[1280px] grid-cols-12 gap-6">
+            <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12">
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-4">
                   <div>
                     <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Rating and leagues</div>
                     <div className="text-lg font-semibold text-ink-900">ELO across queues</div>
                   </div>
-                  <div className="text-xs text-ink-500">Season 01</div>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-3">
                   {leagueCards.map((card) => (
@@ -566,23 +560,21 @@ export default function Profile() {
           </TabsContent>
 
           <TabsContent value="agents">
-            <div className="mx-auto w-full max-w-[1280px]">
-              {featureFlags.enableAgentCatalog ? (
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-sm text-ink-500">
-                    Showcase roster combines catalog data with imported agent states.
-                  </div>
-                  {rosterUid ? (
-                    <Link className="text-sm text-accent-400" to={`/players/${rosterUid}/roster`}>
-                      View roster
-                    </Link>
-                  ) : (
-                    <span className="text-xs text-ink-500">UID required for roster view.</span>
-                  )}
+            {featureFlags.enableAgentCatalog ? (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm text-ink-500">
+                  Showcase roster combines catalog data with imported agent states.
                 </div>
-              ) : null}
-              <AgentGrid agents={rosterAgents} />
-            </div>
+                {rosterUid ? (
+                  <Link className="text-sm text-accent-400" to={`/players/${rosterUid}/roster`}>
+                    View roster
+                  </Link>
+                ) : (
+                  <span className="text-xs text-ink-500">UID required for roster view.</span>
+                )}
+              </div>
+            ) : null}
+            <AgentGrid agents={rosterAgents} />
           </TabsContent>
 
           <TabsContent value="tournaments">
@@ -607,7 +599,7 @@ export default function Profile() {
 
 function ProfileSkeleton() {
   return (
-    <div className="mx-auto w-full max-w-[1440px] px-6 pb-16 pt-8">
+    <div className="mx-auto w-full max-w-[1280px] px-6 pb-16 pt-8">
       <Card className="space-y-4 border-border bg-ika-800/70 p-6">
         <div className="flex flex-wrap items-center gap-4">
           <Skeleton className="h-20 w-20 rounded-full" />
