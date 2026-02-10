@@ -43,6 +43,7 @@ export interface Repository {
   listRulesets(): Promise<Ruleset[]>;
   listChallenges(): Promise<Challenge[]>;
   listQueues(): Promise<QueueConfig[]>;
+  listSeasons(): Promise<Season[]>;
   listUsers(): Promise<User[]>;
   listRatingsByUser(userId: string): Promise<Rating[]>;
   listLeaderboard(leagueId: string): Promise<Rating[]>;
@@ -72,6 +73,8 @@ export interface Repository {
   findDispute(disputeId: string): Promise<Dispute>;
   createDispute(dispute: Dispute): Promise<Dispute>;
   saveDispute(dispute: Dispute): Promise<Dispute>;
+  saveRuleset(ruleset: Ruleset): Promise<Ruleset>;
+  saveSeason(season: Season): Promise<Season>;
   findOAuthAccount(
     provider: OAuthAccount["provider"],
     providerAccountId: string

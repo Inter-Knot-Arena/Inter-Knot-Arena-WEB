@@ -399,6 +399,31 @@ export interface Dispute {
   resolvedAt?: number;
 }
 
+export type SanctionType = "WARNING" | "TIME_BAN" | "SEASON_BAN" | "ELO_ROLLBACK";
+export type SanctionStatus = "ACTIVE" | "EXPIRED" | "REVOKED";
+
+export interface Sanction {
+  id: string;
+  userId: string;
+  type: SanctionType;
+  status: SanctionStatus;
+  reason: string;
+  issuedBy?: string;
+  matchId?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: number;
+  expiresAt?: number;
+}
+
+export interface RankBand {
+  id: string;
+  name: string;
+  minElo: number;
+  maxElo?: number;
+  badge?: string;
+  sortOrder: number;
+}
+
 export interface Rating {
   userId: string;
   leagueId: string;

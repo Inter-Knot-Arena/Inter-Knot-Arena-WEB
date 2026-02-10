@@ -54,6 +54,11 @@ class PostgresRepository implements Repository {
     return result.rows.map(mapQueue);
   }
 
+  async listSeasons(): Promise<Season[]> {
+    const result = await this.pool.query("SELECT * FROM seasons ORDER BY starts_at DESC");
+    return result.rows.map(mapSeason);
+  }
+
   async listUsers(): Promise<User[]> {
     const result = await this.pool.query("SELECT * FROM users ORDER BY display_name");
     return result.rows.map(mapUser);
@@ -139,6 +144,79 @@ class PostgresRepository implements Repository {
       throw new Error("Queue not found");
     }
     return mapQueue(row);
+  }
+
+  async saveRuleset(ruleset: Ruleset): Promise<Ruleset> {
+    await this.pool.query(
+      `INSERT INTO rulesets (
+         id,
+         league_id,
+         version,
+         name,
+         description,
+         allowed_agents,
+         dupes_policy,
+         signature_policy,
+         level_caps,
+         gear_caps,
+         require_verifier,
+         require_inrun_check,
+         evidence_policy,
+         precheck_frequency_sec,
+         inrun_frequency_sec,
+         privacy_mode
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+       ON CONFLICT (id) DO UPDATE
+       SET league_id = EXCLUDED.league_id,
+           version = EXCLUDED.version,
+           name = EXCLUDED.name,
+           description = EXCLUDED.description,
+           allowed_agents = EXCLUDED.allowed_agents,
+           dupes_policy = EXCLUDED.dupes_policy,
+           signature_policy = EXCLUDED.signature_policy,
+           level_caps = EXCLUDED.level_caps,
+           gear_caps = EXCLUDED.gear_caps,
+           require_verifier = EXCLUDED.require_verifier,
+           require_inrun_check = EXCLUDED.require_inrun_check,
+           evidence_policy = EXCLUDED.evidence_policy,
+           precheck_frequency_sec = EXCLUDED.precheck_frequency_sec,
+           inrun_frequency_sec = EXCLUDED.inrun_frequency_sec,
+           privacy_mode = EXCLUDED.privacy_mode`,
+      [
+        ruleset.id,
+        ruleset.leagueId,
+        ruleset.version,
+        ruleset.name,
+        ruleset.description,
+        toJson(ruleset.allowedAgents),
+        toJson(ruleset.dupesPolicy),
+        toJson(ruleset.signaturePolicy),
+        toJson(ruleset.levelCaps),
+        toJson(ruleset.gearCaps),
+        ruleset.requireVerifier,
+        ruleset.requireInrunCheck,
+        toJson(ruleset.evidencePolicy),
+        ruleset.precheckFrequencySec,
+        ruleset.inrunFrequencySec,
+        ruleset.privacyMode
+      ]
+    );
+    return ruleset;
+  }
+
+  async saveSeason(season: Season): Promise<Season> {
+    await this.pool.query(
+      `INSERT INTO seasons (id, name, status, starts_at, ends_at)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (id) DO UPDATE
+       SET name = EXCLUDED.name,
+           status = EXCLUDED.status,
+           starts_at = EXCLUDED.starts_at,
+           ends_at = EXCLUDED.ends_at`,
+      [season.id, season.name, season.status, season.startsAt, season.endsAt]
+    );
+    return season;
   }
 
   async findUser(userId: string): Promise<User> {

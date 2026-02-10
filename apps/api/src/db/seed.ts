@@ -20,6 +20,16 @@ function toJson(value: unknown): string | null {
 const pool = getPool();
 const client = await pool.connect();
 
+const rankBands = [
+  { id: "proxy_rookie", name: "Proxy Rookie", minElo: 0, maxElo: 999, badge: null, sortOrder: 1 },
+  { id: "inter_knot_runner", name: "Inter-Knot Runner", minElo: 1000, maxElo: 1199, badge: null, sortOrder: 2 },
+  { id: "hollow_scout", name: "Hollow Scout", minElo: 1200, maxElo: 1399, badge: null, sortOrder: 3 },
+  { id: "field_agent", name: "Field Agent", minElo: 1400, maxElo: 1599, badge: null, sortOrder: 4 },
+  { id: "elite_operative", name: "Elite Operative", minElo: 1600, maxElo: 1799, badge: null, sortOrder: 5 },
+  { id: "section_captain", name: "Section Captain", minElo: 1800, maxElo: 1999, badge: null, sortOrder: 6 },
+  { id: "new_eridu_legend", name: "New Eridu Legend", minElo: 2000, maxElo: null, badge: null, sortOrder: 7 }
+];
+
 try {
   await client.query("BEGIN");
 
@@ -231,6 +241,27 @@ try {
         queue.description,
         queue.requireVerifier
       ]
+    );
+  }
+
+  for (const band of rankBands) {
+    await client.query(
+      `INSERT INTO rank_bands (
+         id,
+         name,
+         min_elo,
+         max_elo,
+         badge,
+         sort_order
+       )
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (id) DO UPDATE
+       SET name = EXCLUDED.name,
+           min_elo = EXCLUDED.min_elo,
+           max_elo = EXCLUDED.max_elo,
+           badge = EXCLUDED.badge,
+           sort_order = EXCLUDED.sort_order`,
+      [band.id, band.name, band.minElo, band.maxElo, band.badge, band.sortOrder]
     );
   }
 

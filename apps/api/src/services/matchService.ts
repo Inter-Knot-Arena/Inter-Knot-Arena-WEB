@@ -23,6 +23,11 @@ import { createId, now } from "../utils.js";
 
 type ResultEntry = NonNullable<ResultProof["entries"]>[number];
 
+export interface FinalizeOverrides {
+  trustDelta?: Record<string, number>;
+  proxyXpDelta?: Record<string, number>;
+}
+
 export async function createMatchFromQueue(
   repo: Repository,
   queueId: string,
@@ -320,6 +325,35 @@ export async function resolveDispute(
   return dispute;
 }
 
+export async function forceResolveMatch(
+  repo: Repository,
+  matchId: string,
+  winnerUserId?: string,
+  overrides?: FinalizeOverrides
+): Promise<Match> {
+  const match = await repo.findMatch(matchId);
+  if (match.state !== "RESOLVED") {
+    if (!canTransition(match.state, "RESOLVED")) {
+      throw new Error(`Cannot force-resolve from state ${match.state}`);
+    }
+    transitionMatch(match, "RESOLVED");
+  }
+  await finalizeMatchResolution(repo, match, "MODERATION", winnerUserId, overrides);
+  return match;
+}
+
+export async function adjustUserTrustAndProxy(
+  repo: Repository,
+  userId: string,
+  trustDelta: number,
+  proxyXpDelta = 0
+): Promise<User> {
+  const user = await repo.findUser(userId);
+  const updated = applyUserProgress(user, trustDelta, proxyXpDelta);
+  await repo.saveUser(updated.user);
+  return updated.user;
+}
+
 function transitionMatch(match: Match, next: MatchState): void {
   if (!canTransition(match.state, next)) {
     throw new Error(`Invalid match transition: ${match.state} -> ${next}`);
@@ -403,7 +437,8 @@ async function finalizeMatchResolution(
   repo: Repository,
   match: Match,
   source: "CONFIRMATION" | "MODERATION",
-  forcedWinnerUserId?: string
+  forcedWinnerUserId?: string,
+  overrides?: FinalizeOverrides
 ): Promise<void> {
   if (match.resolution?.finalizedAt) {
     return;
@@ -469,8 +504,9 @@ async function finalizeMatchResolution(
   for (const userId of players) {
     const user = await repo.findUser(userId);
     const won = winnerUserId === userId;
-    const trustGain = source === "CONFIRMATION" ? 2 : won ? 1 : -1;
-    const xpGain = won ? 45 : 30;
+    const trustGain =
+      overrides?.trustDelta?.[userId] ?? (source === "CONFIRMATION" ? 2 : won ? 1 : -1);
+    const xpGain = overrides?.proxyXpDelta?.[userId] ?? (won ? 45 : 30);
     const updated = applyUserProgress(user, trustGain, xpGain);
     trustDelta[userId] = updated.trustDelta;
     proxyXpDelta[userId] = xpGain;
@@ -545,7 +581,7 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
-function inferWinnerFromResult(
+export function inferWinnerFromResult(
   result: ResultProof | undefined,
   playerA: string,
   playerB: string

@@ -67,6 +67,9 @@ export function createMemoryRepository(): Repository {
     async listQueues() {
       return state.queues;
     },
+    async listSeasons() {
+      return state.seasons;
+    },
     async listUsers() {
       return state.users;
     },
@@ -115,6 +118,24 @@ export function createMemoryRepository(): Repository {
         throw new Error("Queue not found");
       }
       return queue;
+    },
+    async saveRuleset(ruleset) {
+      const index = state.rulesets.findIndex((item) => item.id === ruleset.id);
+      if (index === -1) {
+        state.rulesets.push(ruleset);
+      } else {
+        state.rulesets[index] = ruleset;
+      }
+      return ruleset;
+    },
+    async saveSeason(season) {
+      const index = state.seasons.findIndex((item) => item.id === season.id);
+      if (index === -1) {
+        state.seasons.push(season);
+      } else {
+        state.seasons[index] = season;
+      }
+      return season;
     },
     async findUser(userId: string) {
       const user = state.users.find((item) => item.id === userId);

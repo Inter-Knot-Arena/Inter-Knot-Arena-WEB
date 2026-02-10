@@ -251,6 +251,61 @@ CREATE INDEX IF NOT EXISTS idx_player_import_snapshots_uid_region
 CREATE INDEX IF NOT EXISTS idx_player_import_snapshots_fetched_at
   ON player_import_snapshots (fetched_at);
 
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id text PRIMARY KEY,
+  actor_user_id text REFERENCES users(id) ON DELETE SET NULL,
+  action text NOT NULL,
+  entity_type text NOT NULL,
+  entity_id text,
+  payload jsonb,
+  created_at bigint NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+  ON audit_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action
+  ON audit_logs (action);
+
+CREATE TABLE IF NOT EXISTS idempotency_records (
+  idempotency_key text NOT NULL,
+  scope text NOT NULL,
+  actor_user_id text NOT NULL,
+  status_code integer NOT NULL,
+  response_body jsonb NOT NULL,
+  created_at bigint NOT NULL,
+  expires_at bigint NOT NULL,
+  PRIMARY KEY (idempotency_key, scope, actor_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_idempotency_records_expires_at
+  ON idempotency_records (expires_at);
+
+CREATE TABLE IF NOT EXISTS sanctions (
+  id text PRIMARY KEY,
+  user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type text NOT NULL,
+  status text NOT NULL,
+  reason text NOT NULL,
+  issued_by text REFERENCES users(id) ON DELETE SET NULL,
+  match_id text REFERENCES matches(id) ON DELETE SET NULL,
+  metadata jsonb,
+  created_at bigint NOT NULL,
+  expires_at bigint
+);
+CREATE INDEX IF NOT EXISTS idx_sanctions_user_id
+  ON sanctions (user_id);
+CREATE INDEX IF NOT EXISTS idx_sanctions_status
+  ON sanctions (status);
+
+CREATE TABLE IF NOT EXISTS rank_bands (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  min_elo integer NOT NULL,
+  max_elo integer,
+  badge text,
+  sort_order integer NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rank_bands_sort_order
+  ON rank_bands (sort_order);
+
 CREATE INDEX IF NOT EXISTS idx_ratings_league ON ratings (league_id);
 CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes (status);
 CREATE INDEX IF NOT EXISTS idx_matches_state ON matches (state);
