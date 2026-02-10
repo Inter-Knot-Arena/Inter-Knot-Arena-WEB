@@ -24,6 +24,16 @@ const rateLimitMap = new Map<string, number>();
 const accumulativeEnabled = process.env.ENABLE_ACCUMULATIVE_IMPORT === "true";
 const storeRawEnka = process.env.ENKA_STORE_RAW === "true";
 const rawEnkaTtlSeconds = Number(process.env.ENKA_RAW_TTL_SEC ?? 60 * 60 * 24 * 14);
+const ENKA_REGION_FALLBACKS: Region[] = ["NA", "EU", "ASIA", "SEA"];
+
+class EnkaHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly requestUrl: string
+  ) {
+    super(`Enka request failed (${status})`);
+  }
+}
 
 function validateUid(uid: string): boolean {
   return /^\d{6,12}$/.test(uid);
@@ -56,12 +66,14 @@ async function fetchJsonWithRetry(url: string, timeoutMs: number): Promise<unkno
     try {
       const response = await fetch(url, { signal: controller.signal });
       if (!response.ok) {
-        throw new Error(`Enka request failed (${response.status})`);
+        throw new EnkaHttpError(response.status, url);
       }
       return (await response.json()) as unknown;
     } catch (error) {
       lastError = error;
-      if (attempt < attempts - 1) {
+      const canRetry =
+        !(error instanceof EnkaHttpError) || error.status === 429 || error.status >= 500;
+      if (attempt < attempts - 1 && canRetry) {
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
     } finally {
@@ -73,14 +85,63 @@ async function fetchJsonWithRetry(url: string, timeoutMs: number): Promise<unkno
 }
 
 async function fetchEnkaPayload(uid: string, region: Region, timeoutMs: number): Promise<unknown> {
-  try {
-    return await fetchJsonWithRetry(buildEnkaUrl(uid, region, true), timeoutMs);
-  } catch (error) {
-    if (region !== "OTHER") {
-      return fetchJsonWithRetry(buildEnkaUrl(uid, region, false), timeoutMs);
+  const candidates: string[] = [];
+  const seen = new Set<string>();
+
+  const pushCandidate = (url: string) => {
+    if (!seen.has(url)) {
+      seen.add(url);
+      candidates.push(url);
     }
-    throw error;
+  };
+
+  if (region !== "OTHER") {
+    pushCandidate(buildEnkaUrl(uid, region, true));
+    pushCandidate(buildEnkaUrl(uid, region, false));
+  } else {
+    pushCandidate(buildEnkaUrl(uid, region, false));
   }
+
+  ENKA_REGION_FALLBACKS.forEach((candidateRegion) => {
+    if (candidateRegion !== region) {
+      pushCandidate(buildEnkaUrl(uid, candidateRegion, true));
+    }
+  });
+
+  let lastError: unknown = null;
+  for (const candidate of candidates) {
+    try {
+      return await fetchJsonWithRetry(candidate, timeoutMs);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError instanceof Error) {
+    throw lastError;
+  }
+  throw new Error("Enka request failed");
+}
+
+function messageForEnkaError(error: unknown, region: Region): string {
+  if (error instanceof EnkaHttpError) {
+    if (error.status === 404) {
+      return `Showcase not found for UID in region ${region}. Check region and ensure showcase is public.`;
+    }
+    if (error.status === 403) {
+      return "Enka denied request. Please retry later.";
+    }
+    if (error.status === 429) {
+      return "Enka rate limit reached. Please retry in 1-2 minutes.";
+    }
+    if (error.status >= 500) {
+      return "Enka service is temporarily unavailable. Please retry later.";
+    }
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return "Enka request timed out. Please retry.";
+  }
+  return "Could not fetch showcase data. Please retry later.";
 }
 
 async function resolveRuleset(repo: Repository, rulesetId?: string): Promise<Ruleset> {
@@ -187,12 +248,26 @@ export async function registerRosterRoutes(
 
       if (!payload) {
         fetchedAt = new Date().toISOString();
-        payload = await fetchEnkaPayload(
-          uid,
-          region,
-          Number(process.env.ENKA_TIMEOUT_MS ?? 8000)
-        );
-        cache.set(cacheKey, { payload, fetchedAt }, cacheTtlMs);
+        try {
+          payload = await fetchEnkaPayload(
+            uid,
+            region,
+            Number(process.env.ENKA_TIMEOUT_MS ?? 8000)
+          );
+          cache.set(cacheKey, { payload, fetchedAt }, cacheTtlMs);
+        } catch (error) {
+          const summary: PlayerRosterImportSummary = {
+            source: "ENKA_SHOWCASE",
+            importedCount: 0,
+            skippedCount: 0,
+            unknownIds: [],
+            fetchedAt,
+            message: messageForEnkaError(error, region)
+          };
+          await rosterStore.saveImportSummary(uid, region, summary);
+          reply.send(summary);
+          return;
+        }
       }
 
       const { agents, unknownIds } = normalizeEnkaPayload(
