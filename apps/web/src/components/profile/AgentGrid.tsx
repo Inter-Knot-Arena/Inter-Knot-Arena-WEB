@@ -58,17 +58,20 @@ export function AgentGrid({ agents }: AgentGridProps) {
         <p className="text-sm text-ink-500">Filter roster eligibility and ranked usage.</p>
       </CardHeader>
       <CardContent className="space-y-4 overflow-hidden">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink-500" />
-            <Input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search agent"
-              className="pl-9"
-            />
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.2fr,1fr,1fr,1fr]">
+          <div className="space-y-2">
+            <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Search</label>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-ink-500" />
+              <Input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search agent"
+                className="pl-9"
+              />
+            </div>
           </div>
-          <div>
+          <div className="space-y-2">
             <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Element</label>
             <select className={selectClass} value={element} onChange={(event) => setElement(event.target.value)}>
               <option value="all">All elements</option>
@@ -79,7 +82,7 @@ export function AgentGrid({ agents }: AgentGridProps) {
               ))}
             </select>
           </div>
-          <div>
+          <div className="space-y-2">
             <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Faction</label>
             <select className={selectClass} value={faction} onChange={(event) => setFaction(event.target.value)}>
               <option value="all">All factions</option>
@@ -90,7 +93,7 @@ export function AgentGrid({ agents }: AgentGridProps) {
               ))}
             </select>
           </div>
-          <div>
+          <div className="space-y-2">
             <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Role</label>
             <select className={selectClass} value={role} onChange={(event) => setRole(event.target.value)}>
               <option value="all">All roles</option>
