@@ -12,8 +12,5 @@
     "build:api": "npm run build:shared && npm --workspace apps/api run build",
     "build:web": "npm --workspace apps/web run build",
     "typecheck": "npm --workspace packages/shared run typecheck && npm --workspace apps/api run typecheck && npm --workspace apps/web run typecheck"
-  },
-  "devDependencies": {
-    "@esbuild/win32-x64": "^0.27.2"
   }
 }
