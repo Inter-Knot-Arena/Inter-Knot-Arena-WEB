@@ -114,8 +114,8 @@ export function MatchTable({ matches, isLoading = false }: MatchTableProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <div>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_minmax(280px,1.35fr)]">
+          <div className="min-w-0">
             <label className="text-xs uppercase tracking-[0.2em] text-ink-500">League</label>
             <select className={selectClass} value={league} onChange={(event) => setLeague(event.target.value)}>
               <option value="all">All leagues</option>
@@ -126,7 +126,7 @@ export function MatchTable({ matches, isLoading = false }: MatchTableProps) {
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Result</label>
             <select className={selectClass} value={result} onChange={(event) => setResult(event.target.value)}>
               <option value="all">All results</option>
@@ -134,7 +134,7 @@ export function MatchTable({ matches, isLoading = false }: MatchTableProps) {
               <option value="L">Loss</option>
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Challenge</label>
             <select
               className={selectClass}
@@ -149,7 +149,7 @@ export function MatchTable({ matches, isLoading = false }: MatchTableProps) {
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Evidence</label>
             <select
               className={selectClass}
@@ -162,9 +162,9 @@ export function MatchTable({ matches, isLoading = false }: MatchTableProps) {
               <option value="Missing">Missing</option>
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Date range</label>
-            <div className="flex gap-2">
+            <div className="grid min-w-0 gap-2 sm:grid-cols-2">
               <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
               <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
             </div>
