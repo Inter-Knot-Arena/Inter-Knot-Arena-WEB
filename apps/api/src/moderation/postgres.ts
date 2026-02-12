@@ -15,6 +15,30 @@ export function createPostgresModerationStore(pool: Pool = getPool()): Moderatio
       );
       return result.rows.map(mapSanction);
     },
+    async listActiveSanctionsByUser(userId) {
+      const nowTs = Date.now();
+      const result = await pool.query(
+        `SELECT *
+         FROM sanctions
+         WHERE user_id = $1
+           AND status = 'ACTIVE'
+           AND (expires_at IS NULL OR expires_at > $2)
+         ORDER BY created_at DESC`,
+        [userId, nowTs]
+      );
+
+      await pool.query(
+        `UPDATE sanctions
+         SET status = 'EXPIRED'
+         WHERE user_id = $1
+           AND status = 'ACTIVE'
+           AND expires_at IS NOT NULL
+           AND expires_at <= $2`,
+        [userId, nowTs]
+      );
+
+      return result.rows.map(mapSanction);
+    },
     async saveSanction(sanction) {
       await pool.query(
         `INSERT INTO sanctions (
