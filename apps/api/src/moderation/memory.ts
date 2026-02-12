@@ -21,6 +21,25 @@ export function createMemoryModerationStore(): ModerationStore {
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(0, limit);
     },
+    async listActiveSanctionsByUser(userId) {
+      const timestamp = Date.now();
+      return Array.from(sanctions.values())
+        .filter((sanction) => {
+          if (sanction.userId !== userId) {
+            return false;
+          }
+          if (sanction.status !== "ACTIVE") {
+            return false;
+          }
+          if (sanction.expiresAt && sanction.expiresAt <= timestamp) {
+            sanction.status = "EXPIRED";
+            sanctions.set(sanction.id, sanction);
+            return false;
+          }
+          return true;
+        })
+        .sort((a, b) => b.createdAt - a.createdAt);
+    },
     async saveSanction(sanction) {
       sanctions.set(sanction.id, sanction);
       return sanction;
