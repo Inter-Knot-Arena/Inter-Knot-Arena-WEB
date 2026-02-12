@@ -5,6 +5,7 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "../components/ui/tooltip";
+import { normalizedVerificationStatus, uidStatusLabel } from "../lib/verification";
 
 const REGION_OPTIONS = ["NA", "EU", "ASIA", "SEA", "OTHER"];
 
@@ -26,7 +27,8 @@ export default function UidVerify() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const verificationStatus = user?.verification?.status ?? "UNVERIFIED";
+  const verificationStatus = normalizedVerificationStatus(user?.verification?.status);
+  const verificationLabel = uidStatusLabel(verificationStatus);
   const uidValid = uid.length > 0 && isValidUid(uid);
 
   const handleSubmit = async () => {
@@ -130,7 +132,7 @@ export default function UidVerify() {
                 <div className="text-xs text-ink-500">Код генерируется на сервере.</div>
               </div>
               <Badge className="border border-border bg-ika-700/60 text-ink-700">
-                Status: {verificationStatus}
+                Status: {verificationLabel}
               </Badge>
             </div>
 
