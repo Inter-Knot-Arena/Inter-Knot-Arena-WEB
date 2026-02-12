@@ -80,24 +80,12 @@ function inferLeagueType(leagueId: string): LeagueType {
 }
 
 function rankFromElo(elo: number): string {
-  if (elo >= 2000) {
-    return "New Eridu Legend";
-  }
-  if (elo >= 1800) {
-    return "Section Captain";
-  }
-  if (elo >= 1600) {
-    return "Elite Operative";
-  }
-  if (elo >= 1400) {
-    return "Field Agent";
-  }
-  if (elo >= 1200) {
-    return "Hollow Scout";
-  }
-  if (elo >= 1000) {
-    return "Inter-Knot Runner";
-  }
+  if (elo >= 2000) return "New Eridu Legend";
+  if (elo >= 1800) return "Section Captain";
+  if (elo >= 1600) return "Elite Operative";
+  if (elo >= 1400) return "Field Agent";
+  if (elo >= 1200) return "Hollow Scout";
+  if (elo >= 1000) return "Inter-Knot Runner";
   return "Proxy Rookie";
 }
 
@@ -142,7 +130,9 @@ export default function Profile() {
   const profileId = id ?? user?.id ?? null;
   const profileUser = profile?.user ?? user;
   const ratings = profile?.ratings ?? [];
+  const analytics = profile?.analytics;
   const isSelf = Boolean(profileUser?.id && user?.id && profileUser.id === user.id);
+
   const displayRoles = useMemo(() => {
     const roles = profileUser?.roles ?? [];
     const elevated = roles.filter((role) => role !== "USER");
@@ -153,7 +143,7 @@ export default function Profile() {
     if (authLoading) {
       return;
     }
-    if (!profileId || !user) {
+    if (!profileId) {
       setIsLoading(false);
       return;
     }
@@ -191,7 +181,7 @@ export default function Profile() {
     return () => {
       active = false;
     };
-  }, [authLoading, profileId, user]);
+  }, [authLoading, profileId]);
 
   const leagueMap = useMemo(() => {
     return leagues.reduce<Record<string, League>>((acc, league) => {
@@ -282,10 +272,42 @@ export default function Profile() {
     : 0;
   const trustScore = profileUser?.trustScore ?? 0;
 
-  const matchHistory: MatchItem[] = [];
-  const topAgents: AgentUsage[] = [];
-  const rosterAgents: AgentItem[] = [];
-  const evidenceItems: EvidenceItem[] = [];
+  const matchHistory: MatchItem[] = (analytics?.matchHistory ?? []).map((match) => ({
+    id: match.id,
+    date: match.date,
+    opponent: match.opponentDisplayName,
+    league: match.leagueName,
+    challenge: match.challengeName,
+    result: match.result === "DRAW" ? "L" : match.result,
+    eloDelta: match.eloDelta,
+    evidenceStatus: match.evidenceStatus,
+    disputeStatus: match.disputeStatus,
+    draftSummary: match.draftSummary,
+    evidenceLinks: match.evidenceLinks
+  }));
+
+  const topAgents: AgentUsage[] = (analytics?.topAgents ?? []).map((agent) => ({
+    name: agent.name,
+    matches: agent.matches,
+    winrate: agent.winrate,
+    role: agent.role,
+    share: agent.share
+  }));
+
+  const rosterAgents: AgentItem[] = (analytics?.rosterPreview ?? []).map((agent) => ({
+    id: agent.id,
+    name: agent.name,
+    element: agent.element,
+    faction: agent.faction,
+    role: agent.role,
+    owned: agent.owned,
+    verified: agent.verified,
+    draftEligible: agent.draftEligible,
+    rankedUsage: agent.rankedUsage
+  }));
+
+  const evidenceItems: EvidenceItem[] = analytics?.evidence.evidenceItems ?? [];
+  const draftSummary = analytics?.draft;
   const pastTournaments: TournamentItem[] = [];
   const upcomingTournaments: TournamentItem[] = [];
 
@@ -293,16 +315,16 @@ export default function Profile() {
     return <ProfileSkeleton />;
   }
 
-  if (!user) {
+  if (!profileId && !user) {
     return <div className="card">Sign in to view your profile.</div>;
-  }
-
-  if (id && user.id !== id) {
-    return <div className="card">Profile is private for MVP.</div>;
   }
 
   if (isLoading) {
     return <ProfileSkeleton />;
+  }
+
+  if (!profileUser) {
+    return <div className="card">Profile data is unavailable.</div>;
   }
 
   const recentMatches: RecentMatchItem[] = matchHistory.slice(0, 5).map((match) => ({
@@ -317,13 +339,13 @@ export default function Profile() {
     dispute: match.disputeStatus
   }));
 
-  const verificationStatus = normalizedVerificationStatus(profileUser?.verification.status);
+  const verificationStatus = normalizedVerificationStatus(profileUser.verification.status);
   const rankedEligible = isUidVerified(verificationStatus);
-  const avatarInitials = profileUser ? initialsForName(profileUser.displayName) : "??";
-  const displayName = profileUser?.displayName ?? "Player";
-  const regionLabel = profileUser?.region ?? "NA";
+  const avatarInitials = initialsForName(profileUser.displayName);
+  const displayName = profileUser.displayName ?? "Player";
+  const regionLabel = profileUser.region ?? "NA";
   const uidLabel = uidStatusLabel(verificationStatus);
-  const rosterUid = profileUser?.verification.uid;
+  const rosterUid = profileUser.verification.uid;
 
   return (
     <TooltipProvider>
@@ -337,7 +359,7 @@ export default function Profile() {
           <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               <Avatar className="h-20 w-20 border border-border">
-                {profileUser?.avatarUrl ? (
+                {profileUser.avatarUrl ? (
                   <AvatarImage src={profileUser.avatarUrl} alt={displayName} />
                 ) : null}
                 <AvatarFallback className="bg-gradient-to-br from-accent-500/30 via-ika-700 to-cool-500/30 text-ink-900">
@@ -383,13 +405,13 @@ export default function Profile() {
                 Season 01 - 60 days left
               </Badge>
               <div className="flex flex-wrap gap-2">
-                {!isSelf ? (
+                {!isSelf && user ? (
                   <Button size="sm">
                     <Swords className="mr-2 h-4 w-4" />
                     Challenge
                   </Button>
                 ) : null}
-                {!isSelf ? (
+                {!isSelf && user ? (
                   <Button variant="outline" size="sm">
                     <Flag className="mr-2 h-4 w-4" />
                     Report
@@ -444,7 +466,7 @@ export default function Profile() {
                     <Progress value={proxyProgress} />
                   </div>
                   <div className="mt-auto pt-2 text-xs text-ink-500">
-                    Next: {profileUser?.proxyLevel.nextXp ?? "--"} XP
+                    Next: {profileUser.proxyLevel.nextXp ?? "--"} XP
                   </div>
                 </div>
               </TooltipTrigger>
@@ -487,25 +509,43 @@ export default function Profile() {
           <div className="sticky top-24 z-20">
             <div className="rounded-lg border border-border bg-ika-800/70 p-1">
               <TabsList className="w-full border-0 bg-transparent p-0">
-              <TabsTrigger value="overview" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500">
-                Overview
-              </TabsTrigger>
-              <TabsTrigger value="matches" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500">
-                Matches
-              </TabsTrigger>
-              <TabsTrigger value="draft" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500">
-                Draft
-              </TabsTrigger>
-              <TabsTrigger value="agents" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500">
-                Agents
-              </TabsTrigger>
-              <TabsTrigger value="tournaments" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500">
-                Tournaments
-              </TabsTrigger>
-              <TabsTrigger value="evidence" className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500">
-                Evidence
-              </TabsTrigger>
-            </TabsList>
+                <TabsTrigger
+                  value="overview"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                >
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger
+                  value="matches"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                >
+                  Matches
+                </TabsTrigger>
+                <TabsTrigger
+                  value="draft"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                >
+                  Draft
+                </TabsTrigger>
+                <TabsTrigger
+                  value="agents"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                >
+                  Agents
+                </TabsTrigger>
+                <TabsTrigger
+                  value="tournaments"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                >
+                  Tournaments
+                </TabsTrigger>
+                <TabsTrigger
+                  value="evidence"
+                  className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                >
+                  Evidence
+                </TabsTrigger>
+              </TabsList>
             </div>
           </div>
 
@@ -513,17 +553,13 @@ export default function Profile() {
             <div className="grid grid-cols-12 gap-6">
               <div className="col-span-12">
                 <div className="mb-4">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Rating and leagues</div>
-                    <div className="text-lg font-semibold text-ink-900">ELO across queues</div>
-                  </div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Rating and leagues</div>
+                  <div className="text-lg font-semibold text-ink-900">ELO across queues</div>
                 </div>
-                <div className="w-full">
-                  <div className="grid gap-4 lg:grid-cols-3">
-                    {leagueCards.map((card) => (
-                      <LeagueCard key={card.name} data={card} />
-                    ))}
-                  </div>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  {leagueCards.map((card) => (
+                    <LeagueCard key={card.name} data={card} />
+                  ))}
                 </div>
               </div>
 
@@ -536,7 +572,12 @@ export default function Profile() {
                   <TopAgents agents={topAgents} />
                 </div>
                 <div className="xl:col-span-5">
-                  <DraftImpact yourBans={[]} bansAgainst={[]} pickSuccess="-" winrateDelta="-" />
+                  <DraftImpact
+                    yourBans={draftSummary?.yourBans.map((item) => item.name) ?? []}
+                    bansAgainst={draftSummary?.bansAgainst.map((item) => item.name) ?? []}
+                    pickSuccess={draftSummary?.pickSuccess ?? "-"}
+                    winrateDelta={draftSummary?.winrateDelta ?? "-"}
+                  />
                 </div>
               </div>
 
@@ -552,14 +593,14 @@ export default function Profile() {
 
           <TabsContent value="draft">
             <DraftStats
-              banFrequency="-"
-              pickFrequency="-"
-              draftWinrate={0}
-              matchWinrate={0}
-              pickSuccess="-"
-              bans={[]}
-              bansAgainst={[]}
-              sequences={[]}
+              banFrequency={draftSummary?.banFrequency ?? "-"}
+              pickFrequency={draftSummary?.pickFrequency ?? "-"}
+              draftWinrate={draftSummary?.draftWinrate ?? 0}
+              matchWinrate={draftSummary?.matchWinrate ?? 0}
+              pickSuccess={draftSummary?.pickSuccess ?? "-"}
+              bans={draftSummary?.yourBans ?? []}
+              bansAgainst={draftSummary?.bansAgainst ?? []}
+              sequences={draftSummary?.sequences ?? []}
             />
           </TabsContent>
 
@@ -587,12 +628,15 @@ export default function Profile() {
 
           <TabsContent value="evidence">
             <EvidencePanel
-              strictProofRequired={["Standard", "F2P"]}
-              lastPrecheck="No checks yet"
-              lastPrecheckStatus="NONE"
-              inrunViolations={0}
+              strictProofRequired={analytics?.evidence.strictProofRequired ?? ["Standard", "F2P"]}
+              lastPrecheck={analytics?.evidence.lastPrecheck ?? "No checks yet"}
+              lastPrecheckStatus={analytics?.evidence.lastPrecheckStatus ?? "NONE"}
+              inrunViolations={analytics?.evidence.inrunViolations ?? 0}
               evidenceItems={evidenceItems}
-              retentionInfo="Crops retained 14 days. Result proof retained 30 days."
+              retentionInfo={
+                analytics?.evidence.retentionInfo ??
+                "Pre/in-run crops are kept for 14 days. Result proofs are kept for 30-90 days."
+              }
             />
           </TabsContent>
         </Tabs>
