@@ -507,13 +507,17 @@ export async function uploadEvidenceFile(
     contentType: file.type || "application/octet-stream",
     extension
   });
-  const uploadResponse = await fetch(presign.uploadUrl, {
+  const uploadRequest: RequestInit = {
     method: "PUT",
     headers: {
       "Content-Type": file.type || "application/octet-stream"
     },
     body: file
-  });
+  };
+  if (isLocalUploadUrl(presign.uploadUrl)) {
+    uploadRequest.credentials = "include";
+  }
+  const uploadResponse = await fetch(presign.uploadUrl, uploadRequest);
   if (!uploadResponse.ok) {
     throw new Error(`Upload failed (${uploadResponse.status})`);
   }
@@ -521,4 +525,13 @@ export async function uploadEvidenceFile(
     url: presign.publicUrl ?? presign.key,
     key: presign.key
   };
+}
+
+function isLocalUploadUrl(uploadUrl: string): boolean {
+  try {
+    const parsed = new URL(uploadUrl, window.location.origin);
+    return parsed.pathname.includes("/uploads/local/");
+  } catch {
+    return false;
+  }
 }
