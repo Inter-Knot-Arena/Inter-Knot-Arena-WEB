@@ -7,36 +7,59 @@ export interface DraftTemplate {
   sequence: DraftActionType[];
 }
 
+const BO1_SEQUENCE: DraftActionType[] = [
+  "BAN_A",
+  "BAN_B",
+  "PICK_A",
+  "PICK_B",
+  "PICK_A",
+  "PICK_B",
+  "PICK_A",
+  "PICK_B"
+];
+
+const BO3_SEQUENCE: DraftActionType[] = [
+  // Game 1
+  "BAN_A",
+  "BAN_B",
+  "PICK_A",
+  "PICK_B",
+  "PICK_A",
+  "PICK_B",
+  "PICK_A",
+  "PICK_B",
+  // Game 2 (side swap)
+  "BAN_B",
+  "BAN_A",
+  "PICK_B",
+  "PICK_A",
+  "PICK_B",
+  "PICK_A",
+  "PICK_B",
+  "PICK_A",
+  // Game 3 (decider)
+  "BAN_A",
+  "BAN_B",
+  "PICK_A",
+  "PICK_B",
+  "PICK_A",
+  "PICK_B",
+  "PICK_A",
+  "PICK_B"
+];
+
 export const draftTemplates: DraftTemplate[] = [
   {
     id: "bo1-standard",
     name: "BO1 Standard",
     uniqueMode: "GLOBAL",
-    sequence: [
-      "BAN_A",
-      "BAN_B",
-      "PICK_A",
-      "PICK_B",
-      "PICK_A",
-      "PICK_B",
-      "PICK_A",
-      "PICK_B"
-    ]
+    sequence: BO1_SEQUENCE
   },
   {
     id: "bo3-standard",
     name: "BO3 Standard",
     uniqueMode: "GLOBAL",
-    sequence: [
-      "BAN_A",
-      "BAN_B",
-      "PICK_A",
-      "PICK_B",
-      "PICK_A",
-      "PICK_B",
-      "PICK_A",
-      "PICK_B"
-    ]
+    sequence: BO3_SEQUENCE
   }
 ];
 
