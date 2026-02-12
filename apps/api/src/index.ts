@@ -76,6 +76,10 @@ setInterval(() => {
   void idempotency.purgeExpired();
 }, 60_000).unref();
 
+setInterval(() => {
+  void rosterStore.cleanupExpiredSnapshots();
+}, 10 * 60_000).unref();
+
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";
 
