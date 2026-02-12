@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { Agent, DraftAction, DraftActionType, EvidenceResult, Match } from "@ika/shared";
 import {
@@ -14,6 +14,8 @@ import {
   uploadEvidenceFile
 } from "../api";
 import { useAuth } from "../auth/AuthProvider";
+
+const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
 function readCurrentUserId(): string {
   if (typeof window === "undefined") {
@@ -59,6 +61,7 @@ export default function MatchRoom() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [error, setError] = useState<string | null>(null);
   const { user } = useAuth();
+  const streamRef = useRef<EventSource | null>(null);
   const [fallbackUserId] = useState(readCurrentUserId);
   const currentUserId = user?.id ?? fallbackUserId;
   const [resultType, setResultType] = useState<"TIME_MS" | "SCORE" | "RANK_TIER">("TIME_MS");
@@ -75,6 +78,62 @@ export default function MatchRoom() {
         .catch(() => setError("Failed to load match."));
       fetchAgents().then(setAgents);
     }
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+
+    let active = true;
+    let pollTimer: number | null = null;
+    const startPolling = () => {
+      if (pollTimer !== null) {
+        return;
+      }
+      pollTimer = window.setInterval(() => {
+        fetchMatch(id)
+          .then((next) => {
+            if (active) {
+              setMatch(next);
+            }
+          })
+          .catch(() => {
+            // Keep polling silently while connection is unstable.
+          });
+      }, 2500);
+    };
+
+    const source = new EventSource(`${API_BASE}/matches/${id}/events`, {
+      withCredentials: true
+    });
+    streamRef.current = source;
+    source.addEventListener("match", (event) => {
+      try {
+        const payload = JSON.parse(event.data) as Match;
+        if (active) {
+          setMatch(payload);
+          setError(null);
+        }
+      } catch {
+        // Ignore malformed events and keep stream alive.
+      }
+    });
+    source.addEventListener("error", () => {
+      source.close();
+      if (active) {
+        startPolling();
+      }
+    });
+
+    return () => {
+      active = false;
+      source.close();
+      streamRef.current = null;
+      if (pollTimer !== null) {
+        window.clearInterval(pollTimer);
+      }
+    };
   }, [id]);
 
   const draftedAgents = useMemo(() => (match ? draftedAgentSet(match.draft.actions) : new Set()), [match]);
