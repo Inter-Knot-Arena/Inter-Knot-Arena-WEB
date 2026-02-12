@@ -21,6 +21,10 @@ export function ImportPanel({
   missingAgents,
   onImport
 }: ImportPanelProps) {
+  const importStatus = lastImport?.status ?? "SUCCESS";
+  const isFailed = importStatus === "FAILED";
+  const isDegraded = importStatus === "DEGRADED";
+
   return (
     <div className="rounded-xl border border-border bg-ika-800/70 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -31,9 +35,16 @@ export function ImportPanel({
           </p>
         </div>
         {enabled ? (
-          <Button onClick={() => onImport(false)} disabled={isImporting}>
-            {isImporting ? "Importing..." : "Import from Showcase"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {(isFailed || isDegraded) && !isImporting ? (
+              <Button variant="outline" onClick={() => onImport(true)}>
+                Retry now
+              </Button>
+            ) : null}
+            <Button onClick={() => onImport(false)} disabled={isImporting}>
+              {isImporting ? "Importing..." : "Import from Showcase"}
+            </Button>
+          </div>
         ) : null}
       </div>
 
@@ -45,6 +56,17 @@ export function ImportPanel({
         <div className="mt-3 rounded-lg border border-border bg-ika-900/40 p-3 text-xs text-ink-500">
           <div className="flex flex-wrap items-center gap-2">
             <Badge className="border border-border bg-ika-700/60 text-ink-700">{lastImport.source}</Badge>
+            <Badge
+              className={
+                isFailed
+                  ? "border border-rose-500/60 bg-rose-500/10 text-rose-200"
+                  : isDegraded
+                    ? "border border-amber-500/60 bg-amber-500/10 text-amber-100"
+                    : "border border-emerald-500/60 bg-emerald-500/10 text-emerald-100"
+              }
+            >
+              {importStatus}
+            </Badge>
             <span>Imported: {lastImport.importedCount}</span>
             <span>Skipped: {lastImport.skippedCount}</span>
             {lastImport.newAgentsCount !== undefined ? (
@@ -58,6 +80,14 @@ export function ImportPanel({
             ) : null}
             <span>Fetched: {new Date(lastImport.fetchedAt).toLocaleString()}</span>
           </div>
+          {typeof lastImport.retryAfterSec === "number" ? (
+            <div className="mt-2">Retry hint: wait about {lastImport.retryAfterSec} sec.</div>
+          ) : null}
+          {lastImport.usedSnapshotAt ? (
+            <div className="mt-1">
+              Fallback snapshot used: {new Date(lastImport.usedSnapshotAt).toLocaleString()}
+            </div>
+          ) : null}
           {lastImport.unknownIds.length ? (
             <div className="mt-2 text-amber-200">
               Unknown IDs: {lastImport.unknownIds.join(", ")}
