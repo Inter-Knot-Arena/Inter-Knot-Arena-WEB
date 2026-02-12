@@ -26,4 +26,6 @@ export interface PlayerAgentStateStore {
   getImportSummary(uid: string, region: Region): Promise<PlayerRosterImportSummary | null>;
   saveImportSummary(uid: string, region: Region, summary: PlayerRosterImportSummary): Promise<void>;
   saveSnapshot(snapshot: PlayerImportSnapshot): Promise<void>;
+  getLatestSnapshot(uid: string, region: Region): Promise<PlayerImportSnapshot | null>;
+  cleanupExpiredSnapshots(nowTimestamp?: number): Promise<number>;
 }
