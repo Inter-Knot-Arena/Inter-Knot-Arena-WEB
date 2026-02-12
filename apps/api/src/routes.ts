@@ -94,6 +94,10 @@ export async function registerRoutes(
     await runMatchLifecycle(repo, lifecycleConfig);
   };
   const idempotencyTtlMs = Number(process.env.IDEMPOTENCY_TTL_MS ?? 24 * 60 * 60 * 1000);
+  const uploadMaxBytes = Number(process.env.UPLOAD_MAX_BYTES ?? 25 * 1024 * 1024);
+  const uploadWindowMs = Number(process.env.UPLOAD_RATE_WINDOW_MS ?? 60_000);
+  const uploadMaxRequests = Number(process.env.UPLOAD_RATE_MAX_REQUESTS ?? 30);
+  const uploadRateMap = new Map<string, { startedAt: number; count: number }>();
 
   const readIdempotencyKey = (request: FastifyRequest): string | null => {
     const raw = request.headers["idempotency-key"];
@@ -157,6 +161,20 @@ export async function registerRoutes(
     });
   };
 
+  const assertUploadRateLimit = (userId: string) => {
+    const timestamp = now();
+    const row = uploadRateMap.get(userId);
+    if (!row || timestamp - row.startedAt > uploadWindowMs) {
+      uploadRateMap.set(userId, { startedAt: timestamp, count: 1 });
+      return;
+    }
+    row.count += 1;
+    uploadRateMap.set(userId, row);
+    if (row.count > uploadMaxRequests) {
+      throw new HttpError(429, "Upload rate limit exceeded. Please retry later.");
+    }
+  };
+
   const parseRegion = (value: string | undefined): Region => {
     const regions: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
     if (!value) {
@@ -202,6 +220,36 @@ export async function registerRoutes(
 
   app.get("/health", async () => ({ status: "ok" }));
 
+  app.get("/metrics", async (_request, reply) => {
+    try {
+      const activeStates: Match["state"][] = [
+        "CHECKIN",
+        "DRAFTING",
+        "AWAITING_PRECHECK",
+        "READY_TO_START",
+        "IN_PROGRESS",
+        "AWAITING_RESULT_UPLOAD",
+        "AWAITING_CONFIRMATION",
+        "DISPUTED"
+      ];
+      const [queues, waitingTickets, activeMatches, openDisputes] = await Promise.all([
+        repo.listQueues(),
+        repo.listMatchmakingEntries(),
+        repo.listMatchesByStates(activeStates),
+        repo.listOpenDisputes()
+      ]);
+      reply.send({
+        queuesConfigured: queues.length,
+        matchmakingTickets: waitingTickets.length,
+        activeMatches: activeMatches.length,
+        openDisputes: openDisputes.length,
+        timestamp: now()
+      });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
   app.get("/matchmaking/lobbies", async (request, reply) => {
     try {
       await enforceLifecycle();
@@ -213,18 +261,68 @@ export async function registerRoutes(
 
   app.post("/uploads/presign", async (request, reply) => {
     try {
-      await requireAuthUser(request, repo, auth);
+      const user = await requireAuthUser(request, repo, auth);
+      assertUploadRateLimit(user.id);
       const body = request.body as {
         purpose?: string;
         contentType?: string;
         extension?: string;
       };
+      if (body?.contentType && !isAllowedUploadType(body.contentType)) {
+        throw new HttpError(400, "Unsupported upload content type.");
+      }
       const key = buildUploadKey(body?.purpose, body?.extension);
       const presign = await storage.getPresignedUpload({
         key,
         contentType: body?.contentType
       });
       reply.send(presign);
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.put("/uploads/local/:encodedKey", async (request, reply) => {
+    try {
+      const user = await requireAuthUser(request, repo, auth);
+      assertUploadRateLimit(user.id);
+      if (!storage.storeObject) {
+        throw new HttpError(404, "Local upload endpoint is unavailable.");
+      }
+      const encodedKey = requireString(
+        (request.params as { encodedKey?: string }).encodedKey,
+        "encodedKey"
+      );
+      const key = decodeURIComponent(encodedKey);
+      const contentType = request.headers["content-type"];
+      const normalizedType = typeof contentType === "string" ? contentType : undefined;
+      if (normalizedType && !isAllowedUploadType(normalizedType)) {
+        throw new HttpError(400, "Unsupported upload content type.");
+      }
+      const body = await readRawBody(request.raw, uploadMaxBytes);
+      await storage.storeObject(key, { body, contentType: normalizedType });
+      reply.code(200).send({ status: "ok", key });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.get("/uploads/local/:encodedKey", async (request, reply) => {
+    try {
+      if (!storage.readObject) {
+        throw new HttpError(404, "Local storage reader is unavailable.");
+      }
+      const encodedKey = requireString(
+        (request.params as { encodedKey?: string }).encodedKey,
+        "encodedKey"
+      );
+      const key = decodeURIComponent(encodedKey);
+      const object = await storage.readObject(key);
+      if (!object) {
+        throw new HttpError(404, "File not found");
+      }
+      reply.header("Content-Type", object.contentType ?? "application/octet-stream");
+      reply.send(object.body);
     } catch (error) {
       sendError(reply, error);
     }
@@ -412,6 +510,57 @@ export async function registerRoutes(
       const match = await repo.findMatch(matchId);
       assertParticipant(user, match);
       reply.send(match);
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.get("/matches/:id/events", async (request, reply) => {
+    try {
+      await enforceLifecycle();
+      const user = await requireAuthUser(request, repo, auth);
+      const matchId = requireString((request.params as { id?: string }).id, "matchId");
+      const initialMatch = await repo.findMatch(matchId);
+      assertParticipant(user, initialMatch);
+
+      reply.hijack();
+      reply.raw.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive"
+      });
+
+      let closed = false;
+      let lastUpdatedAt = initialMatch.updatedAt;
+      const sendEvent = (eventName: string, payload: unknown) => {
+        reply.raw.write(`event: ${eventName}\n`);
+        reply.raw.write(`data: ${JSON.stringify(payload)}\n\n`);
+      };
+
+      sendEvent("match", initialMatch);
+
+      const interval = setInterval(async () => {
+        if (closed) {
+          return;
+        }
+        try {
+          await enforceLifecycle();
+          const next = await repo.findMatch(matchId);
+          if (next.updatedAt !== lastUpdatedAt) {
+            lastUpdatedAt = next.updatedAt;
+            sendEvent("match", next);
+            return;
+          }
+          sendEvent("ping", { ts: now() });
+        } catch {
+          sendEvent("error", { error: "stream_update_failed" });
+        }
+      }, 1000);
+
+      request.raw.on("close", () => {
+        closed = true;
+        clearInterval(interval);
+      });
     } catch (error) {
       sendError(reply, error);
     }
@@ -834,6 +983,33 @@ function sanitizeExtension(value?: string): string {
   }
   const cleaned = value.toLowerCase().replace(/^\./, "").replace(/[^a-z0-9]/g, "");
   return cleaned ? `.${cleaned}` : "";
+}
+
+function isAllowedUploadType(contentType: string): boolean {
+  const normalized = contentType.toLowerCase().trim();
+  return (
+    normalized.startsWith("image/") ||
+    normalized.startsWith("video/") ||
+    normalized === "application/octet-stream"
+  );
+}
+
+function readRawBody(stream: NodeJS.ReadableStream, maxBytes: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    stream.on("data", (chunk: Buffer | string) => {
+      const piece = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      size += piece.length;
+      if (size > maxBytes) {
+        reject(new HttpError(413, "Upload exceeds size limit."));
+        return;
+      }
+      chunks.push(piece);
+    });
+    stream.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
 }
 
 function buildPickBanAnalytics(matches: Match[]) {
