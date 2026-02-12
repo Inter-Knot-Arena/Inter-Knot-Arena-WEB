@@ -99,13 +99,17 @@ export default function Agents() {
       .sort((a, b) => a.localeCompare(b));
   }, [roster]);
 
-  const handleImport = async () => {
+  const handleImport = async (force = false) => {
     if (!uid) {
       return;
     }
     setImporting(true);
+    setError(null);
     try {
-      await importRosterFromEnka({ uid, region });
+      const summary = await importRosterFromEnka({ uid, region, force });
+      if (summary.status === "FAILED" && summary.message) {
+        setError(summary.message);
+      }
       const updated = await fetchPlayerRoster({ uid, region });
       setRoster(updated);
     } catch (importError) {
@@ -288,7 +292,7 @@ export default function Agents() {
                   <div>
                     <div className="text-sm font-semibold text-ink-900">{item.agent.name}</div>
                     <div className="text-xs text-ink-500">
-                      {item.agent.faction} · {item.agent.role}
+                      {item.agent.faction} / {item.agent.role}
                     </div>
                   </div>
                 </div>
