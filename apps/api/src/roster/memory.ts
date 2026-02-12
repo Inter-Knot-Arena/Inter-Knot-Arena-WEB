@@ -41,6 +41,36 @@ export function createMemoryRosterStore(): PlayerAgentStateStore {
       const current = snapshots.get(storeKey) ?? [];
       current.push(snapshot);
       snapshots.set(storeKey, current);
+    },
+    async getLatestSnapshot(uid, region) {
+      const storeKey = key(uid, region);
+      const current = snapshots.get(storeKey) ?? [];
+      const timestamp = Date.now();
+      const valid = current
+        .filter((snapshot) => {
+          const fetchedAtMs = new Date(snapshot.fetchedAt).getTime();
+          if (!Number.isFinite(fetchedAtMs)) {
+            return false;
+          }
+          return fetchedAtMs + snapshot.ttlSeconds * 1000 > timestamp;
+        })
+        .sort((a, b) => new Date(b.fetchedAt).getTime() - new Date(a.fetchedAt).getTime());
+      return valid[0] ?? null;
+    },
+    async cleanupExpiredSnapshots(nowTimestamp = Date.now()) {
+      let removed = 0;
+      for (const [storeKey, current] of snapshots.entries()) {
+        const filtered = current.filter((snapshot) => {
+          const fetchedAtMs = new Date(snapshot.fetchedAt).getTime();
+          const expired = !Number.isFinite(fetchedAtMs) || fetchedAtMs + snapshot.ttlSeconds * 1000 <= nowTimestamp;
+          if (expired) {
+            removed += 1;
+          }
+          return !expired;
+        });
+        snapshots.set(storeKey, filtered);
+      }
+      return removed;
     }
   };
 }
