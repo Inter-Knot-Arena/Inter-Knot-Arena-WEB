@@ -40,7 +40,17 @@ const flags = getFeatureFlags();
 await registerAuthRoutes(app, repo, auth);
 await registerUserRoutes(app, repo, auth);
 await registerIdentityRoutes(app, repo, auth);
-await registerRoutes(app, repo, storage, auth, lifecycleConfig, audit, idempotency, rosterStore);
+await registerRoutes(
+  app,
+  repo,
+  storage,
+  auth,
+  lifecycleConfig,
+  audit,
+  idempotency,
+  rosterStore,
+  moderation
+);
 await registerAdminRoutes(app, repo, moderation, audit, auth);
 
 if (flags.enableAgentCatalog || flags.enableEnkaImport) {
