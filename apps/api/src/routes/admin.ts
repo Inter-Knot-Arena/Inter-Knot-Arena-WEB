@@ -34,6 +34,15 @@ async function requireUser(
   return user;
 }
 
+async function findSanctionById(moderation: ModerationStore, sanctionId: string): Promise<Sanction> {
+  const sanctions = await moderation.listSanctions(5000);
+  const sanction = sanctions.find((item) => item.id === sanctionId);
+  if (!sanction) {
+    throw new Error("Sanction not found");
+  }
+  return sanction;
+}
+
 export async function registerAdminRoutes(
   app: FastifyInstance,
   repo: Repository,
@@ -240,6 +249,55 @@ export async function registerAdminRoutes(
         payload: saved
       });
       reply.code(201).send(saved);
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.patch("/admin/sanctions/:id", async (request, reply) => {
+    try {
+      const user = await requireUser(request, reply, repo, auth);
+      if (!user) {
+        return;
+      }
+      if (!canModerate(user)) {
+        reply.code(403).send({ error: "Forbidden" });
+        return;
+      }
+
+      const sanctionId = requireString((request.params as { id?: string }).id, "sanctionId");
+      const body = request.body as {
+        status?: Sanction["status"];
+        reason?: string;
+        expiresAt?: number | null;
+        metadata?: Record<string, unknown>;
+      };
+
+      const existing = await findSanctionById(moderation, sanctionId);
+      const updated: Sanction = {
+        ...existing,
+        status: body.status ?? existing.status,
+        reason: body.reason ?? existing.reason,
+        expiresAt:
+          body.expiresAt === null
+            ? undefined
+            : (body.expiresAt ?? existing.expiresAt),
+        metadata: body.metadata ?? existing.metadata
+      };
+
+      if (updated.status === "EXPIRED" && !updated.expiresAt) {
+        updated.expiresAt = now();
+      }
+
+      const saved = await moderation.saveSanction(updated);
+      await audit.record({
+        actorUserId: user.id,
+        action: "ADMIN_SANCTION_UPDATE",
+        entityType: "SANCTION",
+        entityId: saved.id,
+        payload: saved
+      });
+      reply.send(saved);
     } catch (error) {
       sendError(reply, error);
     }
