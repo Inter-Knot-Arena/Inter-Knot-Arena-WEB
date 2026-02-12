@@ -85,6 +85,40 @@ export function createPostgresRosterStore(): PlayerAgentStateStore {
           snapshot.ttlSeconds
         ]
       );
+    },
+    async getLatestSnapshot(uid, region) {
+      const nowTs = Date.now();
+      const result = await pool.query(
+        `SELECT *
+         FROM player_import_snapshots
+         WHERE uid = $1
+           AND region = $2
+           AND fetched_at + (ttl_seconds * 1000) > $3
+         ORDER BY fetched_at DESC
+         LIMIT 1`,
+        [uid, region, nowTs]
+      );
+      const row = result.rows[0];
+      if (!row) {
+        return null;
+      }
+      return {
+        snapshotId: String(row.snapshot_id),
+        uid: String(row.uid),
+        region: row.region as Region,
+        fetchedAt: new Date(Number(row.fetched_at)).toISOString(),
+        showcaseAgentIds: (row.showcase_agent_ids as string[]) ?? [],
+        rawEnkaJson: row.raw_enka ?? undefined,
+        ttlSeconds: Number(row.ttl_seconds)
+      };
+    },
+    async cleanupExpiredSnapshots(nowTimestamp = Date.now()) {
+      const result = await pool.query(
+        `DELETE FROM player_import_snapshots
+         WHERE fetched_at + (ttl_seconds * 1000) <= $1`,
+        [nowTimestamp]
+      );
+      return Number(result.rowCount ?? 0);
     }
   };
 }
