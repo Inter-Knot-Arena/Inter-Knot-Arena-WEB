@@ -37,6 +37,7 @@ import { getAuthUser, type AuthContext } from "./auth/context.js";
 import type { AuditStore } from "./audit/types.js";
 import type { IdempotencyStore } from "./idempotency/types.js";
 import type { ModerationStore } from "./moderation/types.js";
+import { getEnkaMetricsSnapshot } from "./enka/metrics.js";
 
 class HttpError extends Error {
   constructor(
@@ -243,6 +244,7 @@ export async function registerRoutes(
         matchmakingTickets: waitingTickets.length,
         activeMatches: activeMatches.length,
         openDisputes: openDisputes.length,
+        enka: getEnkaMetricsSnapshot(),
         timestamp: now()
       });
     } catch (error) {
