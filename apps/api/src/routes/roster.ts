@@ -13,6 +13,7 @@ import type {
   Ruleset
 } from "@ika/shared";
 import { normalizeEnkaPayload } from "../enka/normalize.js";
+import { recordEnkaImportEvent } from "../enka/metrics.js";
 import { getAuthUser, type AuthContext } from "../auth/context.js";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
@@ -304,8 +305,11 @@ export async function registerRosterRoutes(
       const cached = !force ? cache.get<{ payload: unknown; fetchedAt: string }>(cacheKey) : null;
       let fetchedAt = cached?.fetchedAt ?? new Date().toISOString();
       let payload: unknown = cached?.payload ?? null;
+      let fetchLatencyMs: number | undefined;
+      const usedCache = Boolean(payload);
 
       if (!payload) {
+        const fetchStartedAt = Date.now();
         fetchedAt = new Date().toISOString();
         try {
           payload = await fetchEnkaPayload(
@@ -313,8 +317,10 @@ export async function registerRosterRoutes(
             region,
             Number(process.env.ENKA_TIMEOUT_MS ?? 8000)
           );
+          fetchLatencyMs = Date.now() - fetchStartedAt;
           cache.set(cacheKey, { payload, fetchedAt }, cacheTtlMs);
         } catch (error) {
+          fetchLatencyMs = Date.now() - fetchStartedAt;
           const retryAfterSec = retryAfterForEnkaError(error);
           const latestSnapshot = await rosterStore.getLatestSnapshot(uid, region);
           const existingStates = await rosterStore.listStates(uid, region);
@@ -331,6 +337,12 @@ export async function registerRosterRoutes(
               message: `${messageForEnkaError(error, region)} Using latest valid snapshot.`
             };
             await rosterStore.saveImportSummary(uid, region, summary);
+            recordEnkaImportEvent({
+              status: summary.status ?? "DEGRADED",
+              fromCache: false,
+              latencyMs: fetchLatencyMs,
+              error
+            });
             reply.send(summary);
             return;
           }
@@ -345,6 +357,12 @@ export async function registerRosterRoutes(
             message: messageForEnkaError(error, region)
           };
           await rosterStore.saveImportSummary(uid, region, summary);
+          recordEnkaImportEvent({
+            status: summary.status ?? "FAILED",
+            fromCache: false,
+            latencyMs: fetchLatencyMs,
+            error
+          });
           reply.send(summary);
           return;
         }
@@ -435,6 +453,11 @@ export async function registerRosterRoutes(
         }
       }
       await rosterStore.saveImportSummary(uid, region, summary);
+      recordEnkaImportEvent({
+        status: summary.status ?? "SUCCESS",
+        fromCache: usedCache,
+        latencyMs: fetchLatencyMs
+      });
 
       reply.send(summary);
     } catch (error) {
