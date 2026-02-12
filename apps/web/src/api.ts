@@ -8,6 +8,8 @@ import type {
   Match,
   PlayerRosterImportSummary,
   PlayerRosterView,
+  ProfileAnalytics,
+  ProfileMatchHistoryPage,
   ProfileSummary,
   QueueConfig,
   RankBand,
@@ -160,6 +162,36 @@ export function fetchUsers(): Promise<User[]> {
 
 export function fetchProfile(userId: string): Promise<ProfileSummary> {
   return requestJson<ProfileSummary>(`/profiles/${userId}`);
+}
+
+export function fetchProfileAnalytics(userId: string): Promise<ProfileAnalytics> {
+  return requestJson<ProfileAnalytics>(`/profiles/${userId}/analytics`);
+}
+
+export function fetchProfileMatches(
+  userId: string,
+  params?: {
+    leagueId?: string;
+    result?: "W" | "L" | "DRAW";
+    evidenceStatus?: "Verified" | "Pending" | "Missing";
+    challengeId?: string;
+    startDateTs?: number;
+    endDateTs?: number;
+    page?: number;
+    pageSize?: number;
+  }
+): Promise<ProfileMatchHistoryPage> {
+  const query = new URLSearchParams();
+  if (params?.leagueId) query.set("leagueId", params.leagueId);
+  if (params?.result) query.set("result", params.result);
+  if (params?.evidenceStatus) query.set("evidenceStatus", params.evidenceStatus);
+  if (params?.challengeId) query.set("challengeId", params.challengeId);
+  if (Number.isFinite(params?.startDateTs)) query.set("startDateTs", String(params?.startDateTs));
+  if (Number.isFinite(params?.endDateTs)) query.set("endDateTs", String(params?.endDateTs));
+  if (Number.isFinite(params?.page)) query.set("page", String(params?.page));
+  if (Number.isFinite(params?.pageSize)) query.set("pageSize", String(params?.pageSize));
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return requestJson<ProfileMatchHistoryPage>(`/profiles/${userId}/matches${suffix}`);
 }
 
 export function joinMatchmaking(_userId: string, queueId: string): Promise<Match> {
