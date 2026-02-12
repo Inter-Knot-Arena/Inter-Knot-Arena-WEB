@@ -98,6 +98,11 @@ export function createMemoryRepository(): Repository {
     async listMatchesByStates(states: MatchState[]) {
       return Array.from(state.matches.values()).filter((match) => states.includes(match.state));
     },
+    async listMatchesByUser(userId: string) {
+      return Array.from(state.matches.values())
+        .filter((match) => match.players.some((player) => player.userId === userId))
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+    },
     async getActiveSeason() {
       const season = state.seasons.find((item) => item.status === "ACTIVE");
       if (!season) {
@@ -221,6 +226,15 @@ export function createMemoryRepository(): Repository {
     },
     async listDisputesByMatch(matchId: string) {
       return Array.from(state.disputes.values()).filter((item) => item.matchId === matchId);
+    },
+    async listDisputesByMatchIds(matchIds: string[]) {
+      if (!matchIds.length) {
+        return [];
+      }
+      const keys = new Set(matchIds);
+      return Array.from(state.disputes.values())
+        .filter((item) => keys.has(item.matchId))
+        .sort((a, b) => a.createdAt - b.createdAt);
     },
     async findDispute(disputeId: string) {
       const dispute = state.disputes.get(disputeId);
