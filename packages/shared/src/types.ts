@@ -179,10 +179,13 @@ export interface PlayerRosterImportSummary {
   skippedCount: number;
   unknownIds: string[];
   fetchedAt: string;
+  status?: "SUCCESS" | "DEGRADED" | "FAILED";
   newAgentsCount?: number;
   updatedAgentsCount?: number;
   unchangedCount?: number;
   ttlSeconds?: number;
+  retryAfterSec?: number;
+  usedSnapshotAt?: string;
   message?: string;
 }
 
@@ -432,9 +435,91 @@ export interface Rating {
   updatedAt: number;
 }
 
+export type ProfileMatchResult = "W" | "L" | "DRAW";
+export type ProfileEvidenceStatus = "Verified" | "Pending" | "Missing";
+export type ProfileDisputeStatus = "None" | "Open" | "Resolved";
+
+export interface ProfileMatchHistoryItem {
+  id: string;
+  date: string;
+  dateTs: number;
+  opponentUserId: string;
+  opponentDisplayName: string;
+  leagueId: string;
+  leagueName: string;
+  challengeId: string;
+  challengeName: string;
+  result: ProfileMatchResult;
+  eloDelta: number;
+  evidenceStatus: ProfileEvidenceStatus;
+  disputeStatus: ProfileDisputeStatus;
+  draftSummary: string;
+  evidenceLinks: string[];
+}
+
+export interface ProfileAgentSummary {
+  agentId: string;
+  name: string;
+  role: string;
+  matches: number;
+  wins: number;
+  losses: number;
+  winrate: number;
+  share: number;
+}
+
+export interface ProfileRosterPreviewItem {
+  id: string;
+  name: string;
+  element: string;
+  faction: string;
+  role: string;
+  owned: boolean;
+  verified: boolean;
+  draftEligible: boolean;
+  rankedUsage: number;
+}
+
+export interface ProfileDraftSummary {
+  banFrequency: string;
+  pickFrequency: string;
+  draftWinrate: number;
+  matchWinrate: number;
+  pickSuccess: string;
+  yourBans: Array<{ name: string; count: number }>;
+  bansAgainst: Array<{ name: string; count: number }>;
+  sequences: Array<{ sequence: string; count: number }>;
+  winrateDelta: string;
+}
+
+export interface ProfileEvidenceSummary {
+  strictProofRequired: string[];
+  lastPrecheck: string;
+  lastPrecheckStatus: "PASS" | "FAIL" | "NONE";
+  inrunViolations: number;
+  evidenceItems: Array<{
+    id: string;
+    match: string;
+    type: string;
+    date: string;
+    status: "Stored" | "Expiring" | "Requested";
+    retention: string;
+  }>;
+  retentionInfo: string;
+}
+
+export interface ProfileAnalytics {
+  matchHistory: ProfileMatchHistoryItem[];
+  topAgents: ProfileAgentSummary[];
+  rosterPreview: ProfileRosterPreviewItem[];
+  draft: ProfileDraftSummary;
+  evidence: ProfileEvidenceSummary;
+}
+
 export interface ProfileSummary {
   user: User;
   ratings: Rating[];
+  analytics?: ProfileAnalytics;
 }
 
 export type SeasonStatus = "PLANNED" | "ACTIVE" | "ENDED";
