@@ -4,6 +4,7 @@ import { Check, CheckCircle2, Info, LogOut, Pencil, ShieldAlert, ShieldCheck } f
 import { updateMe } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 import type { Region } from "@ika/shared";
+import { normalizedVerificationStatus, uidStatusLabel } from "../lib/verification";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -163,6 +164,9 @@ export default function Settings() {
   if (!user) {
     return <div className="card">Sign in required.</div>;
   }
+
+  const verificationStatus = normalizedVerificationStatus(user.verification.status);
+  const verificationLabel = uidStatusLabel(verificationStatus);
 
   const handleAvatarFile = (file?: File) => {
     if (!file) {
@@ -390,16 +394,17 @@ export default function Settings() {
                 Verification
               </div>
               <div className="mt-2">
-                <Badge className={verificationBadgeClass(user.verification.status)}>
-                  {user.verification.status}
+                <Badge className={verificationBadgeClass(verificationStatus)}>
+                  {verificationStatus}
                 </Badge>
               </div>
               {user.verification.uid ? (
                 <div className="mt-1 text-xs text-ink-500">UID: {user.verification.uid}</div>
               ) : null}
+              <div className="mt-1 text-xs text-ink-500">{verificationLabel}</div>
               <div className="mt-3 flex items-center justify-between gap-3">
                 <div className="text-xs text-ink-500">Required for ranked queues.</div>
-                {user.verification.status !== "VERIFIED" ? (
+                {verificationStatus !== "VERIFIED" ? (
                   <Button variant="outline" size="sm" asChild>
                     <Link to="/uid-verify">Verify UID</Link>
                   </Button>
