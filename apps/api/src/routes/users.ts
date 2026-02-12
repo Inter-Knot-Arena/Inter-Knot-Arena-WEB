@@ -1,7 +1,11 @@
 import type { FastifyInstance } from "fastify";
 import type { Repository } from "../repository/types.js";
 import type { Region, User } from "@ika/shared";
-import { getProfileSummary } from "../services/profileService.js";
+import {
+  getProfileAnalytics,
+  getProfileMatchHistoryPage,
+  getProfileSummary
+} from "../services/profileService.js";
 import { now, requireString } from "../utils.js";
 import { getAuthUser, type AuthContext } from "../auth/context.js";
 
@@ -47,7 +51,59 @@ export async function registerUserRoutes(
   app.get("/profiles/:id", async (request, reply) => {
     try {
       const userId = requireString((request.params as { id?: string }).id, "userId");
-      reply.send(await getProfileSummary(repo, userId));
+      const viewer = await getAuthUser(request, repo, auth);
+      reply.send(await getProfileSummary(repo, userId, { viewer, includeAnalytics: true }));
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.get("/profiles/:id/matches", async (request, reply) => {
+    try {
+      const userId = requireString((request.params as { id?: string }).id, "userId");
+      const query = request.query as {
+        leagueId?: string;
+        result?: "W" | "L" | "DRAW";
+        evidenceStatus?: "Verified" | "Pending" | "Missing";
+        challengeId?: string;
+        startDateTs?: string;
+        endDateTs?: string;
+        page?: string;
+        pageSize?: string;
+      };
+      const viewer = await getAuthUser(request, repo, auth);
+      const page = Number(query.page ?? 1);
+      const pageSize = Number(query.pageSize ?? 20);
+      const startDateTs = query.startDateTs ? Number(query.startDateTs) : undefined;
+      const endDateTs = query.endDateTs ? Number(query.endDateTs) : undefined;
+
+      reply.send(
+        await getProfileMatchHistoryPage(
+          repo,
+          userId,
+          {
+            leagueId: query.leagueId,
+            result: query.result,
+            evidenceStatus: query.evidenceStatus,
+            challengeId: query.challengeId,
+            startDateTs: Number.isFinite(startDateTs) ? startDateTs : undefined,
+            endDateTs: Number.isFinite(endDateTs) ? endDateTs : undefined
+          },
+          page,
+          pageSize,
+          viewer
+        )
+      );
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.get("/profiles/:id/analytics", async (request, reply) => {
+    try {
+      const userId = requireString((request.params as { id?: string }).id, "userId");
+      const viewer = await getAuthUser(request, repo, auth);
+      reply.send(await getProfileAnalytics(repo, userId, { viewer }));
     } catch (error) {
       sendError(reply, error);
     }
