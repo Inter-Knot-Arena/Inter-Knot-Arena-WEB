@@ -116,6 +116,21 @@ class PostgresRepository implements Repository {
     return result.rows.map(mapMatch);
   }
 
+  async listMatchesByUser(userId: string): Promise<Match[]> {
+    const result = await this.pool.query(
+      `SELECT *
+       FROM matches
+       WHERE EXISTS (
+         SELECT 1
+         FROM jsonb_array_elements(players) AS player
+         WHERE player->>'userId' = $1
+       )
+       ORDER BY updated_at DESC`,
+      [userId]
+    );
+    return result.rows.map(mapMatch);
+  }
+
   async getActiveSeason(): Promise<Season> {
     const result = await this.pool.query(
       "SELECT * FROM seasons WHERE status = $1 ORDER BY starts_at DESC LIMIT 1",
@@ -505,6 +520,17 @@ class PostgresRepository implements Repository {
     const result = await this.pool.query(
       "SELECT * FROM disputes WHERE match_id = $1 ORDER BY created_at ASC",
       [matchId]
+    );
+    return result.rows.map(mapDispute);
+  }
+
+  async listDisputesByMatchIds(matchIds: string[]): Promise<Dispute[]> {
+    if (matchIds.length === 0) {
+      return [];
+    }
+    const result = await this.pool.query(
+      "SELECT * FROM disputes WHERE match_id = ANY($1) ORDER BY created_at ASC",
+      [matchIds]
     );
     return result.rows.map(mapDispute);
   }
