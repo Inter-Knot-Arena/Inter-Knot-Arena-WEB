@@ -50,6 +50,7 @@ export interface Repository {
   findRating(userId: string, leagueId: string): Promise<Rating | null>;
   saveRating(rating: Rating): Promise<Rating>;
   listMatchesByStates(states: MatchState[]): Promise<Match[]>;
+  listMatchesByUser(userId: string): Promise<Match[]>;
   getActiveSeason(): Promise<Season>;
   findRuleset(rulesetId: string): Promise<Ruleset>;
   findQueue(queueId: string): Promise<QueueConfig>;
@@ -70,6 +71,7 @@ export interface Repository {
   deleteMatchmakingEntry(entryId: string): Promise<void>;
   listOpenDisputes(): Promise<Dispute[]>;
   listDisputesByMatch(matchId: string): Promise<Dispute[]>;
+  listDisputesByMatchIds(matchIds: string[]): Promise<Dispute[]>;
   findDispute(disputeId: string): Promise<Dispute>;
   createDispute(dispute: Dispute): Promise<Dispute>;
   saveDispute(dispute: Dispute): Promise<Dispute>;
