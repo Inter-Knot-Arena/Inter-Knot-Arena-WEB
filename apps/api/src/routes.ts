@@ -36,6 +36,7 @@ import { createId, now, requireArray, requireString } from "./utils.js";
 import { getAuthUser, type AuthContext } from "./auth/context.js";
 import type { AuditStore } from "./audit/types.js";
 import type { IdempotencyStore } from "./idempotency/types.js";
+import type { ModerationStore } from "./moderation/types.js";
 
 class HttpError extends Error {
   constructor(
@@ -86,7 +87,8 @@ export async function registerRoutes(
   lifecycleConfig: MatchLifecycleConfig,
   audit: AuditStore,
   idempotency: IdempotencyStore,
-  rosterStore: PlayerAgentStateStore
+  rosterStore: PlayerAgentStateStore,
+  moderation: ModerationStore
 ) {
   const enforceLifecycle = async () => {
     await runMatchLifecycle(repo, lifecycleConfig);
@@ -162,6 +164,17 @@ export async function registerRoutes(
     }
     const normalized = value.toUpperCase();
     return regions.includes(normalized as Region) ? (normalized as Region) : "OTHER";
+  };
+
+  const assertNoQueueBan = async (userId: string): Promise<void> => {
+    const sanctions = await moderation.listActiveSanctionsByUser(userId);
+    const blocking = sanctions.find(
+      (sanction) => sanction.type === "TIME_BAN" || sanction.type === "SEASON_BAN"
+    );
+    if (!blocking) {
+      return;
+    }
+    throw new HttpError(403, `Queue access blocked by active sanction (${blocking.type}).`);
   };
 
   const ensureRankedDraftAgentEligibility = async (
@@ -277,6 +290,7 @@ export async function registerRoutes(
     try {
       await enforceLifecycle();
       const user = await requireAuthUser(request, repo, auth);
+      await assertNoQueueBan(user.id);
       const body = request.body as { queueId?: string };
       const queueId = requireString(body?.queueId, "queueId");
       const result = await executeIdempotent({
@@ -308,6 +322,7 @@ export async function registerRoutes(
     try {
       await enforceLifecycle();
       const user = await requireAuthUser(request, repo, auth);
+      await assertNoQueueBan(user.id);
       const body = request.body as { queueId?: string };
       const queueId = requireString(body?.queueId, "queueId");
       const result = await executeIdempotent({
