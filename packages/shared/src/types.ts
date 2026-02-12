@@ -516,6 +516,24 @@ export interface ProfileAnalytics {
   evidence: ProfileEvidenceSummary;
 }
 
+export interface ProfileMatchHistoryFilters {
+  leagueId?: string;
+  result?: ProfileMatchResult;
+  evidenceStatus?: ProfileEvidenceStatus;
+  challengeId?: string;
+  startDateTs?: number;
+  endDateTs?: number;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export type ProfileMatchHistoryPage = PaginatedResponse<ProfileMatchHistoryItem>;
+
 export interface ProfileSummary {
   user: User;
   ratings: Rating[];
