@@ -441,6 +441,13 @@ export function createSanction(payload: Partial<Sanction>): Promise<Sanction> {
   return requestJson<Sanction>("/admin/sanctions", jsonRequest(payload));
 }
 
+export function updateSanction(
+  sanctionId: string,
+  payload: Partial<Pick<Sanction, "status" | "reason" | "expiresAt" | "metadata">>
+): Promise<Sanction> {
+  return requestJson<Sanction>(`/admin/sanctions/${sanctionId}`, jsonRequest(payload, "PATCH"));
+}
+
 export function fetchAuditLogs(options?: {
   limit?: number;
   actorUserId?: string;
