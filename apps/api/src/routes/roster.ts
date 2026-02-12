@@ -185,6 +185,24 @@ function messageForEnkaError(error: unknown, region: Region): string {
   return "Could not fetch showcase data. Please retry later.";
 }
 
+function retryAfterForEnkaError(error: unknown): number {
+  if (error instanceof EnkaHttpError) {
+    if (error.status === 429) {
+      return 90;
+    }
+    if (error.status === 403) {
+      return 120;
+    }
+    if (error.status >= 500) {
+      return 60;
+    }
+  }
+  if (error instanceof Error && error.name === "AbortError") {
+    return 30;
+  }
+  return 45;
+}
+
 async function resolveRuleset(repo: Repository, rulesetId?: string): Promise<Ruleset> {
   if (rulesetId) {
     return repo.findRuleset(rulesetId);
@@ -297,12 +315,33 @@ export async function registerRosterRoutes(
           );
           cache.set(cacheKey, { payload, fetchedAt }, cacheTtlMs);
         } catch (error) {
+          const retryAfterSec = retryAfterForEnkaError(error);
+          const latestSnapshot = await rosterStore.getLatestSnapshot(uid, region);
+          const existingStates = await rosterStore.listStates(uid, region);
+          if (latestSnapshot && existingStates.length > 0) {
+            const summary: PlayerRosterImportSummary = {
+              source: "ENKA_SHOWCASE",
+              importedCount: existingStates.length,
+              skippedCount: 0,
+              unknownIds: [],
+              fetchedAt,
+              status: "DEGRADED",
+              retryAfterSec,
+              usedSnapshotAt: latestSnapshot.fetchedAt,
+              message: `${messageForEnkaError(error, region)} Using latest valid snapshot.`
+            };
+            await rosterStore.saveImportSummary(uid, region, summary);
+            reply.send(summary);
+            return;
+          }
           const summary: PlayerRosterImportSummary = {
             source: "ENKA_SHOWCASE",
             importedCount: 0,
             skippedCount: 0,
             unknownIds: [],
             fetchedAt,
+            status: "FAILED",
+            retryAfterSec,
             message: messageForEnkaError(error, region)
           };
           await rosterStore.saveImportSummary(uid, region, summary);
@@ -324,6 +363,7 @@ export async function registerRosterRoutes(
         skippedCount,
         unknownIds,
         fetchedAt,
+        status: "SUCCESS",
         message: agents.length === 0 ? "No showcase data available." : undefined
       };
 
