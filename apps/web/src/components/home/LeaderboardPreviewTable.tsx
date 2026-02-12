@@ -45,7 +45,7 @@ export function LeaderboardPreviewTable({ rows, variant = "card" }: LeaderboardP
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-4">
         <div>
           <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Top of the season</div>
-          <div className="text-sm text-ink-700">Top 5 snapshot · {activeLeague} league</div>
+          <div className="text-sm text-ink-700">Top 5 snapshot - {activeLeague} league</div>
         </div>
         <div className="flex flex-wrap gap-3">
           {leagues.map((league) => (
@@ -113,3 +113,4 @@ export function LeaderboardPreviewTable({ rows, variant = "card" }: LeaderboardP
     </Container>
   );
 }
+
