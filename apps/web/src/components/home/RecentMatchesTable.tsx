@@ -36,7 +36,7 @@ export function RecentMatchesTable({ matches }: RecentMatchesTableProps) {
               <th className="px-6 py-3">Opponent</th>
               <th className="px-6 py-3">League</th>
               <th className="px-6 py-3">Result</th>
-              <th className="px-6 py-3">ELO Δ</th>
+              <th className="px-6 py-3">ELO delta</th>
               <th className="px-6 py-3">Evidence</th>
             </tr>
           </thead>
@@ -76,3 +76,4 @@ export function RecentMatchesTable({ matches }: RecentMatchesTableProps) {
     </Card>
   );
 }
+
