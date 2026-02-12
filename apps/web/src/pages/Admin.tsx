@@ -14,6 +14,7 @@ import {
   saveAdminRuleset,
   saveAdminSeason,
   saveRankBands,
+  updateSanction,
   type AuditEvent
 } from "../api";
 import { Button } from "../components/ui/button";
@@ -153,6 +154,16 @@ export default function Admin() {
       setNewSanctionReason("");
     } catch (saveError) {
       const message = saveError instanceof Error ? saveError.message : "Failed to create sanction.";
+      setError(message);
+    }
+  };
+
+  const handleUpdateSanction = async (sanctionId: string, status: Sanction["status"]) => {
+    try {
+      const updated = await updateSanction(sanctionId, { status });
+      setSanctions((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : "Failed to update sanction.";
       setError(message);
     }
   };
@@ -305,9 +316,30 @@ export default function Admin() {
               <div key={sanction.id} className="rounded-lg border border-border bg-ika-900/40 p-2 text-xs">
                 <div className="row">
                   <span>{sanction.userId}</span>
-                  <Badge>{sanction.type}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge>{sanction.type}</Badge>
+                    <Badge>{sanction.status}</Badge>
+                  </div>
                 </div>
                 <div className="text-ink-500">{sanction.reason}</div>
+                {sanction.status === "ACTIVE" ? (
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleUpdateSanction(sanction.id, "REVOKED")}
+                    >
+                      Revoke
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleUpdateSanction(sanction.id, "EXPIRED")}
+                    >
+                      Mark expired
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -330,7 +362,7 @@ export default function Admin() {
                   <Badge>{event.entityType}</Badge>
                 </div>
                 <div className="text-ink-500">
-                  {event.actorUserId ?? "system"} · {new Date(event.createdAt).toLocaleString()}
+                  {event.actorUserId ?? "system"} - {new Date(event.createdAt).toLocaleString()}
                 </div>
               </div>
             ))}
@@ -340,3 +372,4 @@ export default function Admin() {
     </div>
   );
 }
+
