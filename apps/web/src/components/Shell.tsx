@@ -1,67 +1,17 @@
 import { Link, NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { useState } from "react";
+import { FileText, Menu, Settings, Swords, Trophy, Users, X } from "lucide-react";
 import SearchBar from "./SearchBar";
 import UserMenu from "./UserMenu";
 import { useAuth } from "../auth/AuthProvider";
 
 const navItems = [
-  {
-    to: "/matchmaking",
-    label: "Matchmaking",
-    icon: (
-      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <circle cx="12" cy="12" r="7" strokeWidth="2" />
-        <path d="M12 5v3M12 16v3M5 12h3M16 12h3" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    )
-  },
-  {
-    to: "/leaderboards",
-    label: "Leaderboards",
-    icon: (
-      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path d="M5 19V9M12 19V5M19 19v-8" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    )
-  },
-  {
-    to: "/agents",
-    label: "Agents",
-    icon: (
-      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <circle cx="12" cy="8" r="3" strokeWidth="2" />
-        <path d="M5 19c1.5-3 4-5 7-5s5.5 2 7 5" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    )
-  },
-  {
-    to: "/rulesets",
-    label: "Rulesets",
-    icon: (
-      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path d="M4 6h16M4 12h16M4 18h16" strokeWidth="2" strokeLinecap="round" />
-        <circle cx="9" cy="6" r="2" strokeWidth="2" />
-        <circle cx="15" cy="12" r="2" strokeWidth="2" />
-        <circle cx="7" cy="18" r="2" strokeWidth="2" />
-      </svg>
-    )
-  },
-  {
-    to: "/admin",
-    label: "Admin",
-    icon: (
-      <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path
-          d="M12 3l7 3v6c0 5-3.5 9-7 10-3.5-1-7-5-7-10V6l7-3z"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    )
-  }
+  { to: "/matchmaking", label: "Matchmaking", icon: Swords },
+  { to: "/leaderboards", label: "Leaderboards", icon: Trophy },
+  { to: "/agents", label: "Agents", icon: Users },
+  { to: "/rulesets", label: "Rulesets", icon: FileText },
+  { to: "/admin", label: "Admin", icon: Settings }
 ];
 
 interface ShellProps {
@@ -70,158 +20,101 @@ interface ShellProps {
 
 export default function Shell({ children }: ShellProps) {
   const { user } = useAuth();
-  const [language, setLanguage] = useState(() => {
-    if (typeof window === "undefined") {
-      return "ru";
-    }
-    return window.localStorage.getItem("ika:lang") ?? "ru";
-  });
-  const [langOpen, setLangOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const langRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("ika:lang", language);
-      document.documentElement.lang = language;
-    }
-  }, [language]);
+  const language =
+    typeof window === "undefined" ? "ru" : window.localStorage.getItem("ika:lang") ?? "ru";
 
-  useEffect(() => {
-    const handler = (event: MouseEvent) => {
-      if (!langRef.current?.contains(event.target as Node)) {
-        setLangOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const canSeeAdmin =
-    user?.roles?.includes("ADMIN") ||
-    user?.roles?.includes("STAFF") ||
-    user?.roles?.includes("MODER");
+  const canSeeAdmin = user?.roles?.some((role) => ["ADMIN", "STAFF", "MODER"].includes(role));
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="brand">
-          <Link className="brand-mark" to="/" title="Inter-Knot Arena">
-            <img className="brand-logo" src="/logoIKA.png" alt="Inter-Knot Arena" />
+    <div className="flex min-h-screen flex-col bg-transparent">
+      <header className="sticky top-0 z-50 flex h-16 items-center justify-between border-b border-white/[0.08] bg-black/60 px-6 backdrop-blur-xl">
+        <div className="flex items-center gap-8">
+          <Link to="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
+            <img src="/logoIKA.png" alt="Logo" className="h-8 w-8 object-contain" />
+            <span className="hidden font-display text-xl tracking-wide text-white sm:block">
+              INTER-KNOT ARENA
+            </span>
           </Link>
-          <div className="hidden sm:block">
-            <div className="brand-title">Inter-Knot Arena</div>
-            <div className="brand-subtitle">Competitive ZZZ platform</div>
-          </div>
+
+          <nav className="hidden items-center gap-1 md:flex">
+            {navItems
+              .filter((item) => (item.to === "/admin" ? canSeeAdmin : true))
+              .map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      `group flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                        isActive
+                          ? "bg-white/10 text-white"
+                          : "text-ink-500 hover:bg-white/5 hover:text-ink-900"
+                      }`
+                    }
+                  >
+                    <Icon className="h-4 w-4 opacity-70 transition-colors group-hover:text-accent-400 group-hover:opacity-100" />
+                    {item.label}
+                  </NavLink>
+                );
+              })}
+          </nav>
         </div>
 
-        <nav className="nav-links nav-links-desktop">
-          {navItems
-            .filter((item) => (item.to === "/admin" ? canSeeAdmin : true))
-            .map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                className={({ isActive }) =>
-                  isActive ? "nav-link nav-link-active" : "nav-link"
-                }
-              >
-                <span className="nav-icon" aria-hidden>
-                  {item.icon}
-                </span>
-                {item.label}
-              </NavLink>
-            ))}
-        </nav>
-
-        <div className="header-actions">
-          <SearchBar language={language} />
-          <div className="lang-menu" ref={langRef}>
-            <button
-              type="button"
-              className="lang-button"
-              onClick={() => setLangOpen((prev) => !prev)}
-              aria-label="Change language"
-              title={`Language: ${language.toUpperCase()}`}
-            >
-              <span className="lang-icon" aria-hidden>
-                <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <circle cx="12" cy="12" r="9" strokeWidth="2" />
-                  <path d="M3 12h18" strokeWidth="2" strokeLinecap="round" />
-                  <path d="M12 3a12 12 0 0 0 0 18" strokeWidth="2" strokeLinecap="round" />
-                  <path d="M12 3a12 12 0 0 1 0 18" strokeWidth="2" strokeLinecap="round" />
-                </svg>
-              </span>
-            </button>
-            {langOpen ? (
-              <div className="lang-dropdown">
-                <button
-                  type="button"
-                  className={language === "ru" ? "lang-option lang-option-active" : "lang-option"}
-                  onClick={() => {
-                    setLanguage("ru");
-                    setLangOpen(false);
-                  }}
-                >
-                  RU
-                </button>
-                <button
-                  type="button"
-                  className={language === "en" ? "lang-option lang-option-active" : "lang-option"}
-                  onClick={() => {
-                    setLanguage("en");
-                    setLangOpen(false);
-                  }}
-                >
-                  EN
-                </button>
-              </div>
-            ) : null}
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:block">
+            <SearchBar language={language} />
           </div>
-          <div className="status-pill">
-            <span className="status-dot" />
+
+          <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-ink-500 sm:flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent-500 shadow-[0_0_8px_rgba(247,155,79,0.8)]" />
             Season 01
           </div>
+
           <UserMenu />
+
           <button
             type="button"
-            className="mobile-menu-toggle"
+            className="text-ink-500 transition-colors hover:text-white md:hidden"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
             aria-label="Toggle navigation"
             aria-expanded={mobileMenuOpen}
           >
-            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </header>
 
       {mobileMenuOpen ? (
-        <div className="mobile-nav-menu">
-          {navItems
-            .filter((item) => (item.to === "/admin" ? canSeeAdmin : true))
-            .map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                onClick={() => setMobileMenuOpen(false)}
-                className={({ isActive }) =>
-                  isActive ? "nav-link nav-link-active" : "nav-link"
-                }
-              >
-                <span className="nav-icon" aria-hidden>
-                  {item.icon}
-                </span>
-                {item.label}
-              </NavLink>
-            ))}
+        <div className="border-b border-white/10 bg-black/80 p-4 backdrop-blur-xl md:hidden">
+          <nav className="flex flex-col gap-1">
+            {navItems
+              .filter((item) => (item.to === "/admin" ? canSeeAdmin : true))
+              .map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                        isActive ? "bg-white/10 text-white" : "text-ink-500 hover:bg-white/5 hover:text-ink-900"
+                      }`
+                    }
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </NavLink>
+                );
+              })}
+          </nav>
         </div>
       ) : null}
 
-      <main className="app-main">{children}</main>
-      <footer className="app-footer">
-        <div>Inter-Knot Arena beta</div>
-        <div>API-free, proof-driven ranking with moderation review.</div>
-      </footer>
+      <main className="mx-auto w-full max-w-7xl flex-1 p-6 md:p-8">{children}</main>
     </div>
   );
 }
