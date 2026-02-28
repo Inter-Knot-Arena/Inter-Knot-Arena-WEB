@@ -1202,48 +1202,21 @@ input::placeholder {
 }
 
 body {
-  font-family: "Manrope", "Segoe UI", sans-serif;
+  font-family: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--ink-900);
-  background-color: var(--bg-950);
+  background-color: #000000;
   background-image:
-    radial-gradient(circle at 8% -10%, rgba(247, 155, 79, 0.15), transparent 40%),
-    radial-gradient(circle at 96% 6%, rgba(40, 140, 177, 0.15), transparent 38%),
-    linear-gradient(165deg, var(--bg-950), var(--bg-900) 40%, var(--bg-850) 100%);
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(225, 104, 47, 0.12), transparent),
+    radial-gradient(ellipse 80% 50% at 50% 120%, rgba(43, 157, 179, 0.1), transparent);
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body::before,
 body::after {
   content: none;
-}
-
-@media (min-width: 768px) {
-  body::before,
-  body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: -1;
-  }
-
-  body::before {
-    background-image: repeating-linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.015) 0px,
-      rgba(255, 255, 255, 0.015) 1px,
-      transparent 1px,
-      transparent 11px
-    );
-    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.2), transparent 55%);
-  }
-
-  body::after {
-    background:
-      radial-gradient(circle at 20% 20%, rgba(247, 155, 79, 0.1), transparent 36%),
-      radial-gradient(circle at 78% 14%, rgba(131, 209, 223, 0.08), transparent 34%);
-    filter: blur(38px);
-  }
 }
 
 h1,
@@ -1267,7 +1240,15 @@ p {
 .app-header {
   font-family: "Manrope", "Segoe UI", sans-serif;
   background: rgba(11, 15, 20, 0.85);
-  border-bottom-color: rgba(242, 244, 247, 0.08);
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 20%,
+      rgba(255, 255, 255, 0.08) 80%,
+      transparent 100%
+    )
+    1;
 }
 
 .brand-title {
@@ -1281,6 +1262,22 @@ p {
   background: rgba(20, 25, 34, 0.55);
 }
 
+.search-trigger {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.02),
+    0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--ink-600);
+}
+
+.search-trigger:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--ink-900);
+}
+
 .search-panel,
 .lang-dropdown {
   border-color: rgba(242, 244, 247, 0.08);
@@ -1289,11 +1286,11 @@ p {
 
 .page {
   gap: 32px;
-  animation: page-enter 320ms ease both;
+  animation: page-enter 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .page > * {
-  animation: section-enter 420ms ease both;
+  animation: section-enter 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .page > *:nth-child(2) {
@@ -1388,40 +1385,31 @@ p {
 }
 
 .card {
+  background: rgba(12, 12, 12, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 16px;
-  border: 1px solid var(--border-strong);
-  border-left-width: 1px;
-  background: var(--card);
-  box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(12px);
-  transition:
-    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
-    box-shadow 0.3s ease,
-    border-color 0.3s ease;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+    0 4px 6px -1px rgba(0, 0, 0, 0.5),
+    0 24px 48px -12px rgba(0, 0, 0, 0.8);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .card::before {
-  display: block;
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    155deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    transparent 26%,
-    transparent 72%,
-    rgba(131, 209, 223, 0.08) 100%
-  );
+  content: none;
 }
 
 .card:hover {
-  transform: translateY(-4px) scale(1.01);
-  border-color: rgba(255, 208, 138, 0.5);
+  background: rgba(18, 18, 18, 0.8);
+  border-color: rgba(255, 255, 255, 0.12);
   box-shadow:
-    0 20px 40px rgba(0, 0, 0, 0.6),
-    0 0 20px rgba(225, 104, 47, 0.15);
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+    0 8px 16px -2px rgba(0, 0, 0, 0.6),
+    0 32px 64px -12px rgba(0, 0, 0, 0.9),
+    0 0 32px 0 rgba(225, 104, 47, 0.08);
+  transform: translateY(-2px) scale(1.005);
 }
 
 .card-button:hover {
@@ -1434,13 +1422,20 @@ p {
   border-radius: 12px;
   font-weight: 700;
   letter-spacing: 0.01em;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .primary-button {
-  border: 1px solid rgba(255, 208, 138, 0.4);
-  background: linear-gradient(130deg, var(--accent-700), var(--accent-500));
-  box-shadow: 0 8px 20px rgba(201, 85, 34, 0.25);
+  background: linear-gradient(180deg, var(--accent-500) 0%, var(--accent-600) 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.4),
+    0 0 12px rgba(225, 104, 47, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   position: relative;
   overflow: hidden;
 }
@@ -1454,13 +1449,16 @@ p {
   height: 100%;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
   transform: skewX(-25deg);
-  transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: left 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .primary-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 28px rgba(201, 85, 34, 0.4);
-  border-color: var(--accent-400);
+  background: linear-gradient(180deg, var(--accent-400) 0%, var(--accent-500) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 4px 8px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(225, 104, 47, 0.5);
+  transform: translateY(-1px);
 }
 
 .primary-button:hover::after {
@@ -1539,7 +1537,7 @@ select:focus {
 .step,
 .table th,
 .table td {
-  border-bottom-color: rgba(163, 182, 210, 0.16);
+  border-bottom-color: rgba(255, 255, 255, 0.04);
 }
 
 @keyframes page-enter {
