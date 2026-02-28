@@ -66,7 +66,9 @@ export function HomeHeader({ state, season, primaryAction, secondaryAction }: Ho
             <span className="h-1 w-1 rounded-full bg-ink-500/60" />
             <span>Season Hub</span>
           </div>
-          <h1 className="mt-3 text-4xl font-display text-ink-900">{season.name}</h1>
+          <h1 className="mt-3 bg-gradient-to-br from-ink-900 via-ink-700 to-ink-500 bg-clip-text text-4xl font-display font-bold uppercase tracking-wide text-transparent drop-shadow-md md:text-5xl">
+            {season.name}
+          </h1>
           <p className="mt-2 text-sm text-ink-500">
             {season.daysLeft} days left · {season.valueProp}
           </p>
