@@ -1,8 +1,7 @@
-﻿import { Link } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ArrowRight, BadgeCheck, Calendar, ShieldCheck } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Card } from "../ui/card";
 
 export type UserState = "guest" | "unverified" | "verified";
 
@@ -18,7 +17,6 @@ interface HeaderAction {
   variant?: "default" | "secondary" | "outline";
   icon?: "arrow" | "verify";
   disabled?: boolean;
-  helper?: string;
 }
 
 interface HomeHeaderProps {
@@ -28,84 +26,113 @@ interface HomeHeaderProps {
   secondaryAction: HeaderAction;
 }
 
-function ActionButton({ action }: { action: HeaderAction }) {
-  const icon =
-    action.icon === "verify" ? (
-      <ShieldCheck className="mr-2 h-4 w-4" />
-    ) : action.icon === "arrow" ? (
-      <ArrowRight className="mr-2 h-4 w-4" />
-    ) : null;
+function actionIcon(icon?: HeaderAction["icon"]) {
+  if (icon === "verify") {
+    return <ShieldCheck className="ml-2 h-4 w-4" />;
+  }
+  return <ArrowRight className="ml-2 h-4 w-4" />;
+}
 
+function PrimaryAction({ action }: { action: HeaderAction }) {
   if (action.disabled) {
     return (
-      <Button variant={action.variant ?? "default"} disabled type="button">
-        {icon}
+      <Button className="primary-button" disabled type="button">
         {action.label}
       </Button>
     );
   }
 
   return (
-    <Button asChild variant={action.variant ?? "default"}>
+    <Button asChild className="primary-button">
       <Link to={action.to}>
-        {icon}
         {action.label}
+        {actionIcon(action.icon)}
       </Link>
+    </Button>
+  );
+}
+
+function SecondaryAction({ action }: { action: HeaderAction }) {
+  if (action.disabled) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        className="rounded-full border-white/10 bg-white/5 hover:bg-white/10 hover:text-white"
+        disabled
+      >
+        {action.label}
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      asChild
+      variant="outline"
+      className="rounded-full border-white/10 bg-white/5 hover:bg-white/10 hover:text-white transition-colors"
+    >
+      <Link to={action.to}>{action.label}</Link>
     </Button>
   );
 }
 
 export function HomeHeader({ state, season, primaryAction, secondaryAction }: HomeHeaderProps) {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-ika-700 via-ika-800 to-ika-900 p-8 shadow-none">
-      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-accent-500/10 blur-3xl" />
-      <div className="grid gap-8 lg:grid-cols-[1.2fr,0.8fr]">
-        <div>
-          <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-ink-500">
+    <section className="card relative mb-8 border border-white/10 p-8 md:p-12">
+      <div className="pointer-events-none absolute -right-40 -top-40 h-[500px] w-[500px] rounded-full bg-accent-600/10 blur-[100px]" />
+      <div className="pointer-events-none absolute -bottom-40 -left-40 h-[400px] w-[400px] rounded-full bg-cool-500/10 blur-[100px]" />
+
+      <div className="relative z-10 grid gap-12 lg:grid-cols-[1.3fr,0.7fr]">
+        <div className="flex flex-col justify-center">
+          <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.25em] text-accent-500">
             <span>Inter-Knot Arena</span>
-            <span className="h-1 w-1 rounded-full bg-ink-500/60" />
+            <span className="h-1 w-1 rounded-full bg-accent-500/50" />
             <span>Season Hub</span>
           </div>
-          <h1 className="mt-3 bg-gradient-to-b from-white via-white/90 to-white/40 bg-clip-text text-4xl font-display uppercase tracking-wider text-transparent drop-shadow-sm md:text-5xl">
+
+          <h1 className="mt-4 bg-gradient-to-b from-white via-white/80 to-white/30 bg-clip-text pb-2 font-display text-5xl uppercase tracking-wide text-transparent md:text-7xl">
             {season.name}
           </h1>
-          <p className="mt-2 text-sm text-ink-500">
-            {season.daysLeft} days left · {season.valueProp}
+
+          <p className="mt-2 max-w-lg text-base leading-relaxed text-ink-500">
+            <span className="font-medium text-ink-700">{season.daysLeft} days left</span> � {season.valueProp}
           </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <ActionButton action={primaryAction} />
-            <ActionButton action={secondaryAction} />
+
+          <div className="mt-8 flex flex-wrap items-center gap-4">
+            <PrimaryAction action={primaryAction} />
+            <SecondaryAction action={secondaryAction} />
           </div>
+
           {state === "guest" ? (
-            <div className="mt-3 text-xs text-ink-500">
+            <div className="mt-4 text-sm text-ink-600">
               Create your competitive profile to unlock ranked queues.
             </div>
           ) : null}
         </div>
-        <Card className="flex h-full flex-col justify-between bg-ika-800/60 p-6">
+
+        <div className="flex flex-col justify-between rounded-2xl border border-white/5 bg-black/40 p-6 shadow-inner backdrop-blur-md">
           <div>
-            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-500">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-600">
               <Calendar className="h-4 w-4" />
               Season context
             </div>
-            <div className="mt-3 text-lg font-semibold text-ink-900">Rulesets are versioned</div>
-            <p className="mt-2 text-sm text-ink-500">
-              Standard and F2P ranked require strict pre-check proofs before the run.
+            <div className="mt-4 text-xl font-semibold tracking-tight text-white">Rulesets are versioned</div>
+            <p className="mt-2 text-sm leading-relaxed text-ink-500">
+              Standard and F2P ranked require strict pre-check proofs before the run. Ensure your
+              roster is synced.
             </p>
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Badge className="border border-border bg-ika-700/70 text-ink-700">
-              <BadgeCheck className="mr-1 h-3.5 w-3.5" />
+
+          <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-white/5 pt-4">
+            <Badge className="border-white/10 bg-accent-500/10 text-accent-400 hover:bg-accent-500/20">
+              <BadgeCheck className="mr-1.5 h-3.5 w-3.5" />
               Strict proof
             </Badge>
-            <Badge className="border border-border bg-ika-700/70 text-ink-700">v1.0 rulesets</Badge>
-            <Button asChild size="sm" variant="outline" className="ml-auto">
-              <Link to="/rulesets">View season</Link>
-            </Button>
+            <Badge className="border-white/10 bg-white/5 text-ink-500">v1.0 rulesets</Badge>
           </div>
-        </Card>
+        </div>
       </div>
     </section>
   );
 }
-
