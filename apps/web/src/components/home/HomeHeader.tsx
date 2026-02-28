@@ -57,7 +57,8 @@ function ActionButton({ action }: { action: HeaderAction }) {
 
 export function HomeHeader({ state, season, primaryAction, secondaryAction }: HomeHeaderProps) {
   return (
-    <section className="rounded-2xl border border-border bg-gradient-to-br from-[#151d27] via-[#0f141b] to-[#0b0f14] p-8 shadow-none">
+    <section className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-ika-700 via-ika-800 to-ika-900 p-8 shadow-none">
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-accent-500/10 blur-3xl" />
       <div className="grid gap-8 lg:grid-cols-[1.2fr,0.8fr]">
         <div>
           <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.2em] text-ink-500">
