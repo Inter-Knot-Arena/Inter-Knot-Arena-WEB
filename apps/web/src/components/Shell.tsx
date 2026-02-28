@@ -1,6 +1,7 @@
-﻿import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import { Menu, X } from "lucide-react";
 import SearchBar from "./SearchBar";
 import UserMenu from "./UserMenu";
 import { useAuth } from "../auth/AuthProvider";
@@ -31,11 +32,7 @@ const navItems = [
     icon: (
       <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <circle cx="12" cy="8" r="3" strokeWidth="2" />
-        <path
-          d="M5 19c1.5-3 4-5 7-5s5.5 2 7 5"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
+        <path d="M5 19c1.5-3 4-5 7-5s5.5 2 7 5" strokeWidth="2" strokeLinecap="round" />
       </svg>
     )
   },
@@ -80,6 +77,7 @@ export default function Shell({ children }: ShellProps) {
     return window.localStorage.getItem("ika:lang") ?? "ru";
   });
   const [langOpen, setLangOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const langRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -111,29 +109,31 @@ export default function Shell({ children }: ShellProps) {
           <Link className="brand-mark" to="/" title="Inter-Knot Arena">
             <img className="brand-logo" src="/logoIKA.png" alt="Inter-Knot Arena" />
           </Link>
-          <div>
+          <div className="hidden sm:block">
             <div className="brand-title">Inter-Knot Arena</div>
             <div className="brand-subtitle">Competitive ZZZ platform</div>
           </div>
         </div>
-        <nav className="nav-links">
+
+        <nav className="nav-links nav-links-desktop">
           {navItems
             .filter((item) => (item.to === "/admin" ? canSeeAdmin : true))
             .map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                isActive ? "nav-link nav-link-active" : "nav-link"
-              }
-            >
-              <span className="nav-icon" aria-hidden>
-                {item.icon}
-              </span>
-              {item.label}
-            </NavLink>
-          ))}
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  isActive ? "nav-link nav-link-active" : "nav-link"
+                }
+              >
+                <span className="nav-icon" aria-hidden>
+                  {item.icon}
+                </span>
+                {item.label}
+              </NavLink>
+            ))}
         </nav>
+
         <div className="header-actions">
           <SearchBar language={language} />
           <div className="lang-menu" ref={langRef}>
@@ -183,8 +183,40 @@ export default function Shell({ children }: ShellProps) {
             Season 01
           </div>
           <UserMenu />
+          <button
+            type="button"
+            className="mobile-menu-toggle"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            aria-label="Toggle navigation"
+            aria-expanded={mobileMenuOpen}
+          >
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
         </div>
       </header>
+
+      {mobileMenuOpen ? (
+        <div className="mobile-nav-menu">
+          {navItems
+            .filter((item) => (item.to === "/admin" ? canSeeAdmin : true))
+            .map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                onClick={() => setMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  isActive ? "nav-link nav-link-active" : "nav-link"
+                }
+              >
+                <span className="nav-icon" aria-hidden>
+                  {item.icon}
+                </span>
+                {item.label}
+              </NavLink>
+            ))}
+        </div>
+      ) : null}
+
       <main className="app-main">{children}</main>
       <footer className="app-footer">
         <div>Inter-Knot Arena beta</div>
