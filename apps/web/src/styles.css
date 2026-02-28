@@ -1394,6 +1394,10 @@ p {
   background: var(--card);
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(12px);
+  transition:
+    transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
 }
 
 .card::before {
@@ -1413,9 +1417,11 @@ p {
 }
 
 .card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(255, 214, 152, 0.45);
-  box-shadow: var(--shadow);
+  transform: translateY(-4px) scale(1.01);
+  border-color: rgba(255, 208, 138, 0.5);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(225, 104, 47, 0.15);
 }
 
 .card-button:hover {
@@ -1434,12 +1440,31 @@ p {
 .primary-button {
   border: 1px solid rgba(255, 208, 138, 0.4);
   background: linear-gradient(130deg, var(--accent-700), var(--accent-500));
-  box-shadow: 0 12px 24px rgba(201, 85, 34, 0.34);
+  box-shadow: 0 8px 20px rgba(201, 85, 34, 0.25);
+  position: relative;
+  overflow: hidden;
+}
+
+.primary-button::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -150%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  transform: skewX(-25deg);
+  transition: left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .primary-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 16px 28px rgba(201, 85, 34, 0.43);
+  box-shadow: 0 12px 28px rgba(201, 85, 34, 0.4);
+  border-color: var(--accent-400);
+}
+
+.primary-button:hover::after {
+  left: 150%;
 }
 
 .ghost-button {
@@ -1459,7 +1484,11 @@ p {
 }
 
 .badge {
-  background: rgba(43, 157, 179, 0.19);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, rgba(43, 157, 179, 0.2), rgba(28, 127, 155, 0.1));
   color: var(--cool-400);
 }
 
@@ -1470,7 +1499,11 @@ p {
 }
 
 .tag {
-  background: rgba(247, 155, 79, 0.2);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, rgba(247, 155, 79, 0.25), rgba(201, 85, 34, 0.1));
   color: var(--accent-400);
 }
 
@@ -1531,6 +1564,32 @@ select:focus {
   }
 }
 
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-950);
+  border-left: 1px solid var(--border);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ink-600);
+  border-radius: 4px;
+  border: 2px solid var(--bg-950);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-500);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink-600) var(--bg-950);
+}
+
 @media (max-width: 780px) {
   .hero {
     border-radius: 20px;
@@ -1551,6 +1610,7 @@ select:focus {
   .card:hover,
   .primary-button,
   .primary-button:hover,
+  .primary-button::after,
   .ghost-button,
   .ghost-button:hover {
     transition: none !important;
