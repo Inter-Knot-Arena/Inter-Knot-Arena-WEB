@@ -27,7 +27,7 @@ module.exports = {
         border: "rgba(163, 182, 210, 0.22)"
       },
       fontFamily: {
-        display: ["Sora", "sans-serif"],
+        display: ["'Bebas Neue'", "sans-serif"],
         sans: ["Manrope", "sans-serif"]
       },
       boxShadow: {
