@@ -287,17 +287,18 @@ export default function Agents() {
             {missingAgents.slice(0, 12).map((item) => {
               const mindscapeUrl = failedMindscapes[item.agent.agentId]
                 ? null
-                : getFullMindscapeUrl(item.agent.hakushId);
+                : getFullMindscapeUrl(item.agent.agentId);
 
               return (
-              <div key={item.agent.agentId} className="rounded-lg border border-border bg-ika-900/40 p-3">
-                <div className="mb-3 overflow-hidden rounded-lg border border-border bg-ika-900/60">
+              <div key={item.agent.agentId} className="rounded-lg border border-border bg-ika-900/40 p-2.5">
+                <div className="relative overflow-hidden rounded-lg border border-border bg-ika-900/60">
                   {mindscapeUrl ? (
                     <img
                       src={mindscapeUrl}
                       alt={`${item.agent.name} full mindscape`}
-                      className="h-36 w-full object-cover object-center"
+                      className="h-28 w-full bg-ika-900/50 object-contain object-center"
                       loading="lazy"
+                      decoding="async"
                       onError={() =>
                         setFailedMindscapes((prev) => ({
                           ...prev,
@@ -306,25 +307,38 @@ export default function Agents() {
                       }
                     />
                   ) : (
-                    <div className="flex h-36 items-center justify-center bg-gradient-to-br from-ika-900 via-ika-800 to-ika-700 text-xs text-ink-500">
+                    <div className="flex h-28 items-center justify-center bg-gradient-to-br from-ika-900 via-ika-800 to-ika-700 text-xs text-ink-500">
                       Full mindscape unavailable
                     </div>
                   )}
-                </div>
 
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-base font-semibold text-ink-900">{item.agent.name}</div>
-                    <div className="text-xs text-ink-500">
-                      {item.agent.faction} / {item.agent.role}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-ink-900">{item.agent.name}</div>
+                        <div className="truncate text-[11px] text-ink-600">
+                          {item.agent.faction} / {item.agent.role}
+                        </div>
+                      </div>
+                      <RarityIcon
+                        rarity={item.agent.rarity}
+                        className="h-5 w-5 shrink-0 object-contain"
+                      />
                     </div>
                   </div>
-                  <RarityIcon rarity={item.agent.rarity} className="h-6 w-6 shrink-0 object-contain" />
+                </div>
+
+                <div className="mt-2 text-[11px] text-ink-500">
+                  <span>
+                    {item.agent.attribute} / {item.agent.attackType}
+                  </span>
+                  <span className="mx-1">•</span>
+                  <span>{item.agent.role}</span>
                 </div>
 
                 <Button
                   size="sm"
-                  className="mt-3 w-full"
+                  className="mt-2 h-8 w-full text-xs"
                   onClick={() => handleAddAgent(item.agent.agentId)}
                   disabled={addingAgentId === item.agent.agentId}
                 >
