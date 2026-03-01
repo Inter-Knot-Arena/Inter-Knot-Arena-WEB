@@ -98,6 +98,7 @@ export interface AgentStatic {
   tags: string[];
   iconKey: string;
   shortDescription?: string;
+  hakushId?: number;
   catalogVersion: string;
 }
 
