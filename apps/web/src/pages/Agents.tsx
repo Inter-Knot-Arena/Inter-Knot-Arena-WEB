@@ -11,6 +11,7 @@ import { Input } from "../components/ui/input";
 import { Skeleton } from "../components/ui/skeleton";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { RarityIcon } from "../components/RarityIcon";
+import { getFullMindscapeUrl } from "../components/roster/mindscape";
 
 const regionOptions: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
 
@@ -34,6 +35,7 @@ export default function Agents() {
   const [searchAdd, setSearchAdd] = useState("");
   const [importing, setImporting] = useState(false);
   const [addingAgentId, setAddingAgentId] = useState<string | null>(null);
+  const [failedMindscapes, setFailedMindscapes] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!featureFlags.enableAgentCatalog) {
@@ -281,30 +283,56 @@ export default function Agents() {
             />
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {missingAgents.slice(0, 12).map((item) => (
-              <div
-                key={item.agent.agentId}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border bg-ika-900/40 p-3"
-              >
-                <div className="flex items-center gap-3">
-                  <RarityIcon rarity={item.agent.rarity} className="h-6 w-6 object-contain" />
-                  <div>
-                    <div className="text-sm font-semibold text-ink-900">{item.agent.name}</div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {missingAgents.slice(0, 12).map((item) => {
+              const mindscapeUrl = failedMindscapes[item.agent.agentId]
+                ? null
+                : getFullMindscapeUrl(item.agent.hakushId);
+
+              return (
+              <div key={item.agent.agentId} className="rounded-lg border border-border bg-ika-900/40 p-3">
+                <div className="mb-3 overflow-hidden rounded-lg border border-border bg-ika-900/60">
+                  {mindscapeUrl ? (
+                    <img
+                      src={mindscapeUrl}
+                      alt={`${item.agent.name} full mindscape`}
+                      className="h-36 w-full object-cover object-center"
+                      loading="lazy"
+                      onError={() =>
+                        setFailedMindscapes((prev) => ({
+                          ...prev,
+                          [item.agent.agentId]: true
+                        }))
+                      }
+                    />
+                  ) : (
+                    <div className="flex h-36 items-center justify-center bg-gradient-to-br from-ika-900 via-ika-800 to-ika-700 text-xs text-ink-500">
+                      Full mindscape unavailable
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-base font-semibold text-ink-900">{item.agent.name}</div>
                     <div className="text-xs text-ink-500">
                       {item.agent.faction} / {item.agent.role}
                     </div>
                   </div>
+                  <RarityIcon rarity={item.agent.rarity} className="h-6 w-6 shrink-0 object-contain" />
                 </div>
+
                 <Button
                   size="sm"
+                  className="mt-3 w-full"
                   onClick={() => handleAddAgent(item.agent.agentId)}
                   disabled={addingAgentId === item.agent.agentId}
                 >
                   {addingAgentId === item.agent.agentId ? "Adding..." : "Add"}
                 </Button>
               </div>
-            ))}
+            );
+            })}
           </div>
 
           {!loading && missingAgents.length === 0 ? (
