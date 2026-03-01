@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   AgentEligibility,
   AgentStatic,
@@ -8,6 +9,7 @@ import type {
 import { Badge } from "../ui/badge";
 import { RarityIcon } from "../RarityIcon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { getFullMindscapeUrl } from "./mindscape";
 
 interface PlayerAgentCardProps {
   agent: AgentStatic;
@@ -38,9 +40,11 @@ function getDiscIconLabel(disc: PlayerAgentDisc | undefined): string {
 }
 
 export function PlayerAgentCard({ agent, state, eligibility }: PlayerAgentCardProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   const owned = state?.owned ?? false;
   const eligibilityBadge = eligibility.draftEligible ? "Eligible" : "Not eligible";
   const discMap = new Map<number, PlayerAgentDisc>();
+  const mindscapeUrl = imageFailed ? null : getFullMindscapeUrl(agent.hakushId);
   state?.discs?.forEach((disc) => {
     if (disc.slot && disc.slot >= 1 && disc.slot <= 6) {
       discMap.set(disc.slot, disc);
@@ -49,6 +53,22 @@ export function PlayerAgentCard({ agent, state, eligibility }: PlayerAgentCardPr
 
   return (
     <div className="rounded-xl border border-border bg-ika-800/70 p-4">
+      <div className="relative mb-4 overflow-hidden rounded-lg border border-border bg-ika-900/40">
+        {mindscapeUrl ? (
+          <img
+            src={mindscapeUrl}
+            alt={`${agent.name} full mindscape`}
+            className="h-44 w-full object-cover object-center"
+            loading="lazy"
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <div className="flex h-44 items-center justify-center bg-gradient-to-br from-ika-900 via-ika-800 to-ika-700 text-sm text-ink-500">
+            Full mindscape unavailable
+          </div>
+        )}
+      </div>
+
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-ink-900">{agent.name}</div>
