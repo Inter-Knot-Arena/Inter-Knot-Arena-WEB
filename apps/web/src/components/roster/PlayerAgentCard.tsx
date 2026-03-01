@@ -58,7 +58,7 @@ export function PlayerAgentCard({ agent, state, eligibility }: PlayerAgentCardPr
           <img
             src={mindscapeUrl}
             alt={`${agent.name} full mindscape`}
-            className="h-40 w-full bg-ika-900/50 object-contain object-center"
+            className="h-40 w-full object-cover object-center"
             loading="lazy"
             onError={() => setImageFailed(true)}
           />
