@@ -7,7 +7,7 @@ This repository is the production-ready web/backend baseline without the desktop
 
 - Web platform for profiles, matchmaking, draft, disputes, leaderboards, admin, and analytics.
 - API with match state machine, moderation flow, sanctions lifecycle, audit log, and idempotent writes.
-- Role model based on `MODER`, `STAFF`, `ADMIN` (no judge role model in product APIs/UI).
+- Role model based on `MODER -> STAFF -> ADMIN` (no judge role model in product APIs/UI).
 - Profile summary and analytics endpoints (history, top agents, draft/evidence aggregates).
 - BO1 + full BO3 draft templates with timeout auto-pick/auto-ban and trust penalties.
 - Enka showcase import with graceful degraded mode (`SUCCESS`, `DEGRADED`, `FAILED`) and snapshot fallback.
@@ -78,6 +78,7 @@ The web app uses `/api` proxy to `http://localhost:4000` by default.
 ## Auth modes
 
 - Normal mode: Google OAuth session cookies (`/auth/google/start`).
+- Baseline auth is session-cookie based (`ika_session`), not JWT access/refresh tokens.
 - Dev fallback: `AUTH_DISABLED=true` returns seed identity for quick local workflows.
 
 Required OAuth envs for normal mode:
