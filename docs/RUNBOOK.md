@@ -12,6 +12,7 @@ Operational runbook for the production-ready baseline (web + API), excluding des
 - `HOST` (default `0.0.0.0`)
 - `WEB_ORIGIN` (default `http://localhost:5173`)
 - `API_ORIGIN` (default `http://localhost:4000`)
+- Auth model: OAuth + signed session cookie (`ika_session`), no JWT access/refresh in baseline
 - `SESSION_SECRET` (required for non-dev auth)
 - `AUTH_DISABLED=true` (optional dev bypass)
 
