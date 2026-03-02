@@ -419,6 +419,7 @@ export async function registerRoutes(
 
   app.get("/uploads/local/:encodedKey", async (request, reply) => {
     try {
+      await requireAuthUser(request, repo, auth);
       if (!storage.readObject) {
         throw new HttpError(404, "Local storage reader is unavailable.");
       }
