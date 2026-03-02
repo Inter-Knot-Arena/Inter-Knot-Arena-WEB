@@ -37,7 +37,7 @@ export async function createMatchFromQueue(
   const queue = await repo.findQueue(queueId);
   const player = await repo.findUser(userId);
   const season = await repo.getActiveSeason();
-  const template = getDraftTemplate("bo1-standard");
+  const template = getDraftTemplate(queue.draftTemplateId || "bo1-standard");
   const opponent = opponentUserId
     ? await repo.findUser(opponentUserId)
     : await repo.findOpponent(userId);
