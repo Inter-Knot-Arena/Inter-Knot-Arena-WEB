@@ -864,6 +864,7 @@ function mapQueue(row: Record<string, unknown>): QueueConfig {
     leagueId: String(row.league_id),
     rulesetId: String(row.ruleset_id),
     challengeId: String(row.challenge_id),
+    draftTemplateId: (row.draft_template_id as string | null) ?? "bo1-standard",
     name: String(row.name),
     description: String(row.description),
     requireVerifier: Boolean(row.require_verifier)
