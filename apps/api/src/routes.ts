@@ -767,6 +767,15 @@ export async function registerRoutes(
         notes?: string;
       };
       const metricType = requireString(body?.metricType, "metricType") as "TIME_MS" | "SCORE" | "RANK_TIER";
+      const challenge = (await repo.listChallenges()).find((item) => item.id === match.challengeId);
+      if (!challenge) {
+        throw new Error("Challenge not found");
+      }
+      if (challenge.metricType !== metricType) {
+        throw new Error(
+          `Result metricType mismatch: expected ${challenge.metricType}, received ${metricType}`
+        );
+      }
       const value = body?.value ?? 0;
       const proofUrl = requireString(body?.proofUrl, "proofUrl");
       const submittedAt = now();
