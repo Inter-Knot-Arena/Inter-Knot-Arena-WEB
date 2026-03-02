@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Rating, User } from "@ika/shared";
-import { fetchLeaderboard, fetchUsers } from "../api";
+import { fetchCurrentSeason, fetchLeaderboard, fetchUsers } from "../api";
 import { Badge } from "../components/ui/badge";
 import { LeaderboardTable, type LeaderboardEntry } from "../components/leaderboards/LeaderboardTable";
 
@@ -26,6 +26,8 @@ export default function Leaderboards() {
   const [ratings, setRatings] = useState<Rating[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [seasonName, setSeasonName] = useState("Season");
+  const [seasonStatus, setSeasonStatus] = useState("UNKNOWN");
 
   useEffect(() => {
     setIsLoading(true);
@@ -36,6 +38,13 @@ export default function Leaderboards() {
 
   useEffect(() => {
     fetchUsers().then(setUsers);
+    fetchCurrentSeason().then((season) => {
+      if (!season) {
+        return;
+      }
+      setSeasonName(season.name);
+      setSeasonStatus(season.status);
+    });
   }, []);
 
   const userMap = useMemo(() => new Map(users.map((user) => [user.id, user])), [users]);
@@ -61,7 +70,7 @@ export default function Leaderboards() {
           <p className="mt-2 text-sm text-ink-500">Visible ELO per league.</p>
         </div>
         <Badge className="border border-border bg-ika-700/70 text-ink-700">
-          Season 01 - Active
+          {seasonName} - {seasonStatus}
         </Badge>
       </div>
 
