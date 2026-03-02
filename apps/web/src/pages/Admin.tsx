@@ -3,11 +3,13 @@ import type { RankBand, Ruleset, Sanction, Season } from "@ika/shared";
 import { useAuth } from "../auth/AuthProvider";
 import {
   createSanction,
+  fetchAgentCatalog,
   fetchAdminRulesets,
   fetchAdminSeasons,
   fetchAuditLogs,
   fetchDisputes,
   fetchLobbyStats,
+  reloadAdminCatalog,
   fetchQueues,
   fetchRankBands,
   fetchSanctions,
@@ -52,6 +54,9 @@ export default function Admin() {
   const [newSanctionUserId, setNewSanctionUserId] = useState("");
   const [newSanctionReason, setNewSanctionReason] = useState("");
   const [newSanctionType, setNewSanctionType] = useState<Sanction["type"]>("WARNING");
+  const [catalogVersion, setCatalogVersion] = useState("unknown");
+  const [catalogCount, setCatalogCount] = useState(0);
+  const [catalogReloading, setCatalogReloading] = useState(false);
 
   const isAdmin = useMemo(() => canAdmin(user?.roles), [user?.roles]);
 
@@ -67,7 +72,8 @@ export default function Admin() {
         lobbies,
         disputes,
         sanctionsData,
-        auditData
+        auditData,
+        catalogData
       ] = await Promise.all([
         fetchAdminRulesets(),
         fetchAdminSeasons(),
@@ -76,7 +82,8 @@ export default function Admin() {
         fetchLobbyStats(),
         fetchDisputes(),
         fetchSanctions(50),
-        fetchAuditLogs({ limit: 50 })
+        fetchAuditLogs({ limit: 50 }),
+        fetchAgentCatalog()
       ]);
       setRulesets(rulesetsData);
       setSeasons(seasonsData);
@@ -87,6 +94,8 @@ export default function Admin() {
       setOpenDisputes(disputes.length);
       setSanctions(sanctionsData);
       setAuditRows(auditData);
+      setCatalogVersion(catalogData.catalogVersion);
+      setCatalogCount(catalogData.agents.length);
     } catch (loadError) {
       const message = loadError instanceof Error ? loadError.message : "Failed to load admin data.";
       setError(message);
@@ -168,6 +177,22 @@ export default function Admin() {
     }
   };
 
+  const handleReloadCatalog = async () => {
+    try {
+      setCatalogReloading(true);
+      const result = await reloadAdminCatalog();
+      setCatalogVersion(result.catalogVersion);
+      const catalogData = await fetchAgentCatalog();
+      setCatalogCount(catalogData.agents.length);
+    } catch (reloadError) {
+      const message =
+        reloadError instanceof Error ? reloadError.message : "Failed to reload catalog.";
+      setError(message);
+    } finally {
+      setCatalogReloading(false);
+    }
+  };
+
   if (authLoading) {
     return <div className="card">Loading admin console...</div>;
   }
@@ -201,6 +226,21 @@ export default function Admin() {
         <Card className="p-4">
           <div className="meta-label">Open disputes</div>
           <div className="stat-value">{openDisputes}</div>
+        </Card>
+        <Card className="p-4">
+          <div className="meta-label">Agent catalog</div>
+          <div className="stat-value">{catalogCount}</div>
+          <div className="mt-2 text-xs text-ink-500">Version: {catalogVersion}</div>
+          <div className="mt-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleReloadCatalog}
+              disabled={!isAdmin || loading || catalogReloading}
+            >
+              {catalogReloading ? "Reloading..." : "Reload catalog"}
+            </Button>
+          </div>
         </Card>
       </section>
 
