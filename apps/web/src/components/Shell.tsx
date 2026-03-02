@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import SearchBar from "./SearchBar";
 import UserMenu from "./UserMenu";
 import { useAuth } from "../auth/AuthProvider";
+import { fetchCurrentSeason } from "../api";
 
 const navItems = [
   {
@@ -81,6 +82,7 @@ export default function Shell({ children }: ShellProps) {
   });
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement | null>(null);
+  const [seasonLabel, setSeasonLabel] = useState("Season");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -97,6 +99,18 @@ export default function Shell({ children }: ShellProps) {
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    fetchCurrentSeason()
+      .then((season) => {
+        if (season?.name) {
+          setSeasonLabel(season.name);
+        }
+      })
+      .catch(() => {
+        setSeasonLabel("Season");
+      });
   }, []);
 
   const canSeeAdmin =
@@ -180,7 +194,7 @@ export default function Shell({ children }: ShellProps) {
           </div>
           <div className="status-pill">
             <span className="status-dot" />
-            Season 01
+            {seasonLabel}
           </div>
           <UserMenu />
         </div>
