@@ -9,12 +9,13 @@ import { UpdatesFeed, type UpdateItem } from "../components/home/UpdatesFeed";
 import { isUidVerified } from "../lib/verification";
 import {
   fetchAnalyticsSeasonReport,
+  fetchCurrentSeason,
   fetchLeaderboard,
   fetchLeagues,
   fetchUsers
 } from "../api";
 
-const seasonInfo = {
+const fallbackSeasonInfo = {
   name: "Season 01",
   daysLeft: 60,
   valueProp: "Queues, drafts, and proofs aligned for ranked play."
@@ -169,6 +170,7 @@ export default function Home() {
 
   const [selectedLeague, setSelectedLeague] = useState("standard");
   const showElo = userState !== "guest";
+  const [seasonInfo, setSeasonInfo] = useState(fallbackSeasonInfo);
   const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>(fallbackLeaderboardRows);
   const [updates, setUpdates] = useState<UpdateItem[]>(fallbackUpdates);
 
@@ -177,11 +179,23 @@ export default function Home() {
 
     const load = async () => {
       try {
-        const [leagues, users, seasonReport] = await Promise.all([
+        const [leagues, users, seasonReport, season] = await Promise.all([
           fetchLeagues(),
           fetchUsers(),
-          fetchAnalyticsSeasonReport()
+          fetchAnalyticsSeasonReport(),
+          fetchCurrentSeason()
         ]);
+        if (active && season) {
+          const daysLeft = Math.max(
+            0,
+            Math.ceil((season.endsAt - Date.now()) / (1000 * 60 * 60 * 24))
+          );
+          setSeasonInfo({
+            name: season.name,
+            daysLeft,
+            valueProp: fallbackSeasonInfo.valueProp
+          });
+        }
 
         const userMap = new Map(users.map((item) => [item.id, item]));
         const selectedLeagues = leagues.slice(0, 3);
@@ -245,6 +259,7 @@ export default function Home() {
         if (active) {
           setLeaderboardRows(fallbackLeaderboardRows);
           setUpdates(fallbackUpdates);
+          setSeasonInfo(fallbackSeasonInfo);
         }
       }
     };
