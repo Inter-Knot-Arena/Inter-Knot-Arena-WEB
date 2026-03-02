@@ -14,7 +14,6 @@ import type { PlayerAgentStateStore } from "./roster/types.js";
 import {
   applyDraftAction,
   confirmMatch,
-  createMatchFromQueue,
   markCheckin,
   openDispute,
   recordInrun,
@@ -399,15 +398,19 @@ export async function registerRoutes(
         actorUserId: user.id,
         scope: `matchmaking:join:${queueId}`,
         execute: async () => {
-          const match = await createMatchFromQueue(repo, queueId, user.id);
+          const payload = await searchMatch(repo, queueId, user.id);
           await recordAudit({
             actorUserId: user.id,
             action: "MATCHMAKING_JOIN",
-            entityType: "MATCH",
-            entityId: match.id,
-            payload: { queueId }
+            entityType: "MATCHMAKING_TICKET",
+            entityId: payload.ticketId,
+            payload: {
+              queueId,
+              status: payload.status,
+              matchId: payload.match?.id
+            }
           });
-          return { payload: match };
+          return { payload };
         }
       });
       if (result.replayed) {
