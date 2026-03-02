@@ -39,30 +39,28 @@ export async function runMatchLifecycle(
   timestamp = now()
 ): Promise<void> {
   const matches = await repo.listMatchesByStates(ACTIVE_STATES);
-  if (!matches.length) {
-    return;
-  }
+  if (matches.length) {
+    const agents = await repo.listAgents();
+    const allAgentIds = agents.map((agent) => agent.id);
+    const resolvedMatches = await repo.listMatchesByStates(["RESOLVED"]);
+    const agentPriority = buildAgentPriority(resolvedMatches, allAgentIds);
 
-  const agents = await repo.listAgents();
-  const allAgentIds = agents.map((agent) => agent.id);
-  const resolvedMatches = await repo.listMatchesByStates(["RESOLVED"]);
-  const agentPriority = buildAgentPriority(resolvedMatches, allAgentIds);
-
-  for (const match of matches) {
-    if (match.state === "CHECKIN") {
-      await processCheckinTimeout(repo, match, config, timestamp);
-      continue;
-    }
-    if (match.state === "DRAFTING") {
-      await processDraftTimeout(repo, match, config, timestamp, allAgentIds, agentPriority);
-      continue;
-    }
-    if (match.state === "AWAITING_PRECHECK") {
-      await processPrecheckTimeout(repo, match, config, timestamp);
-      continue;
-    }
-    if (match.state === "AWAITING_CONFIRMATION") {
-      await processConfirmationTimeout(repo, match, config, timestamp);
+    for (const match of matches) {
+      if (match.state === "CHECKIN") {
+        await processCheckinTimeout(repo, match, config, timestamp);
+        continue;
+      }
+      if (match.state === "DRAFTING") {
+        await processDraftTimeout(repo, match, config, timestamp, allAgentIds, agentPriority);
+        continue;
+      }
+      if (match.state === "AWAITING_PRECHECK") {
+        await processPrecheckTimeout(repo, match, config, timestamp);
+        continue;
+      }
+      if (match.state === "AWAITING_CONFIRMATION") {
+        await processConfirmationTimeout(repo, match, config, timestamp);
+      }
     }
   }
 
