@@ -9,6 +9,10 @@ const pendingMap = new Map<
   string,
   { code: string; uid: string; region: Region; createdAt: number }
 >();
+const verifyAttemptMap = new Map<string, { startedAt: number; count: number }>();
+const pendingTtlMs = Number(process.env.UID_VERIFY_PENDING_TTL_MS ?? 30 * 60 * 1000);
+const attemptWindowMs = Number(process.env.UID_VERIFY_RATE_WINDOW_MS ?? 10 * 60 * 1000);
+const attemptMax = Number(process.env.UID_VERIFY_RATE_MAX_ATTEMPTS ?? 20);
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
@@ -24,6 +28,40 @@ function parseRegion(value: unknown): Region | null {
     return null;
   }
   return REGIONS.includes(value as Region) ? (value as Region) : null;
+}
+
+function isValidProofUrl(value: string): boolean {
+  if (value.startsWith("data:image/")) {
+    return true;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function purgeExpiredPending(timestamp = now()): void {
+  for (const [userId, pending] of pendingMap.entries()) {
+    if (timestamp - pending.createdAt > pendingTtlMs) {
+      pendingMap.delete(userId);
+    }
+  }
+}
+
+function assertAttemptRateLimit(userId: string): void {
+  const timestamp = now();
+  const row = verifyAttemptMap.get(userId);
+  if (!row || timestamp - row.startedAt > attemptWindowMs) {
+    verifyAttemptMap.set(userId, { startedAt: timestamp, count: 1 });
+    return;
+  }
+  row.count += 1;
+  verifyAttemptMap.set(userId, row);
+  if (row.count > attemptMax) {
+    throw new Error("Too many UID verification attempts. Please retry later.");
+  }
 }
 
 function generateCode(): string {
@@ -46,6 +84,8 @@ export async function registerIdentityRoutes(
         reply.code(401).send({ error: "Unauthorized" });
         return;
       }
+      assertAttemptRateLimit(user.id);
+      purgeExpiredPending();
 
       const body = request.body as { uid?: string; region?: string };
       const uid = requireString(body?.uid, "uid");
@@ -80,10 +120,13 @@ export async function registerIdentityRoutes(
         reply.code(401).send({ error: "Unauthorized" });
         return;
       }
+      assertAttemptRateLimit(user.id);
+      purgeExpiredPending();
 
       const body = request.body as { uid?: string; region?: string; code?: string; proofUrl?: string };
       const uid = requireString(body?.uid, "uid");
       const code = requireString(body?.code, "code");
+      const proofUrl = requireString(body?.proofUrl, "proofUrl");
       const region = parseRegion(body?.region);
       if (!isValidUid(uid)) {
         throw new Error("UID must be 6-12 digits");
@@ -91,10 +134,17 @@ export async function registerIdentityRoutes(
       if (!region) {
         throw new Error("Invalid region");
       }
+      if (!isValidProofUrl(proofUrl)) {
+        throw new Error("proofUrl must be a valid URL");
+      }
 
       const pending = pendingMap.get(user.id);
       if (!pending) {
         throw new Error("No pending UID verification found");
+      }
+      if (now() - pending.createdAt > pendingTtlMs) {
+        pendingMap.delete(user.id);
+        throw new Error("UID verification request expired. Submit again.");
       }
       if (pending.code !== code) {
         throw new Error("Invalid verification code");
