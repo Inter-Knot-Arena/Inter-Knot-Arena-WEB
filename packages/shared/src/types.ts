@@ -83,8 +83,15 @@ export interface Agent {
 }
 
 export type AgentAttribute = "ICE" | "FIRE" | "ELECTRIC" | "ETHER" | "PHYSICAL";
-export type AgentRole = "ATTACK" | "STUN" | "SUPPORT" | "DEFENSE" | "ANOMALY";
-export type AgentAttackType = "MELEE" | "RANGED" | "BURST" | "SUSTAIN";
+export type AgentRole = "ATTACK" | "STUN" | "SUPPORT" | "DEFENSE" | "ANOMALY" | "RUPTURE";
+export type AgentAttackType =
+  | "MELEE"
+  | "RANGED"
+  | "BURST"
+  | "SUSTAIN"
+  | "SLASH"
+  | "STRIKE"
+  | "PIERCE";
 export type AgentRarity = "A" | "S";
 
 export interface AgentStatic {
