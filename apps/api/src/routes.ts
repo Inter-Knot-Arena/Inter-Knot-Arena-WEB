@@ -1,4 +1,5 @@
-﻿import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import type {
   DraftActionType,
   EvidenceRecord,
@@ -45,6 +46,43 @@ class HttpError extends Error {
   ) {
     super(message);
   }
+}
+
+interface VerifierSession {
+  token: string;
+  matchId: string;
+  userId: string;
+  expiresAt: number;
+  usedNonces: Set<string>;
+}
+
+function buildVerifierSignature(params: {
+  matchId: string;
+  userId: string;
+  type: "PRECHECK" | "INRUN";
+  result: EvidenceResult;
+  frameHash?: string;
+  nonce: string;
+  token: string;
+}): string {
+  const payload = [
+    params.matchId,
+    params.userId,
+    params.type,
+    params.result,
+    params.frameHash ?? "",
+    params.nonce
+  ].join(":");
+  return createHmac("sha256", params.token).update(payload).digest("hex");
+}
+
+function signaturesMatch(expected: string, received: string): boolean {
+  const expectedBuffer = Buffer.from(expected);
+  const receivedBuffer = Buffer.from(received);
+  if (expectedBuffer.length !== receivedBuffer.length) {
+    return false;
+  }
+  return timingSafeEqual(expectedBuffer, receivedBuffer);
 }
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
@@ -98,6 +136,8 @@ export async function registerRoutes(
   const uploadWindowMs = Number(process.env.UPLOAD_RATE_WINDOW_MS ?? 60_000);
   const uploadMaxRequests = Number(process.env.UPLOAD_RATE_MAX_REQUESTS ?? 30);
   const uploadRateMap = new Map<string, { startedAt: number; count: number }>();
+  const verifierSessionTtlMs = Number(process.env.VERIFIER_SESSION_TTL_MS ?? 30 * 60 * 1000);
+  const verifierSessions = new Map<string, VerifierSession>();
 
   const readIdempotencyKey = (request: FastifyRequest): string | null => {
     const raw = request.headers["idempotency-key"];
@@ -216,6 +256,75 @@ export async function registerRoutes(
     if (state.source === "MANUAL") {
       throw new Error("Ranked draft requires showcase-verified roster evidence.");
     }
+  };
+
+  const purgeExpiredVerifierSessions = (timestamp = now()) => {
+    for (const [token, session] of verifierSessions.entries()) {
+      if (session.expiresAt <= timestamp) {
+        verifierSessions.delete(token);
+      }
+    }
+  };
+
+  const assertVerifierEvidenceSignature = async (args: {
+    match: Match;
+    user: User;
+    type: "PRECHECK" | "INRUN";
+    result: EvidenceResult;
+    frameHash?: string;
+    verifierSessionToken?: string;
+    verifierNonce?: string;
+    verifierSignature?: string;
+  }): Promise<void> => {
+    const ruleset = await repo.findRuleset(args.match.rulesetId);
+    if (!ruleset.requireVerifier) {
+      return;
+    }
+
+    const sessionToken = args.verifierSessionToken?.trim();
+    const nonce = args.verifierNonce?.trim();
+    const signature = args.verifierSignature?.trim();
+    if (!sessionToken || !nonce || !signature) {
+      throw new HttpError(
+        401,
+        "Verifier session token, nonce, and signature are required for this ruleset."
+      );
+    }
+
+    purgeExpiredVerifierSessions();
+    const session = verifierSessions.get(sessionToken);
+    if (!session || session.matchId !== args.match.id || session.userId !== args.user.id) {
+      throw new HttpError(401, "Invalid verifier session token.");
+    }
+    if (session.expiresAt <= now()) {
+      verifierSessions.delete(sessionToken);
+      throw new HttpError(401, "Verifier session token expired.");
+    }
+    if (session.usedNonces.has(nonce)) {
+      throw new HttpError(409, "Verifier nonce already used.");
+    }
+
+    const expectedSignature = buildVerifierSignature({
+      matchId: args.match.id,
+      userId: args.user.id,
+      type: args.type,
+      result: args.result,
+      frameHash: args.frameHash,
+      nonce,
+      token: session.token
+    });
+    if (!signaturesMatch(expectedSignature, signature)) {
+      throw new HttpError(401, "Invalid verifier signature.");
+    }
+
+    session.usedNonces.add(nonce);
+    if (session.usedNonces.size > 2048) {
+      const oldest = session.usedNonces.values().next().value;
+      if (oldest) {
+        session.usedNonces.delete(oldest);
+      }
+    }
+    verifierSessions.set(sessionToken, session);
   };
 
   app.get("/health", async () => ({ status: "ok" }));
@@ -646,6 +755,58 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/matches/:id/verifier/session", async (request, reply) => {
+    try {
+      await enforceLifecycle();
+      const user = await requireAuthUser(request, repo, auth);
+      const matchId = requireString((request.params as { id?: string }).id, "matchId");
+      const match = await repo.findMatch(matchId);
+      assertParticipant(user, match);
+
+      const ruleset = await repo.findRuleset(match.rulesetId);
+      if (ruleset.requireVerifier && user.verification.status !== "VERIFIED") {
+        throw new HttpError(403, "Verifier session requires verified UID account.");
+      }
+
+      purgeExpiredVerifierSessions();
+      const token = createId("vsession");
+      const expiresAt = now() + verifierSessionTtlMs;
+      verifierSessions.set(token, {
+        token,
+        matchId,
+        userId: user.id,
+        expiresAt,
+        usedNonces: new Set<string>()
+      });
+
+      await recordAudit({
+        actorUserId: user.id,
+        action: "MATCH_VERIFIER_SESSION_CREATE",
+        entityType: "MATCH",
+        entityId: matchId,
+        payload: {
+          expiresAt,
+          privacyMode: ruleset.privacyMode
+        }
+      });
+
+      reply.send({
+        matchId,
+        verifierSessionToken: token,
+        expiresAt,
+        ruleset: {
+          requireVerifier: ruleset.requireVerifier,
+          requireInrunCheck: ruleset.requireInrunCheck,
+          precheckFrequencySec: ruleset.precheckFrequencySec,
+          inrunFrequencySec: ruleset.inrunFrequencySec,
+          privacyMode: ruleset.privacyMode
+        }
+      });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
   app.post("/matches/:id/evidence/precheck", async (request, reply) => {
     try {
       await enforceLifecycle();
@@ -659,6 +820,9 @@ export async function registerRoutes(
         result?: EvidenceResult;
         frameHash?: string;
         cropUrl?: string;
+        verifierSessionToken?: string;
+        verifierNonce?: string;
+        verifierSignature?: string;
       };
       const record: EvidenceRecord = {
         id: createId("ev"),
@@ -677,6 +841,16 @@ export async function registerRoutes(
         actorUserId: user.id,
         scope: `match:precheck:${matchId}`,
         execute: async () => {
+          await assertVerifierEvidenceSignature({
+            match,
+            user,
+            type: "PRECHECK",
+            result: record.result,
+            frameHash: record.frameHash,
+            verifierSessionToken: body?.verifierSessionToken,
+            verifierNonce: body?.verifierNonce,
+            verifierSignature: body?.verifierSignature
+          });
           const payload = await recordPrecheck(repo, matchId, record);
           await recordAudit({
             actorUserId: user.id,
@@ -712,6 +886,9 @@ export async function registerRoutes(
         result?: EvidenceResult;
         frameHash?: string;
         cropUrl?: string;
+        verifierSessionToken?: string;
+        verifierNonce?: string;
+        verifierSignature?: string;
       };
       const record: EvidenceRecord = {
         id: createId("ev"),
@@ -730,6 +907,16 @@ export async function registerRoutes(
         actorUserId: user.id,
         scope: `match:inrun:${matchId}`,
         execute: async () => {
+          await assertVerifierEvidenceSignature({
+            match,
+            user,
+            type: "INRUN",
+            result: record.result,
+            frameHash: record.frameHash,
+            verifierSessionToken: body?.verifierSessionToken,
+            verifierNonce: body?.verifierNonce,
+            verifierSignature: body?.verifierSignature
+          });
           const payload = await recordInrun(repo, matchId, record);
           await recordAudit({
             actorUserId: user.id,
@@ -1121,3 +1308,4 @@ function buildComboAnalytics(matches: Match[]) {
     .sort((a, b) => b.matches - a.matches)
     .slice(0, 100);
 }
+
