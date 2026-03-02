@@ -61,6 +61,10 @@ export default function UidVerify() {
       setError("Сначала сгенерируй код.");
       return;
     }
+    if (!proofUrl.trim()) {
+      setError("Добавь ссылку на proof-скрин перед подтверждением.");
+      return;
+    }
     setError(null);
     setSuccess(null);
     setVerifying(true);
@@ -179,16 +183,16 @@ export default function UidVerify() {
               {code || "Код появится после шага 1"}
             </div>
 
-            <div className="mt-4">
-              <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Proof URL</label>
-              <Input
-                value={proofUrl}
-                onChange={(event) => setProofUrl(event.target.value)}
-                placeholder="https://..."
-                className="mt-2"
-              />
-              <div className="mt-2 text-xs text-ink-500">Можно оставить пустым для MVP.</div>
-            </div>
+              <div className="mt-4">
+                <label className="text-xs uppercase tracking-[0.2em] text-ink-500">Proof URL</label>
+                <Input
+                  value={proofUrl}
+                  onChange={(event) => setProofUrl(event.target.value)}
+                  placeholder="https://..."
+                  className="mt-2"
+                />
+                <div className="mt-2 text-xs text-ink-500">Обязательная ссылка на proof-скрин.</div>
+              </div>
 
             <div className="mt-4 flex items-center gap-3">
               <Button onClick={handleVerify} disabled={verifying || !uidValid || !code}>
