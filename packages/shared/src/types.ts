@@ -563,6 +563,7 @@ export interface QueueConfig {
   leagueId: string;
   rulesetId: string;
   challengeId: string;
+  draftTemplateId: string;
   name: string;
   description: string;
   requireVerifier: boolean;
