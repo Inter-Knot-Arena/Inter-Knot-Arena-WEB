@@ -6,6 +6,7 @@ import {
   confirmMatchResult,
   fetchAgents,
   fetchMatch,
+  fetchVerifierSession,
   openDispute,
   submitDraftAction,
   submitInrun,
@@ -55,6 +56,48 @@ function userDraftedAgents(match: Match, userId: string): string[] {
     .map((action) => action.agentId);
 }
 
+function createVerifierNonce(): string {
+  if (typeof window !== "undefined" && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return `nonce-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function toHex(buffer: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buffer))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function signVerifierEvidence(params: {
+  matchId: string;
+  userId: string;
+  type: "PRECHECK" | "INRUN";
+  result: EvidenceResult;
+  frameHash?: string;
+  nonce: string;
+  token: string;
+}): Promise<string> {
+  const payload = [
+    params.matchId,
+    params.userId,
+    params.type,
+    params.result,
+    params.frameHash ?? "",
+    params.nonce
+  ].join(":");
+  const encoder = new TextEncoder();
+  const key = await window.crypto.subtle.importKey(
+    "raw",
+    encoder.encode(params.token),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await window.crypto.subtle.sign("HMAC", key, encoder.encode(payload));
+  return toHex(signature);
+}
+
 export default function MatchRoom() {
   const { id } = useParams();
   const [match, setMatch] = useState<Match | null>(null);
@@ -70,6 +113,7 @@ export default function MatchRoom() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [disputeReason, setDisputeReason] = useState<string>("");
+  const [verifierSessionToken, setVerifierSessionToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -174,10 +218,28 @@ export default function MatchRoom() {
   const handlePrecheck = async (result: EvidenceResult) => {
     try {
       setError(null);
+      const sessionToken =
+        verifierSessionToken ??
+        (await fetchVerifierSession(match.id).then((session) => {
+          setVerifierSessionToken(session.verifierSessionToken);
+          return session.verifierSessionToken;
+        }));
+      const verifierNonce = createVerifierNonce();
+      const verifierSignature = await signVerifierEvidence({
+        matchId: match.id,
+        userId: currentUserId,
+        type: "PRECHECK",
+        result,
+        nonce: verifierNonce,
+        token: sessionToken
+      });
       const updated = await submitPrecheck(match.id, {
         detectedAgents: evidenceAgents,
         result,
-        confidence: Object.fromEntries(evidenceAgents.map((agentId) => [agentId, 0.92]))
+        confidence: Object.fromEntries(evidenceAgents.map((agentId) => [agentId, 0.92])),
+        verifierSessionToken: sessionToken,
+        verifierNonce,
+        verifierSignature
       });
       setMatch(updated);
     } catch {
@@ -188,10 +250,28 @@ export default function MatchRoom() {
   const handleInrun = async (result: EvidenceResult) => {
     try {
       setError(null);
+      const sessionToken =
+        verifierSessionToken ??
+        (await fetchVerifierSession(match.id).then((session) => {
+          setVerifierSessionToken(session.verifierSessionToken);
+          return session.verifierSessionToken;
+        }));
+      const verifierNonce = createVerifierNonce();
+      const verifierSignature = await signVerifierEvidence({
+        matchId: match.id,
+        userId: currentUserId,
+        type: "INRUN",
+        result,
+        nonce: verifierNonce,
+        token: sessionToken
+      });
       const updated = await submitInrun(match.id, {
         detectedAgents: evidenceAgents,
         result,
-        confidence: Object.fromEntries(evidenceAgents.map((agentId) => [agentId, 0.88]))
+        confidence: Object.fromEntries(evidenceAgents.map((agentId) => [agentId, 0.88])),
+        verifierSessionToken: sessionToken,
+        verifierNonce,
+        verifierSignature
       });
       setMatch(updated);
     } catch {
@@ -202,7 +282,8 @@ export default function MatchRoom() {
   const handleResultSubmit = async () => {
     try {
       setError(null);
-      if (!proofUrl.trim()) {
+      let nextProofUrl = proofUrl.trim();
+      if (!nextProofUrl) {
         if (!proofFile) {
           setError("Proof URL or proof file is required.");
           return;
@@ -210,6 +291,7 @@ export default function MatchRoom() {
         setUploadingProof(true);
         const uploaded = await uploadEvidenceFile(proofFile, `match-result-${match.id}`);
         setProofUrl(uploaded.url);
+        nextProofUrl = uploaded.url;
       }
       if (!resultValue.trim()) {
         setError("Result value is required.");
@@ -218,7 +300,7 @@ export default function MatchRoom() {
       const updated = await submitResult(match.id, {
         metricType: resultType,
         value: resultValue,
-        proofUrl: proofUrl
+        proofUrl: nextProofUrl
       });
       setMatch(updated);
       setProofFile(null);
