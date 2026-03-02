@@ -220,23 +220,26 @@ try {
          league_id,
          ruleset_id,
          challenge_id,
+         draft_template_id,
          name,
          description,
          require_verifier
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (id) DO UPDATE
-       SET league_id = EXCLUDED.league_id,
-           ruleset_id = EXCLUDED.ruleset_id,
-           challenge_id = EXCLUDED.challenge_id,
-           name = EXCLUDED.name,
-           description = EXCLUDED.description,
-           require_verifier = EXCLUDED.require_verifier`,
+        )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (id) DO UPDATE
+        SET league_id = EXCLUDED.league_id,
+            ruleset_id = EXCLUDED.ruleset_id,
+            challenge_id = EXCLUDED.challenge_id,
+            draft_template_id = EXCLUDED.draft_template_id,
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            require_verifier = EXCLUDED.require_verifier`,
       [
         queue.id,
         queue.leagueId,
         queue.rulesetId,
         queue.challengeId,
+        queue.draftTemplateId,
         queue.name,
         queue.description,
         queue.requireVerifier
