@@ -28,7 +28,7 @@ import { Progress } from "../components/ui/progress";
 import { Skeleton } from "../components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../components/ui/tooltip";
-import { fetchLeagues, fetchProfile } from "../api";
+import { fetchCurrentSeason, fetchLeagues, fetchProfile } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 import { featureFlags } from "../flags";
 import { isUidVerified, normalizedVerificationStatus, uidStatusLabel } from "../lib/verification";
@@ -126,6 +126,7 @@ export default function Profile() {
   const [leagues, setLeagues] = useState<League[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [seasonBadge, setSeasonBadge] = useState("Season");
 
   const profileId = id ?? user?.id ?? null;
   const profileUser = profile?.user ?? user;
@@ -152,12 +153,16 @@ export default function Profile() {
     setIsLoading(true);
     setLoadError(null);
 
-    Promise.all([fetchProfile(profileId), fetchLeagues()])
-      .then(([summary, leagueList]) => {
+    Promise.all([fetchProfile(profileId), fetchLeagues(), fetchCurrentSeason()])
+      .then(([summary, leagueList, season]) => {
         if (!active) {
           return;
         }
         setLeagues(leagueList);
+        if (season) {
+          const daysLeft = Math.max(0, Math.ceil((season.endsAt - Date.now()) / (1000 * 60 * 60 * 24)));
+          setSeasonBadge(`${season.name} - ${daysLeft} days left`);
+        }
         if (summary?.user?.id === profileId) {
           setProfile(summary);
         } else {
@@ -402,7 +407,7 @@ export default function Profile() {
             <div className="flex flex-col items-start gap-3 xl:items-end">
               <Badge className="border border-border bg-ika-700/70 text-ink-700">
                 <Calendar className="mr-2 h-4 w-4" />
-                Season 01 - 60 days left
+                {seasonBadge}
               </Badge>
               <div className="flex flex-wrap gap-2">
                 {!isSelf && user ? (
