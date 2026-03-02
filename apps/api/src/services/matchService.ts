@@ -262,6 +262,27 @@ export async function recordResult(
   ) {
     throw new Error("Result submission is unavailable for this match state");
   }
+  const ruleset = await repo.findRuleset(match.rulesetId);
+  if (ruleset.evidencePolicy.precheckRequired) {
+    const passedUsers = new Set(
+      match.evidence.precheck
+        .filter((item) => item.result === "PASS" && item.userId)
+        .map((item) => item.userId as string)
+    );
+    const allPassed = match.players.every((player) => passedUsers.has(player.userId));
+    if (!allPassed) {
+      throw new Error("Result submission requires successful pre-check for both players");
+    }
+  }
+  if (ruleset.requireInrunCheck) {
+    const hasViolation = match.evidence.inrun.some((item) => item.result === "VIOLATION");
+    if (hasViolation) {
+      throw new Error("Result submission is blocked due to in-run violation");
+    }
+    if (match.evidence.inrun.length === 0) {
+      throw new Error("Result submission requires in-run evidence");
+    }
+  }
   const mergedResult = mergeResultProof(match.evidence.result, result);
 
   if (match.state === "READY_TO_START") {
