@@ -40,7 +40,10 @@ export async function createMatchFromQueue(
   const template = getDraftTemplate("bo1-standard");
   const opponent = opponentUserId
     ? await repo.findUser(opponentUserId)
-    : (await repo.findOpponent(userId)) ?? (await repo.findUser(userId));
+    : await repo.findOpponent(userId);
+  if (!opponent || opponent.id === userId) {
+    throw new Error("Opponent not found");
+  }
 
   if (queue.requireVerifier) {
     if (player.verification.status !== "VERIFIED") {
