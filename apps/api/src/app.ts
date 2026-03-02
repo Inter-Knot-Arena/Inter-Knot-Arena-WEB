@@ -46,7 +46,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
   const catalogStore =
     flags.enableAgentCatalog || flags.enableEnkaImport ? await createCatalogStore() : null;
   await registerAuthRoutes(app, repo, auth);
-  await registerUserRoutes(app, repo, auth);
+  await registerUserRoutes(app, repo, auth, rosterStore);
   await registerIdentityRoutes(app, repo, auth);
   await registerRoutes(
     app,

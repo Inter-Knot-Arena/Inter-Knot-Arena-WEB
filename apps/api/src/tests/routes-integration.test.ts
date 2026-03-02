@@ -5,9 +5,11 @@ import { createApp } from "../app.js";
 
 let app: FastifyInstance;
 const originalRepository = process.env.IKA_REPOSITORY;
+const originalAuthDisabled = process.env.AUTH_DISABLED;
 
 before(async () => {
   process.env.IKA_REPOSITORY = "memory";
+  process.env.AUTH_DISABLED = "true";
   app = await createApp({
     logger: false,
     disableBackgroundJobs: true
@@ -19,6 +21,11 @@ after(async () => {
     delete process.env.IKA_REPOSITORY;
   } else {
     process.env.IKA_REPOSITORY = originalRepository;
+  }
+  if (originalAuthDisabled === undefined) {
+    delete process.env.AUTH_DISABLED;
+  } else {
+    process.env.AUTH_DISABLED = originalAuthDisabled;
   }
   await app.close();
 });
@@ -95,4 +102,46 @@ test("profile endpoints return summary, paged matches, and analytics", async () 
   };
   assert.ok(analyticsBody.draft);
   assert.ok(analyticsBody.evidence);
+});
+
+test("users me delete anonymizes account data", async () => {
+  const users = await app.inject({
+    method: "GET",
+    url: "/users"
+  });
+  assert.equal(users.statusCode, 200);
+  const userList = users.json() as Array<{ id: string }>;
+  assert.ok(userList.length > 0);
+  const userId = userList[0]?.id;
+  assert.ok(userId);
+
+  const deletion = await app.inject({
+    method: "POST",
+    url: "/users/me/delete",
+    payload: { confirm: "DELETE" }
+  });
+  assert.equal(deletion.statusCode, 200);
+  assert.deepEqual(deletion.json(), { status: "deleted" });
+
+  const profile = await app.inject({
+    method: "GET",
+    url: `/users/${userId}`
+  });
+  assert.equal(profile.statusCode, 200);
+  const body = profile.json() as {
+    id: string;
+    email: string;
+    displayName: string;
+    roles: string[];
+    verification: { status: string };
+    privacy: { showUidPublicly: boolean; showMatchHistoryPublicly: boolean };
+  };
+  assert.equal(body.id, userId);
+  assert.equal(body.displayName, "Deleted User");
+  assert.equal(body.roles.includes("VERIFIED"), false);
+  assert.deepEqual(body.roles, ["USER"]);
+  assert.equal(body.verification.status, "UNVERIFIED");
+  assert.equal(body.privacy.showUidPublicly, false);
+  assert.equal(body.privacy.showMatchHistoryPublicly, false);
+  assert.match(body.email, /^deleted\+/);
 });

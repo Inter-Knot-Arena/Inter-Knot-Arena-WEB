@@ -8,6 +8,8 @@ import {
 } from "../services/profileService.js";
 import { now, requireString } from "../utils.js";
 import { getAuthUser, type AuthContext } from "../auth/context.js";
+import { clearSessionCookie, SESSION_COOKIE_NAME } from "../auth/session.js";
+import type { PlayerAgentStateStore } from "../roster/types.js";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
@@ -59,7 +61,8 @@ function isValidUrl(value: string): boolean {
 export async function registerUserRoutes(
   app: FastifyInstance,
   repo: Repository,
-  auth: AuthContext
+  auth: AuthContext,
+  rosterStore?: PlayerAgentStateStore
 ) {
   app.get("/users", async (request) => {
     const viewer = await getAuthUser(request, repo, auth);
@@ -208,6 +211,48 @@ export async function registerUserRoutes(
       };
       await repo.saveUser(updated);
       reply.send(updated);
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.post("/users/me/delete", async (request, reply) => {
+    try {
+      const user = await getAuthUser(request, repo, auth);
+      if (!user) {
+        reply.code(401).send({ error: "Unauthorized" });
+        return;
+      }
+
+      const body = (request.body ?? {}) as { confirm?: string };
+      if ((body.confirm ?? "").trim().toUpperCase() !== "DELETE") {
+        throw new Error("Confirmation keyword DELETE is required");
+      }
+
+      if (user.verification.uid && isValidRegion(user.verification.region)) {
+        await rosterStore?.deletePlayerData(user.verification.uid, user.verification.region);
+      }
+
+      const anonymizedEmail = `deleted+${user.id}@deleted.inter-knot`;
+      const anonymizedUser: User = {
+        ...user,
+        email: anonymizedEmail,
+        displayName: "Deleted User",
+        avatarUrl: null,
+        region: "OTHER",
+        roles: ["USER"],
+        verification: { status: "UNVERIFIED" },
+        privacy: { showUidPublicly: false, showMatchHistoryPublicly: false },
+        updatedAt: now()
+      };
+
+      await repo.saveUser(anonymizedUser);
+      await repo.deleteOAuthAccountsByUserId(user.id);
+      await repo.deletePasswordAccountsByUserId(user.id);
+      await auth.sessionStore.deleteSessionsByUserId(user.id);
+
+      clearSessionCookie(reply, SESSION_COOKIE_NAME);
+      reply.send({ status: "deleted" });
     } catch (error) {
       sendError(reply, error);
     }
