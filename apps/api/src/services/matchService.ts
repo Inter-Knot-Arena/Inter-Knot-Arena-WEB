@@ -193,9 +193,7 @@ export async function recordPrecheck(
 
   if (record.result === "VIOLATION") {
     await ensureAutoDispute(repo, match, record.userId, "Pre-check violation detected.");
-    if (match.state !== "DISPUTED") {
-      transitionMatch(match, "DISPUTED");
-    }
+    transitionMatch(match, "DISPUTED");
     await repo.saveMatch(match);
     return match;
   }
@@ -234,9 +232,7 @@ export async function recordInrun(
 
   if (record.result === "VIOLATION" && ruleset.requireInrunCheck) {
     await ensureAutoDispute(repo, match, record.userId, "In-run violation detected.");
-    if (match.state !== "DISPUTED") {
-      transitionMatch(match, "DISPUTED");
-    }
+    transitionMatch(match, "DISPUTED");
     await repo.saveMatch(match);
     return match;
   }
