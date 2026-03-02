@@ -9,6 +9,7 @@ export interface SessionStore {
   createSession(userId: string): Promise<Session>;
   getSession(sessionId: string): Promise<Session | null>;
   deleteSession(sessionId: string): Promise<void>;
+  deleteSessionsByUserId(userId: string): Promise<number>;
   purgeExpired(referenceTimestamp?: number): Promise<void>;
 }
 
@@ -16,6 +17,7 @@ export interface SessionPersistenceAdapter {
   createSession(session: Session): Promise<void>;
   getSession(sessionId: string): Promise<Session | null>;
   deleteSession(sessionId: string): Promise<void>;
+  deleteSessionsByUserId?: (userId: string) => Promise<number>;
   purgeExpired(nowTimestamp: number): Promise<void>;
 }
 
@@ -58,6 +60,17 @@ export function createSessionStore(
     async deleteSession(sessionId: string) {
       sessions.delete(sessionId);
       await adapter?.deleteSession(sessionId);
+    },
+    async deleteSessionsByUserId(userId: string) {
+      let removed = 0;
+      for (const [sessionId, session] of sessions.entries()) {
+        if (session.userId === userId) {
+          sessions.delete(sessionId);
+          removed += 1;
+        }
+      }
+      const persistedRemoved = await adapter?.deleteSessionsByUserId?.(userId);
+      return persistedRemoved ?? removed;
     },
     async purgeExpired(referenceTimestamp = now()) {
       for (const [id, session] of sessions.entries()) {

@@ -266,6 +266,16 @@ export function createMemoryRepository(): Repository {
       state.oauthAccounts.set(`${account.provider}:${account.providerAccountId}`, account);
       return account;
     },
+    async deleteOAuthAccountsByUserId(userId) {
+      let removed = 0;
+      for (const [key, account] of state.oauthAccounts.entries()) {
+        if (account.userId === userId) {
+          state.oauthAccounts.delete(key);
+          removed += 1;
+        }
+      }
+      return removed;
+    },
     async findPasswordAccountByEmail(email) {
       return state.passwordAccountsByEmail.get(email.toLowerCase()) ?? null;
     },
@@ -283,6 +293,16 @@ export function createMemoryRepository(): Repository {
       state.passwordAccountsByEmail.set(normalizedEmail, payload);
       return payload;
     },
+    async deletePasswordAccountsByUserId(userId) {
+      let removed = 0;
+      for (const [email, account] of state.passwordAccountsByEmail.entries()) {
+        if (account.userId === userId) {
+          state.passwordAccountsByEmail.delete(email);
+          removed += 1;
+        }
+      }
+      return removed;
+    },
     async createSession(session) {
       state.sessions.set(session.id, session);
       return session;
@@ -292,6 +312,16 @@ export function createMemoryRepository(): Repository {
     },
     async deleteSession(sessionId) {
       state.sessions.delete(sessionId);
+    },
+    async deleteSessionsByUserId(userId) {
+      let removed = 0;
+      for (const [sessionId, session] of state.sessions.entries()) {
+        if (session.userId === userId) {
+          state.sessions.delete(sessionId);
+          removed += 1;
+        }
+      }
+      return removed;
     },
     async purgeExpiredSessions(nowTimestamp) {
       for (const [sessionId, session] of state.sessions.entries()) {

@@ -71,6 +71,12 @@ export function createMemoryRosterStore(): PlayerAgentStateStore {
         snapshots.set(storeKey, filtered);
       }
       return removed;
+    },
+    async deletePlayerData(uid, region) {
+      const storeKey = key(uid, region);
+      states.delete(storeKey);
+      summaries.delete(storeKey);
+      snapshots.delete(storeKey);
     }
   };
 }

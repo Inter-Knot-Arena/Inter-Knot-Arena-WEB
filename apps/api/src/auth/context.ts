@@ -57,6 +57,9 @@ export function createAuthContext(repo: Repository): AuthContext {
       deleteSession: async (sessionId) => {
         await repo.deleteSession(sessionId);
       },
+      deleteSessionsByUserId: async (userId) => {
+        return repo.deleteSessionsByUserId(userId);
+      },
       purgeExpired: async (timestamp) => {
         await repo.purgeExpiredSessions(timestamp);
       }

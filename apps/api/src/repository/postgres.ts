@@ -666,6 +666,15 @@ class PostgresRepository implements Repository {
     return account;
   }
 
+  async deleteOAuthAccountsByUserId(userId: string): Promise<number> {
+    const result = await this.pool.query(
+      `DELETE FROM oauth_accounts
+       WHERE user_id = $1`,
+      [userId]
+    );
+    return Number(result.rowCount ?? 0);
+  }
+
   async findPasswordAccountByEmail(email: string): Promise<PasswordAccountRecord | null> {
     const result = await this.pool.query(
       `SELECT *
@@ -719,6 +728,15 @@ class PostgresRepository implements Repository {
     return account;
   }
 
+  async deletePasswordAccountsByUserId(userId: string): Promise<number> {
+    const result = await this.pool.query(
+      `DELETE FROM password_accounts
+       WHERE user_id = $1`,
+      [userId]
+    );
+    return Number(result.rowCount ?? 0);
+  }
+
   async createSession(session: Session): Promise<Session> {
     await this.pool.query(
       `INSERT INTO sessions (id, user_id, created_at, expires_at)
@@ -749,6 +767,15 @@ class PostgresRepository implements Repository {
        WHERE id = $1`,
       [sessionId]
     );
+  }
+
+  async deleteSessionsByUserId(userId: string): Promise<number> {
+    const result = await this.pool.query(
+      `DELETE FROM sessions
+       WHERE user_id = $1`,
+      [userId]
+    );
+    return Number(result.rowCount ?? 0);
   }
 
   async purgeExpiredSessions(nowTimestamp: number): Promise<void> {

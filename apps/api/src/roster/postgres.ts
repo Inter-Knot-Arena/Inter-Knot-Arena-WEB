@@ -119,6 +119,30 @@ export function createPostgresRosterStore(): PlayerAgentStateStore {
         [nowTimestamp]
       );
       return Number(result.rowCount ?? 0);
+    },
+    async deletePlayerData(uid, region) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("DELETE FROM player_agent_states WHERE uid = $1 AND region = $2", [
+          uid,
+          region
+        ]);
+        await client.query("DELETE FROM roster_imports WHERE uid = $1 AND region = $2", [
+          uid,
+          region
+        ]);
+        await client.query("DELETE FROM player_import_snapshots WHERE uid = $1 AND region = $2", [
+          uid,
+          region
+        ]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
     }
   };
 }

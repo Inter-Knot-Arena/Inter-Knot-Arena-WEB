@@ -83,11 +83,14 @@ export interface Repository {
   ): Promise<OAuthAccountRecord | null>;
   findOAuthAccountByEmail(email: string): Promise<OAuthAccountRecord | null>;
   saveOAuthAccount(account: OAuthAccountRecord): Promise<OAuthAccountRecord>;
+  deleteOAuthAccountsByUserId(userId: string): Promise<number>;
   findPasswordAccountByEmail(email: string): Promise<PasswordAccountRecord | null>;
   findPasswordAccountByUserId(userId: string): Promise<PasswordAccountRecord | null>;
   savePasswordAccount(account: PasswordAccountRecord): Promise<PasswordAccountRecord>;
+  deletePasswordAccountsByUserId(userId: string): Promise<number>;
   createSession(session: Session): Promise<Session>;
   findSession(sessionId: string): Promise<Session | null>;
   deleteSession(sessionId: string): Promise<void>;
+  deleteSessionsByUserId(userId: string): Promise<number>;
   purgeExpiredSessions(nowTimestamp: number): Promise<void>;
 }
