@@ -91,9 +91,15 @@ export async function markCheckin(
   userId: string
 ): Promise<Match> {
   const match = await repo.findMatch(matchId);
+  if (match.state !== "CHECKIN") {
+    throw new Error("Check-in is unavailable for this match state");
+  }
   const player = match.players.find((item) => item.userId === userId);
   if (!player) {
     throw new Error("Player not found in match");
+  }
+  if (player.checkin) {
+    return match;
   }
   player.checkin = true;
   match.updatedAt = now();
@@ -113,6 +119,13 @@ export async function applyDraftAction(
   action: DraftAction
 ): Promise<Match> {
   const match = await repo.findMatch(matchId);
+  if (match.state !== "DRAFTING") {
+    throw new Error("Draft is unavailable for this match state");
+  }
+  const catalog = await repo.listAgents();
+  if (!catalog.some((agent) => agent.id === action.agentId)) {
+    throw new Error("Unknown agent");
+  }
   const expected = nextDraftAction(getDraftTemplate(match.draft.templateId), match.draft.actions);
   if (!expected) {
     throw new Error("Draft already complete");
@@ -171,6 +184,9 @@ export async function recordPrecheck(
   record: EvidenceRecord
 ): Promise<Match> {
   const match = await repo.findMatch(matchId);
+  if (match.state !== "AWAITING_PRECHECK") {
+    throw new Error("Pre-check is unavailable for this match state");
+  }
   const ruleset = await repo.findRuleset(match.rulesetId);
   match.evidence.precheck.push(record);
   match.updatedAt = now();
@@ -209,6 +225,9 @@ export async function recordInrun(
   record: EvidenceRecord
 ): Promise<Match> {
   const match = await repo.findMatch(matchId);
+  if (match.state !== "READY_TO_START" && match.state !== "IN_PROGRESS") {
+    throw new Error("In-run evidence is unavailable for this match state");
+  }
   const ruleset = await repo.findRuleset(match.rulesetId);
   match.evidence.inrun.push(record);
   match.updatedAt = now();
@@ -236,6 +255,13 @@ export async function recordResult(
   result: ResultProof
 ): Promise<Match> {
   const match = await repo.findMatch(matchId);
+  if (
+    match.state !== "READY_TO_START" &&
+    match.state !== "IN_PROGRESS" &&
+    match.state !== "AWAITING_RESULT_UPLOAD"
+  ) {
+    throw new Error("Result submission is unavailable for this match state");
+  }
   const mergedResult = mergeResultProof(match.evidence.result, result);
 
   if (match.state === "READY_TO_START") {
