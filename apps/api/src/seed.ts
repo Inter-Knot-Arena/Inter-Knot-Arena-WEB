@@ -296,6 +296,7 @@ export const queues: QueueConfig[] = [
     leagueId: "league_standard",
     rulesetId: "ruleset_standard_v1",
     challengeId: "challenge_weekly_12",
+    draftTemplateId: "bo1-standard",
     name: "Standard Weekly",
     description: "Strict-evidence weekly time trial.",
     requireVerifier: true
@@ -305,6 +306,7 @@ export const queues: QueueConfig[] = [
     leagueId: "league_f2p",
     rulesetId: "ruleset_f2p_v1",
     challengeId: "challenge_score_08",
+    draftTemplateId: "bo1-standard",
     name: "F2P Score Rush",
     description: "Low-spend score chase with roster checks.",
     requireVerifier: true
@@ -314,6 +316,7 @@ export const queues: QueueConfig[] = [
     leagueId: "league_unlimited",
     rulesetId: "ruleset_unlimited_v1",
     challengeId: "challenge_weekly_12",
+    draftTemplateId: "bo3-standard",
     name: "Unlimited Weekly",
     description: "Open queue with proof submission.",
     requireVerifier: false
