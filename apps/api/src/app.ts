@@ -43,6 +43,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
   const moderation = createModerationStore();
   const rosterStore = await createRosterStore();
   const flags = getFeatureFlags();
+  const catalogStore =
+    flags.enableAgentCatalog || flags.enableEnkaImport ? await createCatalogStore() : null;
   await registerAuthRoutes(app, repo, auth);
   await registerUserRoutes(app, repo, auth);
   await registerIdentityRoutes(app, repo, auth);
@@ -55,19 +57,17 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
     audit,
     idempotency,
     rosterStore,
-    moderation
+    moderation,
+    catalogStore ?? undefined
   );
   await registerAdminRoutes(app, repo, moderation, audit, auth);
 
-  if (flags.enableAgentCatalog || flags.enableEnkaImport) {
-    const catalogStore = await createCatalogStore();
-    if (flags.enableAgentCatalog) {
-      await registerCatalogRoutes(app, catalogStore, repo, auth);
-    }
-    if (flags.enableEnkaImport) {
-      const { client, config } = createCache();
-      await registerRosterRoutes(app, repo, catalogStore, rosterStore, client, config.ttlMs, auth);
-    }
+  if (catalogStore && flags.enableAgentCatalog) {
+    await registerCatalogRoutes(app, catalogStore, repo, auth);
+  }
+  if (catalogStore && flags.enableEnkaImport) {
+    const { client, config } = createCache();
+    await registerRosterRoutes(app, repo, catalogStore, rosterStore, client, config.ttlMs, auth);
   }
 
   const intervals: NodeJS.Timeout[] = [];
