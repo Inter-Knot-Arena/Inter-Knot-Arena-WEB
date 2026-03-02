@@ -16,6 +16,30 @@ function sendError(reply: { code: (status: number) => { send: (payload: unknown)
 
 const REGIONS: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
 
+function canModerate(user: User | null | undefined): boolean {
+  return Boolean(
+    user?.roles.includes("MODER") ||
+      user?.roles.includes("STAFF") ||
+      user?.roles.includes("ADMIN")
+  );
+}
+
+function sanitizePublicUser(user: User, viewer: User | null): User {
+  const isSelf = Boolean(viewer && viewer.id === user.id);
+  const isModer = canModerate(viewer);
+  if (isSelf || isModer) {
+    return user;
+  }
+  return {
+    ...user,
+    email: "",
+    verification: {
+      ...user.verification,
+      uid: undefined
+    }
+  };
+}
+
 function isValidRegion(value: string | undefined): value is Region {
   return Boolean(value && REGIONS.includes(value as Region));
 }
@@ -37,12 +61,18 @@ export async function registerUserRoutes(
   repo: Repository,
   auth: AuthContext
 ) {
-  app.get("/users", async () => repo.listUsers());
+  app.get("/users", async (request) => {
+    const viewer = await getAuthUser(request, repo, auth);
+    const users = await repo.listUsers();
+    return users.map((user) => sanitizePublicUser(user, viewer));
+  });
 
   app.get("/users/:id", async (request, reply) => {
     try {
       const userId = requireString((request.params as { id?: string }).id, "userId");
-      reply.send(await repo.findUser(userId));
+      const viewer = await getAuthUser(request, repo, auth);
+      const user = await repo.findUser(userId);
+      reply.send(sanitizePublicUser(user, viewer));
     } catch (error) {
       sendError(reply, error);
     }
