@@ -191,6 +191,14 @@ export default function MatchRoom() {
   const side = getUserSide(match, currentUserId);
   const userPicks = userDraftedAgents(match, currentUserId);
   const evidenceAgents = userPicks.length ? userPicks.slice(0, 3) : agents.slice(0, 3).map((agent) => agent.id);
+  const resolveVerifierSessionToken = async (): Promise<string> => {
+    if (verifierSessionToken) {
+      return verifierSessionToken;
+    }
+    const session = await fetchVerifierSession(match.id);
+    setVerifierSessionToken(session.verifierSessionToken);
+    return session.verifierSessionToken;
+  };
 
   const handleCheckin = async () => {
     try {
@@ -218,12 +226,7 @@ export default function MatchRoom() {
   const handlePrecheck = async (result: EvidenceResult) => {
     try {
       setError(null);
-      const sessionToken =
-        verifierSessionToken ??
-        (await fetchVerifierSession(match.id).then((session) => {
-          setVerifierSessionToken(session.verifierSessionToken);
-          return session.verifierSessionToken;
-        }));
+      const sessionToken = await resolveVerifierSessionToken();
       const verifierNonce = createVerifierNonce();
       const verifierSignature = await signVerifierEvidence({
         matchId: match.id,
@@ -250,12 +253,7 @@ export default function MatchRoom() {
   const handleInrun = async (result: EvidenceResult) => {
     try {
       setError(null);
-      const sessionToken =
-        verifierSessionToken ??
-        (await fetchVerifierSession(match.id).then((session) => {
-          setVerifierSessionToken(session.verifierSessionToken);
-          return session.verifierSessionToken;
-        }));
+      const sessionToken = await resolveVerifierSessionToken();
       const verifierNonce = createVerifierNonce();
       const verifierSignature = await signVerifierEvidence({
         matchId: match.id,
