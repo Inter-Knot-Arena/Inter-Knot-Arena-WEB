@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { League, ProfileSummary, QueueConfig } from "@ika/shared";
+import type { Challenge, League, ProfileSummary, QueueConfig } from "@ika/shared";
 import {
   cancelMatchSearch,
+  fetchChallenges,
   fetchLeagues,
   fetchLobbyStats,
   fetchMatchmakingStatus,
@@ -36,9 +37,11 @@ function toLobbyMap(stats: { leagueId: string; waiting: number; inProgress: numb
 
 export default function Matchmaking() {
   const [queues, setQueues] = useState<QueueConfig[]>([]);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [leagues, setLeagues] = useState<League[]>([]);
   const [profile, setProfile] = useState<ProfileSummary | null>(null);
   const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null);
+  const [selectedQueueId, setSelectedQueueId] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [ticketId, setTicketId] = useState<string | null>(null);
@@ -56,6 +59,7 @@ export default function Matchmaking() {
 
   useEffect(() => {
     fetchQueues().then(setQueues);
+    fetchChallenges().then(setChallenges);
     fetchLeagues().then(setLeagues);
     fetchProfile(currentUserId)
       .then(setProfile)
@@ -109,7 +113,18 @@ export default function Matchmaking() {
   }, [leagues]);
 
   const selectedLeague = leagues.find((league) => league.id === selectedLeagueId) ?? null;
-  const leagueQueue = queues.find((queue) => queue.leagueId === selectedLeagueId) ?? null;
+  const leagueQueues = useMemo(
+    () => queues.filter((queue) => queue.leagueId === selectedLeagueId),
+    [queues, selectedLeagueId]
+  );
+  const leagueQueue =
+    leagueQueues.find((queue) => queue.id === selectedQueueId) ?? leagueQueues[0] ?? null;
+  const challengeById = useMemo(() => {
+    return challenges.reduce<Record<string, Challenge>>((acc, challenge) => {
+      acc[challenge.id] = challenge;
+      return acc;
+    }, {});
+  }, [challenges]);
   const leagueRating = profile?.ratings.find((rating) => rating.leagueId === selectedLeagueId) ?? null;
   const verificationStatus = normalizedVerificationStatus(profile?.user.verification.status);
   const isVerified = isUidVerified(verificationStatus);
@@ -117,6 +132,20 @@ export default function Matchmaking() {
   const counters = selectedLeagueId
     ? lobbyCounters[selectedLeagueId] ?? { waiting: 0, inProgress: 0 }
     : { waiting: 0, inProgress: 0 };
+
+  useEffect(() => {
+    if (!selectedLeagueId) {
+      setSelectedQueueId(null);
+      return;
+    }
+    if (!leagueQueues.length) {
+      setSelectedQueueId(null);
+      return;
+    }
+    if (!selectedQueueId || !leagueQueues.some((queue) => queue.id === selectedQueueId)) {
+      setSelectedQueueId(leagueQueues[0]?.id ?? null);
+    }
+  }, [selectedLeagueId, selectedQueueId, leagueQueues]);
 
   const handleFindMatch = async () => {
     if (!leagueQueue || !selectedLeagueId) {
@@ -210,11 +239,31 @@ export default function Matchmaking() {
               <div className="meta-row">
                 <div>
                   <div className="meta-label">Queue</div>
-                  <div className="meta-value">{leagueQueue?.name ?? "TBD"}</div>
+                  {leagueQueues.length > 1 ? (
+                    <select
+                      className="h-9 rounded-md border border-border bg-ika-800/70 px-2 text-sm text-ink-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
+                      value={leagueQueue?.id ?? ""}
+                      onChange={(event) => setSelectedQueueId(event.target.value)}
+                    >
+                      {leagueQueues.map((queue) => (
+                        <option key={queue.id} value={queue.id}>
+                          {queue.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="meta-value">{leagueQueue?.name ?? "Unavailable"}</div>
+                  )}
                 </div>
                 <div>
                   <div className="meta-label">Ruleset</div>
-                  <div className="meta-value">{leagueQueue?.rulesetId ?? "TBD"}</div>
+                  <div className="meta-value">{leagueQueue?.rulesetId ?? "Unavailable"}</div>
+                </div>
+                <div>
+                  <div className="meta-label">Challenge</div>
+                  <div className="meta-value">
+                    {leagueQueue ? (challengeById[leagueQueue.challengeId]?.name ?? leagueQueue.challengeId) : "Unavailable"}
+                  </div>
                 </div>
               </div>
               <div className="lobby-actions">
@@ -266,7 +315,7 @@ export default function Matchmaking() {
                 </div>
                 <div>
                   <div className="meta-label">Queue</div>
-                  <div className="meta-value">{leagueQueue?.name ?? "TBD"}</div>
+                  <div className="meta-value">{leagueQueue?.name ?? "Unavailable"}</div>
                 </div>
               </div>
             </div>
@@ -297,7 +346,10 @@ export default function Matchmaking() {
               <button
                 key={league.id}
                 className="card card-button league-card"
-                onClick={() => setSelectedLeagueId(league.id)}
+                onClick={() => {
+                  setSelectedLeagueId(league.id);
+                  setSelectedQueueId(null);
+                }}
               >
                 <div className="card-header">
                   <h3>{league.name}</h3>

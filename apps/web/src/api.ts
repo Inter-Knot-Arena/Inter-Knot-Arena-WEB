@@ -1,6 +1,7 @@
 import type {
   Agent,
   AgentCatalog,
+  Challenge,
   Dispute,
   DraftActionType,
   EvidenceResult,
@@ -171,6 +172,10 @@ export function fetchAgents(): Promise<Agent[]> {
 
 export function fetchRulesets(): Promise<Ruleset[]> {
   return requestJsonOr<Ruleset[]>("/rulesets", []);
+}
+
+export function fetchChallenges(): Promise<Challenge[]> {
+  return requestJsonOr<Challenge[]>("/challenges", []);
 }
 
 export function fetchUsers(): Promise<User[]> {
