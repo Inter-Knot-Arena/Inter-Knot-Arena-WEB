@@ -38,7 +38,7 @@ export async function registerAuthRoutes(
 ) {
   const allowedRegions: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
   const adminEmails = new Set(
-    (process.env.ADMIN_EMAILS ?? "lovalentin08@gmail.com")
+    (process.env.ADMIN_EMAILS ?? "")
       .split(",")
       .map((value) => normalizeEmail(value.trim()))
       .filter(Boolean)
