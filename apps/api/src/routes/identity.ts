@@ -102,6 +102,7 @@ export async function registerIdentityRoutes(
 
       const updated: User = {
         ...user,
+        roles: user.roles.filter((role) => role !== "VERIFIED"),
         verification: { status: "PENDING", uid, region },
         updatedAt: now()
       };
@@ -155,6 +156,7 @@ export async function registerIdentityRoutes(
 
       const updated: User = {
         ...user,
+        roles: user.roles.includes("VERIFIED") ? user.roles : [...user.roles, "VERIFIED"],
         verification: { status: "VERIFIED", uid, region },
         updatedAt: now()
       };
