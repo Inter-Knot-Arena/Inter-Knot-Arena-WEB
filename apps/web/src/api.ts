@@ -392,6 +392,13 @@ export function fetchAgentCatalog(): Promise<AgentCatalog> {
   return requestJsonOr<AgentCatalog>("/catalog/agents", { catalogVersion: "unknown", agents: [] });
 }
 
+export function reloadAdminCatalog(): Promise<{ catalogVersion: string; mappingVersion: string }> {
+  return requestJson<{ catalogVersion: string; mappingVersion: string }>(
+    "/admin/catalog/reload",
+    jsonRequest({})
+  );
+}
+
 export async function fetchPlayerRoster(options: {
   uid: string;
   region?: string;
