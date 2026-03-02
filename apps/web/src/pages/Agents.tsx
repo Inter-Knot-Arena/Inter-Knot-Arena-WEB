@@ -332,7 +332,7 @@ export default function Agents() {
                   <span>
                     {item.agent.attribute} / {item.agent.attackType}
                   </span>
-                  <span className="mx-1">•</span>
+                  <span className="mx-1">&bull;</span>
                   <span>{item.agent.role}</span>
                 </div>
 
@@ -357,3 +357,4 @@ export default function Agents() {
     </TooltipProvider>
   );
 }
+
