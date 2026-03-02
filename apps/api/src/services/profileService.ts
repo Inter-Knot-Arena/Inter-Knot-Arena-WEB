@@ -21,6 +21,7 @@ interface ProfileViewOptions {
 }
 
 interface ProfileVisibility {
+  canSeePrivate: boolean;
   canSeeUid: boolean;
   canSeeHistory: boolean;
 }
@@ -33,7 +34,7 @@ export async function getProfileSummary(
   const user = await repo.findUser(userId);
   const ratings = await repo.listRatingsByUser(userId);
   const visibility = resolveVisibility(user, options.viewer);
-  const safeUser = sanitizeUser(user, visibility.canSeeUid);
+  const safeUser = sanitizeUser(user, visibility);
 
   if (options.includeAnalytics === false) {
     return { user: safeUser, ratings };
@@ -399,20 +400,22 @@ function resolveVisibility(user: User, viewer?: User | null): ProfileVisibility 
     viewer?.roles.includes("STAFF") ||
     viewer?.roles.includes("ADMIN");
   return {
+    canSeePrivate: Boolean(isSelf || isModer),
     canSeeUid: Boolean(isSelf || isModer || user.privacy.showUidPublicly),
     canSeeHistory: Boolean(isSelf || isModer || user.privacy.showMatchHistoryPublicly)
   };
 }
 
-function sanitizeUser(user: User, canSeeUid: boolean): User {
-  if (canSeeUid) {
+function sanitizeUser(user: User, visibility: ProfileVisibility): User {
+  if (visibility.canSeePrivate) {
     return user;
   }
   return {
     ...user,
+    email: "",
     verification: {
       ...user.verification,
-      uid: undefined
+      uid: visibility.canSeeUid ? user.verification.uid : undefined
     }
   };
 }
