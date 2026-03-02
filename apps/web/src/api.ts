@@ -145,6 +145,10 @@ export function fetchLeagues(): Promise<League[]> {
   return requestJsonOr<League[]>("/leagues", []);
 }
 
+export function fetchCurrentSeason(): Promise<Season | null> {
+  return requestJsonOr<Season | null>("/seasons/current", null);
+}
+
 export function fetchLobbyStats(): Promise<LobbyStats[]> {
   return requestJsonOr<LobbyStats[]>("/matchmaking/lobbies", []);
 }
