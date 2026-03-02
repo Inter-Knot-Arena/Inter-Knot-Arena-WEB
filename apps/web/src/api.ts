@@ -83,6 +83,19 @@ export interface PresignedUpload {
   expiresIn: number;
 }
 
+export interface VerifierSessionResponse {
+  matchId: string;
+  verifierSessionToken: string;
+  expiresAt: number;
+  ruleset: {
+    requireVerifier: boolean;
+    requireInrunCheck: boolean;
+    precheckFrequencySec: number;
+    inrunFrequencySec: number;
+    privacyMode: string;
+  };
+}
+
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
 async function readError(response: Response): Promise<string> {
@@ -237,6 +250,9 @@ export function submitPrecheck(
     result: EvidenceResult;
     frameHash?: string;
     cropUrl?: string;
+    verifierSessionToken?: string;
+    verifierNonce?: string;
+    verifierSignature?: string;
   }
 ): Promise<Match> {
   return requestJson<Match>(`/matches/${matchId}/evidence/precheck`, jsonRequest(payload));
@@ -250,9 +266,16 @@ export function submitInrun(
     result: EvidenceResult;
     frameHash?: string;
     cropUrl?: string;
+    verifierSessionToken?: string;
+    verifierNonce?: string;
+    verifierSignature?: string;
   }
 ): Promise<Match> {
   return requestJson<Match>(`/matches/${matchId}/evidence/inrun`, jsonRequest(payload));
+}
+
+export function fetchVerifierSession(matchId: string): Promise<VerifierSessionResponse> {
+  return requestJson<VerifierSessionResponse>(`/matches/${matchId}/verifier/session`, jsonRequest({}));
 }
 
 export function submitResult(
