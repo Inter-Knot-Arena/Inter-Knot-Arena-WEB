@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { Dispute } from "@ika/shared";
 import { fetchDisputes, resolveDispute } from "../api";
 
@@ -53,6 +54,24 @@ export default function Disputes() {
               </div>
               <p>Match: {dispute.matchId}</p>
               <p>{dispute.reason}</p>
+              <div className="text-xs text-ink-500">
+                <Link className="table-link" to={`/match/${dispute.matchId}`}>
+                  Open match room evidence
+                </Link>
+              </div>
+              {dispute.evidenceUrls?.length ? (
+                <div className="mt-2 rounded-lg border border-border bg-ika-900/40 p-2 text-xs">
+                  {dispute.evidenceUrls.map((url) => (
+                    <div key={url}>
+                      <a className="table-link" href={url} target="_blank" rel="noreferrer">
+                        {url}
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-ink-500">No external evidence links attached.</div>
+              )}
               <label>
                 Decision
                 <input
