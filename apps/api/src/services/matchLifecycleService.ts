@@ -396,16 +396,23 @@ async function runEvidenceRetentionSweep(repo: Repository, timestamp: number): P
 
     const result = match.evidence.result;
     if (result && timestamp - result.submittedAt > resultMaxAgeMs) {
-      match.evidence.result = {
-        ...result,
-        proofUrl: result.proofUrl ? "[redacted]" : undefined,
-        entries: result.entries?.map((entry) => ({
-          ...entry,
-          proofUrl: "[redacted]",
-          demoUrl: entry.demoUrl ? "[redacted]" : undefined
-        }))
-      };
-      changed = true;
+      const alreadyRedacted =
+        result.proofUrl === "[redacted]" &&
+        (result.entries ?? []).every(
+          (entry) => entry.proofUrl === "[redacted]" && (!entry.demoUrl || entry.demoUrl === "[redacted]")
+        );
+      if (!alreadyRedacted) {
+        match.evidence.result = {
+          ...result,
+          proofUrl: result.proofUrl ? "[redacted]" : undefined,
+          entries: result.entries?.map((entry) => ({
+            ...entry,
+            proofUrl: "[redacted]",
+            demoUrl: entry.demoUrl ? "[redacted]" : undefined
+          }))
+        };
+        changed = true;
+      }
     }
 
     if (!changed) {
