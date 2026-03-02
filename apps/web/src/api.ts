@@ -194,8 +194,11 @@ export function fetchProfileMatches(
   return requestJson<ProfileMatchHistoryPage>(`/profiles/${userId}/matches${suffix}`);
 }
 
-export function joinMatchmaking(_userId: string, queueId: string): Promise<Match> {
-  return requestJson<Match>("/matchmaking/join", jsonRequest({ queueId }));
+export function joinMatchmaking(
+  _userId: string,
+  queueId: string
+): Promise<MatchmakingSearchResponse> {
+  return requestJson<MatchmakingSearchResponse>("/matchmaking/join", jsonRequest({ queueId }));
 }
 
 export function startMatchSearch(
