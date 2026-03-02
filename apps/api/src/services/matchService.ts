@@ -258,12 +258,19 @@ export async function confirmMatch(
   userId: string
 ): Promise<Match> {
   const match = await repo.findMatch(matchId);
-  if (!match.confirmedBy.includes(userId)) {
-    match.confirmedBy.push(userId);
+  if (!match.players.some((player) => player.userId === userId)) {
+    throw new Error("Player not found in match");
   }
+  if (match.state !== "AWAITING_CONFIRMATION") {
+    throw new Error("Match is not awaiting confirmation");
+  }
+  if (match.confirmedBy.includes(userId)) {
+    return match;
+  }
+  match.confirmedBy.push(userId);
   match.updatedAt = now();
 
-  if (match.state === "AWAITING_CONFIRMATION" && match.confirmedBy.length >= match.players.length) {
+  if (match.confirmedBy.length >= match.players.length) {
     transitionMatch(match, "RESOLVED");
     await finalizeMatchResolution(repo, match, "CONFIRMATION");
     return match;
