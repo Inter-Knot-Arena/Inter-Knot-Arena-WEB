@@ -14,17 +14,17 @@
     "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1000.0",
+    "@aws-sdk/s3-request-presigner": "^3.1000.0",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^11.2.0",
     "@ika/shared": "0.1.0",
-    "@aws-sdk/client-s3": "^3.540.0",
-    "@aws-sdk/s3-request-presigner": "^3.540.0",
-    "@fastify/cookie": "^9.3.1",
-    "@fastify/cors": "^8.4.0",
-    "fastify": "^4.26.0",
+    "fastify": "^5.7.4",
     "pg": "^8.11.5"
   },
   "devDependencies": {
-    "@types/pg": "^8.11.7",
     "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.7",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0"
   }
