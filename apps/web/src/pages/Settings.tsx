@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Check, CheckCircle2, Info, LogOut, Pencil, ShieldAlert, ShieldCheck } from "lucide-react";
-import { updateMe } from "../api";
+import { deleteMe, updateMe } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 import type { Region } from "@ika/shared";
 import { normalizedVerificationStatus, uidStatusLabel } from "../lib/verification";
@@ -44,6 +44,7 @@ function roleLabel(role: string) {
 
 export default function Settings() {
   const { user, isLoading, setUser, logout } = useAuth();
+  const navigate = useNavigate();
   const [displayName, setDisplayName] = useState("");
   const [region, setRegion] = useState<Region>("OTHER");
   const [avatarUrl, setAvatarUrl] = useState("");
@@ -56,6 +57,7 @@ export default function Settings() {
   const [googleAvatarUrl, setGoogleAvatarUrl] = useState<string | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -235,6 +237,25 @@ export default function Settings() {
       setUser(previous);
       setToast({ type: "error", message: "Failed to save changes." });
       setSaveState("idle");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirm !== "DELETE" || isDeletingAccount) {
+      return;
+    }
+    setIsDeletingAccount(true);
+    try {
+      await deleteMe("DELETE");
+      setDeleteOpen(false);
+      setDeleteConfirm("");
+      await logout();
+      navigate("/signin", { replace: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete account.";
+      setToast({ type: "error", message });
+    } finally {
+      setIsDeletingAccount(false);
     }
   };
 
@@ -480,7 +501,7 @@ export default function Settings() {
                 </Button>
               </div>
               <div className="mt-2 text-xs text-ink-500">
-                Account deletion requires manual support in MVP.
+                Deletion anonymizes profile data, clears login methods, and signs out all sessions.
               </div>
             </div>
 
@@ -517,21 +538,24 @@ export default function Settings() {
               placeholder="DELETE"
             />
             <div className="mt-4 flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setDeleteOpen(false)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDeleteOpen(false)}
+                disabled={isDeletingAccount}
+              >
                 Cancel
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 className="border-rose-500/50 text-rose-300 hover:border-rose-400/70 hover:text-rose-100"
-                disabled={deleteConfirm !== "DELETE"}
+                disabled={deleteConfirm !== "DELETE" || isDeletingAccount}
                 onClick={() => {
-                  setDeleteOpen(false);
-                  setDeleteConfirm("");
-                  setToast({ type: "error", message: "Account deletion is not available yet." });
+                  void handleDeleteAccount();
                 }}
               >
-                Confirm delete
+                {isDeletingAccount ? "Deleting..." : "Confirm delete"}
               </Button>
             </div>
           </div>

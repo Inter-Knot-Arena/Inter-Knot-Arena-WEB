@@ -372,6 +372,10 @@ export function updateMe(payload: {
   return requestJson<User>("/users/me", jsonRequest(payload, "PATCH"));
 }
 
+export function deleteMe(confirm = "DELETE"): Promise<{ status: string }> {
+  return requestJson<{ status: string }>("/users/me/delete", jsonRequest({ confirm }));
+}
+
 export function submitUidVerification(payload: {
   uid: string;
   region: string;
