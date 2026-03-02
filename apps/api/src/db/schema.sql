@@ -167,10 +167,13 @@ CREATE TABLE IF NOT EXISTS queues (
   league_id text NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
   ruleset_id text NOT NULL REFERENCES rulesets(id) ON DELETE CASCADE,
   challenge_id text NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+  draft_template_id text NOT NULL DEFAULT 'bo1-standard',
   name text NOT NULL,
   description text NOT NULL,
   require_verifier boolean NOT NULL
 );
+
+ALTER TABLE queues ADD COLUMN IF NOT EXISTS draft_template_id text NOT NULL DEFAULT 'bo1-standard';
 
 CREATE TABLE IF NOT EXISTS matches (
   id text PRIMARY KEY,
