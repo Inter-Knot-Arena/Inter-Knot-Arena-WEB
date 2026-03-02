@@ -12,6 +12,7 @@ import type {
 import type { Repository } from "./repository/types.js";
 import type { StorageClient } from "./storage/types.js";
 import type { PlayerAgentStateStore } from "./roster/types.js";
+import type { CatalogStore } from "./catalog/store.js";
 import {
   applyDraftAction,
   confirmMatch,
@@ -126,7 +127,8 @@ export async function registerRoutes(
   audit: AuditStore,
   idempotency: IdempotencyStore,
   rosterStore: PlayerAgentStateStore,
-  moderation: ModerationStore
+  moderation: ModerationStore,
+  catalogStore?: CatalogStore
 ) {
   const enforceLifecycle = async () => {
     await runMatchLifecycle(repo, lifecycleConfig);
@@ -439,7 +441,19 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/agents", async () => repo.listAgents());
+  app.get("/agents", async () => {
+    if (catalogStore) {
+      const catalog = catalogStore.getCatalog();
+      return catalog.agents.map((agent) => ({
+        id: agent.agentId,
+        name: agent.name,
+        element: agent.attribute,
+        faction: agent.faction,
+        role: agent.role
+      }));
+    }
+    return repo.listAgents();
+  });
   app.get("/leagues", async () => repo.listLeagues());
   app.get("/rulesets", async () => repo.listRulesets());
   app.get("/challenges", async () => repo.listChallenges());
