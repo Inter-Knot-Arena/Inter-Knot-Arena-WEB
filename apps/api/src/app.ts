@@ -29,7 +29,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
   const app = Fastify({ logger: options.logger ?? true });
 
   await app.register(cors, {
-    origin: process.env.WEB_ORIGIN ?? true,
+    origin: process.env.WEB_ORIGIN ?? "http://localhost:5173",
     credentials: true
   });
   await app.register(cookie);
