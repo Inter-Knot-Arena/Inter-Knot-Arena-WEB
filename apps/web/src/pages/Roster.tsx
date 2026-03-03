@@ -29,11 +29,13 @@ export default function Roster() {
       <div className="page">
         <section className="section-header">
           <h2>Roster</h2>
-          <p>UID verification is required before opening roster import and proof tools.</p>
+          <p>
+            UID and roster are now verified only through Verifier App OCR full-scan.
+          </p>
         </section>
         <div className="card">
           <Link className="primary-button" to="/uid-verify">
-            Verify UID
+            Open Verifier setup
           </Link>
         </div>
       </div>
@@ -44,7 +46,7 @@ export default function Roster() {
     <div className="page">
       <section className="section-header">
         <h2>Roster</h2>
-        <p>Import your showcase, sync manual entries, and check ranked eligibility.</p>
+        <p>Use Verifier App OCR sync to keep your roster and UID up to date.</p>
       </section>
       <div className="card">
         <div className="meta-row">
@@ -61,8 +63,8 @@ export default function Roster() {
           <Link className="primary-button" to={`/players/${user.verification.uid}/roster`}>
             Open roster workspace
           </Link>
-          <Link className="ghost-button" to="/agents">
-            Manage agent list
+          <Link className="ghost-button" to="/uid-verify">
+            Verifier setup
           </Link>
         </div>
       </div>

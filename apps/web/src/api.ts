@@ -7,6 +7,7 @@ import type {
   EvidenceResult,
   League,
   Match,
+  PlayerAgentDynamic,
   PlayerRosterImportSummary,
   PlayerRosterView,
   ProfileAnalytics,
@@ -442,6 +443,38 @@ export async function importRosterFromEnka(payload: {
     throw new Error(await readError(response));
   }
   return (await response.json()) as PlayerRosterImportSummary;
+}
+
+export function submitVerifierRosterImport(payload: {
+  uid: string;
+  region: string;
+  fullSync?: boolean;
+  agents: Array<
+    Pick<
+      PlayerAgentDynamic,
+      | "agentId"
+      | "owned"
+      | "level"
+      | "dupes"
+      | "mindscape"
+      | "promotion"
+      | "talent"
+      | "core"
+      | "weapon"
+      | "discs"
+      | "confidence"
+    >
+  >;
+}): Promise<{
+  status: string;
+  summary: PlayerRosterImportSummary;
+  verification: { status: string; uid?: string; region?: string };
+}> {
+  return requestJson<{
+    status: string;
+    summary: PlayerRosterImportSummary;
+    verification: { status: string; uid?: string; region?: string };
+  }>("/verifier/roster/import", jsonRequest(payload));
 }
 
 export function upsertManualRosterAgents(payload: {

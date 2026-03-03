@@ -4,22 +4,22 @@ import { Button } from "../ui/button";
 
 interface ImportPanelProps {
   enabled: boolean;
-  isImporting: boolean;
+  isRefreshing: boolean;
   region: string;
   lastImport?: PlayerRosterImportSummary;
   totalAgentsSaved?: number;
   missingAgents?: string[];
-  onImport: (force?: boolean) => void;
+  onRefresh: () => void;
 }
 
 export function ImportPanel({
   enabled,
-  isImporting,
+  isRefreshing,
   region,
   lastImport,
   totalAgentsSaved,
   missingAgents,
-  onImport
+  onRefresh
 }: ImportPanelProps) {
   const importStatus = lastImport?.status ?? "SUCCESS";
   const isFailed = importStatus === "FAILED";
@@ -29,27 +29,29 @@ export function ImportPanel({
     <div className="rounded-xl border border-border bg-ika-800/70 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold text-ink-900">Showcase import</div>
+          <div className="text-sm font-semibold text-ink-900">Verifier OCR sync</div>
           <p className="text-xs text-ink-500">
-            Pull roster data from Enka.Network showcase (region {region}).
+            Roster and UID are synced by Verifier App scan (region {region}).
           </p>
         </div>
         {enabled ? (
           <div className="flex items-center gap-2">
-            {(isFailed || isDegraded) && !isImporting ? (
-              <Button variant="outline" onClick={() => onImport(true)}>
-                Retry now
+            {(isFailed || isDegraded) && !isRefreshing ? (
+              <Button variant="outline" onClick={onRefresh}>
+                Refresh status
               </Button>
             ) : null}
-            <Button onClick={() => onImport(false)} disabled={isImporting}>
-              {isImporting ? "Importing..." : "Import from Showcase"}
+            <Button onClick={onRefresh} disabled={isRefreshing}>
+              {isRefreshing ? "Refreshing..." : "Refresh roster"}
             </Button>
           </div>
         ) : null}
       </div>
 
       {!enabled ? (
-        <p className="mt-3 text-xs text-ink-500">Enka import is disabled for this environment.</p>
+        <p className="mt-3 text-xs text-ink-500">
+          Verifier roster import is disabled for this environment.
+        </p>
       ) : null}
 
       {lastImport ? (
@@ -128,7 +130,7 @@ export function ImportPanel({
       ) : null}
 
       <div className="mt-3 text-xs text-ink-500">
-        Verify full roster to unlock strict draft eligibility checks.
+        Launch Verifier App and run full scan to update owned agents, discs, amplifiers, and UID.
       </div>
     </div>
   );

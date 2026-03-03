@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { PlayerRosterView, PlayerAgentSource } from "@ika/shared";
-import { fetchPlayerRoster, importRosterFromEnka } from "../api";
+import { fetchPlayerRoster } from "../api";
 import { featureFlags } from "../flags";
 import { ImportPanel } from "../components/roster/ImportPanel";
 import { RosterGrid } from "../components/roster/RosterGrid";
@@ -34,7 +34,7 @@ export default function PlayerRoster() {
   );
   const [sourceFilter, setSourceFilter] = useState<"ALL" | PlayerAgentSource>("ALL");
   const [region, setRegion] = useState("NA");
-  const [importing, setImporting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!featureFlags.enableAgentCatalog) {
@@ -138,21 +138,19 @@ export default function PlayerRoster() {
     sourceFilter
   ]);
 
-  const handleImport = async () => {
+  const handleRefresh = async () => {
     if (!uid) {
       return;
     }
-    setImporting(true);
+    setRefreshing(true);
     try {
-      await importRosterFromEnka({ uid, region });
       const updated = await fetchPlayerRoster({ uid, region });
       setRoster(updated);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Import failed. Check ENKA_BASE_URL and try again.";
+      const message = error instanceof Error ? error.message : "Failed to refresh roster.";
       setError(message);
     } finally {
-      setImporting(false);
+      setRefreshing(false);
     }
   };
 
@@ -202,13 +200,13 @@ export default function PlayerRoster() {
         ) : null}
 
         <ImportPanel
-          enabled={featureFlags.enableEnkaImport}
-          isImporting={importing}
+          enabled={featureFlags.enableVerifierRosterImport}
+          isRefreshing={refreshing}
           region={region}
           lastImport={roster?.lastImport}
           totalAgentsSaved={totalAgentsSaved}
           missingAgents={missingAgents}
-          onImport={handleImport}
+          onRefresh={handleRefresh}
         />
 
         <div className="mt-6 grid gap-3 rounded-xl border border-border bg-ika-800/70 p-4">
@@ -314,7 +312,7 @@ export default function PlayerRoster() {
             <RosterGrid items={filteredItems} />
           ) : (
             <div className="rounded-xl border border-border bg-ika-800/70 p-6 text-sm text-ink-500">
-              No roster entries found. Import from Enka showcase or adjust filters.
+              No roster entries found. Run Verifier OCR sync and refresh this page.
             </div>
           )}
         </div>

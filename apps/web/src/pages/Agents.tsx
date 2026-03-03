@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PlayerRosterView, Region } from "@ika/shared";
-import { importRosterFromEnka, fetchPlayerRoster, upsertManualRosterAgents } from "../api";
+import { fetchPlayerRoster } from "../api";
 import { featureFlags } from "../flags";
 import { useAuth } from "../auth/AuthProvider";
 import { ImportPanel } from "../components/roster/ImportPanel";
@@ -10,8 +10,6 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Skeleton } from "../components/ui/skeleton";
 import { TooltipProvider } from "../components/ui/tooltip";
-import { RarityIcon } from "../components/RarityIcon";
-import { getFullMindscapeUrl } from "../components/roster/mindscape";
 
 const regionOptions: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
 
@@ -32,10 +30,7 @@ export default function Agents() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchOwned, setSearchOwned] = useState("");
-  const [searchAdd, setSearchAdd] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [addingAgentId, setAddingAgentId] = useState<string | null>(null);
-  const [failedMindscapes, setFailedMindscapes] = useState<Record<string, boolean>>({});
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (!featureFlags.enableAgentCatalog) {
@@ -71,19 +66,6 @@ export default function Agents() {
     });
   }, [roster, searchOwned]);
 
-  const missingAgents = useMemo(() => {
-    if (!roster) {
-      return [];
-    }
-    return roster.agents.filter((item) => {
-      const owned = item.state?.owned ?? false;
-      if (owned) {
-        return false;
-      }
-      return item.agent.name.toLowerCase().includes(searchAdd.trim().toLowerCase());
-    });
-  }, [roster, searchAdd]);
-
   const totalAgentsSaved = useMemo(() => {
     if (!roster) {
       return undefined;
@@ -101,43 +83,20 @@ export default function Agents() {
       .sort((a, b) => a.localeCompare(b));
   }, [roster]);
 
-  const handleImport = async (force = false) => {
+  const handleRefresh = async () => {
     if (!uid) {
       return;
     }
-    setImporting(true);
+    setRefreshing(true);
     setError(null);
     try {
-      const summary = await importRosterFromEnka({ uid, region, force });
-      if (summary.status === "FAILED" && summary.message) {
-        setError(summary.message);
-      }
       const updated = await fetchPlayerRoster({ uid, region });
       setRoster(updated);
-    } catch (importError) {
-      const message =
-        importError instanceof Error ? importError.message : "Import failed. Check ENKA settings.";
+    } catch (refreshError) {
+      const message = refreshError instanceof Error ? refreshError.message : "Refresh failed.";
       setError(message);
     } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleAddAgent = async (agentId: string) => {
-    if (!uid) {
-      return;
-    }
-    setAddingAgentId(agentId);
-    setError(null);
-    try {
-      await upsertManualRosterAgents({ uid, region, agentIds: [agentId] });
-      const updated = await fetchPlayerRoster({ uid, region });
-      setRoster(updated);
-    } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : "Failed to save agent.";
-      setError(message);
-    } finally {
-      setAddingAgentId(null);
+      setRefreshing(false);
     }
   };
 
@@ -163,7 +122,7 @@ export default function Agents() {
         <div className="rounded-xl border border-border bg-ika-800/70 p-6">
           <div className="text-lg font-semibold text-ink-900">My Agents</div>
           <p className="mt-2 text-sm text-ink-500">
-            Sign in to manage your roster and import data from showcase.
+            Sign in to view your Verifier-synced roster.
           </p>
           <Button className="mt-4" asChild>
             <a href="/signin">Sign in</a>
@@ -179,10 +138,10 @@ export default function Agents() {
         <div className="rounded-xl border border-border bg-ika-800/70 p-6">
           <div className="text-lg font-semibold text-ink-900">My Agents</div>
           <p className="mt-2 text-sm text-ink-500">
-            Verify your UID first, then you can sync and manage your roster.
+            Complete Verifier OCR full-scan to link UID and roster.
           </p>
           <Button className="mt-4" asChild>
-            <a href="/uid-verify">Verify UID</a>
+            <a href="/uid-verify">Open Verifier setup</a>
           </Button>
         </div>
       </div>
@@ -227,13 +186,13 @@ export default function Agents() {
         ) : null}
 
         <ImportPanel
-          enabled={featureFlags.enableEnkaImport}
-          isImporting={importing}
+          enabled={featureFlags.enableVerifierRosterImport}
+          isRefreshing={refreshing}
           region={region}
           lastImport={roster?.lastImport}
           totalAgentsSaved={totalAgentsSaved}
           missingAgents={missingNames}
-          onImport={handleImport}
+          onRefresh={handleRefresh}
         />
 
         <div className="mt-6 rounded-xl border border-border bg-ika-800/70 p-4">
@@ -262,96 +221,9 @@ export default function Agents() {
             <RosterGrid items={ownedAgents} />
           ) : (
             <div className="rounded-xl border border-border bg-ika-800/70 p-6 text-sm text-ink-500">
-              No agents in roster yet. Import from showcase or add agents manually.
+              No agents in roster yet. Run Verifier OCR sync and refresh this page.
             </div>
           )}
-        </div>
-
-        <div className="mt-8 rounded-xl border border-border bg-ika-800/70 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-ink-900">Add agent manually</div>
-              <div className="text-xs text-ink-500">
-                Pick from missing agents and add them into your roster list.
-              </div>
-            </div>
-            <Input
-              placeholder="Find agent"
-              value={searchAdd}
-              onChange={(event) => setSearchAdd(event.target.value)}
-              className="w-full md:w-72"
-            />
-          </div>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {missingAgents.slice(0, 12).map((item) => {
-              const mindscapeUrl = failedMindscapes[item.agent.agentId]
-                ? null
-                : getFullMindscapeUrl(item.agent.agentId);
-
-              return (
-              <div key={item.agent.agentId} className="rounded-lg border border-border bg-ika-900/40 p-3">
-                <div className="relative overflow-hidden rounded-lg border border-border bg-ika-900/60">
-                  {mindscapeUrl ? (
-                    <img
-                      src={mindscapeUrl}
-                      alt={`${item.agent.name} full mindscape`}
-                      className="h-36 w-full object-cover object-center"
-                      loading="lazy"
-                      decoding="async"
-                      onError={() =>
-                        setFailedMindscapes((prev) => ({
-                          ...prev,
-                          [item.agent.agentId]: true
-                        }))
-                      }
-                    />
-                  ) : (
-                    <div className="flex h-36 items-center justify-center bg-gradient-to-br from-ika-900 via-ika-800 to-ika-700 text-xs text-ink-500">
-                      Full mindscape unavailable
-                    </div>
-                  )}
-
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-base font-semibold text-ink-900">{item.agent.name}</div>
-                        <div className="truncate text-xs text-ink-600">
-                          {item.agent.faction} / {item.agent.role}
-                        </div>
-                      </div>
-                      <RarityIcon
-                        rarity={item.agent.rarity}
-                        className="h-6 w-6 shrink-0 object-contain"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-2 text-xs text-ink-500">
-                  <span>
-                    {item.agent.attribute} / {item.agent.attackType}
-                  </span>
-                  <span className="mx-1">&bull;</span>
-                  <span>{item.agent.role}</span>
-                </div>
-
-                <Button
-                  size="sm"
-                  className="mt-3 w-full"
-                  onClick={() => handleAddAgent(item.agent.agentId)}
-                  disabled={addingAgentId === item.agent.agentId}
-                >
-                  {addingAgentId === item.agent.agentId ? "Adding..." : "Add"}
-                </Button>
-              </div>
-            );
-            })}
-          </div>
-
-          {!loading && missingAgents.length === 0 ? (
-            <div className="mt-4 text-xs text-ink-500">All agents are already in your roster.</div>
-          ) : null}
         </div>
       </div>
     </TooltipProvider>
