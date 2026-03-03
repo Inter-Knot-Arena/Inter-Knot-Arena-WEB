@@ -53,6 +53,90 @@ export const agents: Agent[] = [
     element: "Ether",
     faction: "Public Security",
     role: "Attack"
+  },
+  {
+    id: "agent_grace",
+    name: "Grace",
+    element: "Electric",
+    faction: "Belobog Heavy Industries",
+    role: "Anomaly"
+  },
+  {
+    id: "agent_anton",
+    name: "Anton",
+    element: "Electric",
+    faction: "Belobog Heavy Industries",
+    role: "Attack"
+  },
+  {
+    id: "agent_ben",
+    name: "Ben",
+    element: "Fire",
+    faction: "Belobog Heavy Industries",
+    role: "Defense"
+  },
+  {
+    id: "agent_koleda",
+    name: "Koleda",
+    element: "Fire",
+    faction: "Belobog Heavy Industries",
+    role: "Stun"
+  },
+  {
+    id: "agent_rina",
+    name: "Rina",
+    element: "Electric",
+    faction: "Victoria Housekeeping",
+    role: "Support"
+  },
+  {
+    id: "agent_soldier_11",
+    name: "Soldier 11",
+    element: "Fire",
+    faction: "Obol Squad",
+    role: "Attack"
+  },
+  {
+    id: "agent_lucy",
+    name: "Lucy",
+    element: "Fire",
+    faction: "Sons of Calydon",
+    role: "Support"
+  },
+  {
+    id: "agent_piper",
+    name: "Piper",
+    element: "Physical",
+    faction: "Sons of Calydon",
+    role: "Anomaly"
+  },
+  {
+    id: "agent_jane",
+    name: "Jane",
+    element: "Physical",
+    faction: "N.E.P.S.",
+    role: "Anomaly"
+  },
+  {
+    id: "agent_qingyi",
+    name: "Qingyi",
+    element: "Electric",
+    faction: "N.E.P.S.",
+    role: "Stun"
+  },
+  {
+    id: "agent_seth",
+    name: "Seth",
+    element: "Electric",
+    faction: "N.E.P.S.",
+    role: "Defense"
+  },
+  {
+    id: "agent_caesar",
+    name: "Caesar",
+    element: "Physical",
+    faction: "Sons of Calydon",
+    role: "Defense"
   }
 ];
 
