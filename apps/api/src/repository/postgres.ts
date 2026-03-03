@@ -19,7 +19,10 @@ import type {
   MatchmakingEntry,
   OAuthAccountRecord,
   PasswordAccountRecord,
-  Repository
+  Repository,
+  VerifierDeviceRequest,
+  VerifierTokenKind,
+  VerifierTokenRecord
 } from "./types.js";
 
 export function createPostgresRepository(): Repository {
@@ -785,6 +788,308 @@ class PostgresRepository implements Repository {
       [nowTimestamp]
     );
   }
+
+  async createVerifierDeviceRequest(
+    request: VerifierDeviceRequest
+  ): Promise<VerifierDeviceRequest> {
+    await this.pool.query(
+      `INSERT INTO verifier_device_requests (
+         id,
+         code_challenge,
+         redirect_uri,
+         state,
+         user_id,
+         exchange_code,
+         status,
+         created_at,
+         expires_at,
+         authorized_at,
+         consumed_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       ON CONFLICT (id) DO UPDATE
+       SET code_challenge = EXCLUDED.code_challenge,
+           redirect_uri = EXCLUDED.redirect_uri,
+           state = EXCLUDED.state,
+           user_id = EXCLUDED.user_id,
+           exchange_code = EXCLUDED.exchange_code,
+           status = EXCLUDED.status,
+           created_at = EXCLUDED.created_at,
+           expires_at = EXCLUDED.expires_at,
+           authorized_at = EXCLUDED.authorized_at,
+           consumed_at = EXCLUDED.consumed_at`,
+      [
+        request.id,
+        request.codeChallenge,
+        request.redirectUri,
+        request.state ?? null,
+        request.userId ?? null,
+        request.exchangeCode ?? null,
+        request.status,
+        request.createdAt,
+        request.expiresAt,
+        request.authorizedAt ?? null,
+        request.consumedAt ?? null
+      ]
+    );
+    return request;
+  }
+
+  async findVerifierDeviceRequest(requestId: string): Promise<VerifierDeviceRequest | null> {
+    const result = await this.pool.query(
+      `SELECT *
+       FROM verifier_device_requests
+       WHERE id = $1`,
+      [requestId]
+    );
+    const row = result.rows[0];
+    return row ? mapVerifierDeviceRequest(row) : null;
+  }
+
+  async saveVerifierDeviceRequest(request: VerifierDeviceRequest): Promise<VerifierDeviceRequest> {
+    const result = await this.pool.query(
+      `UPDATE verifier_device_requests
+       SET code_challenge = $1,
+           redirect_uri = $2,
+           state = $3,
+           user_id = $4,
+           exchange_code = $5,
+           status = $6,
+           created_at = $7,
+           expires_at = $8,
+           authorized_at = $9,
+           consumed_at = $10
+       WHERE id = $11`,
+      [
+        request.codeChallenge,
+        request.redirectUri,
+        request.state ?? null,
+        request.userId ?? null,
+        request.exchangeCode ?? null,
+        request.status,
+        request.createdAt,
+        request.expiresAt,
+        request.authorizedAt ?? null,
+        request.consumedAt ?? null,
+        request.id
+      ]
+    );
+    if (result.rowCount === 0) {
+      throw new Error("Verifier device request not found");
+    }
+    return request;
+  }
+
+  async consumeVerifierDeviceCode(
+    requestId: string,
+    exchangeCode: string
+  ): Promise<VerifierDeviceRequest | null> {
+    const consumedAt = Date.now();
+    const result = await this.pool.query(
+      `UPDATE verifier_device_requests
+       SET status = 'CONSUMED',
+           consumed_at = $3
+       WHERE id = $1
+         AND exchange_code = $2
+         AND status = 'AUTHORIZED'
+         AND expires_at > $3
+       RETURNING *`,
+      [requestId, exchangeCode, consumedAt]
+    );
+    const row = result.rows[0];
+    return row ? mapVerifierDeviceRequest(row) : null;
+  }
+
+  async createVerifierToken(token: VerifierTokenRecord): Promise<VerifierTokenRecord> {
+    await this.pool.query(
+      `INSERT INTO verifier_tokens (
+         id,
+         user_id,
+         token,
+         kind,
+         created_at,
+         expires_at,
+         revoked_at,
+         rotated_from_token_id
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (id) DO UPDATE
+       SET user_id = EXCLUDED.user_id,
+           token = EXCLUDED.token,
+           kind = EXCLUDED.kind,
+           created_at = EXCLUDED.created_at,
+           expires_at = EXCLUDED.expires_at,
+           revoked_at = EXCLUDED.revoked_at,
+           rotated_from_token_id = EXCLUDED.rotated_from_token_id`,
+      [
+        token.id,
+        token.userId,
+        token.token,
+        token.kind,
+        token.createdAt,
+        token.expiresAt,
+        token.revokedAt ?? null,
+        token.rotatedFromTokenId ?? null
+      ]
+    );
+    return token;
+  }
+
+  async findVerifierToken(
+    token: string,
+    kind?: VerifierTokenKind
+  ): Promise<VerifierTokenRecord | null> {
+    const nowTimestamp = Date.now();
+    const result = kind
+      ? await this.pool.query(
+          `SELECT *
+           FROM verifier_tokens
+           WHERE token = $1
+             AND kind = $2
+             AND revoked_at IS NULL
+             AND expires_at > $3`,
+          [token, kind, nowTimestamp]
+        )
+      : await this.pool.query(
+          `SELECT *
+           FROM verifier_tokens
+           WHERE token = $1
+             AND revoked_at IS NULL
+             AND expires_at > $2`,
+          [token, nowTimestamp]
+        );
+    const row = result.rows[0];
+    return row ? mapVerifierToken(row) : null;
+  }
+
+  async rotateVerifierToken(args: {
+    refreshToken: string;
+    nextAccessToken: VerifierTokenRecord;
+    nextRefreshToken: VerifierTokenRecord;
+    rotatedAt: number;
+  }): Promise<{ accessToken: VerifierTokenRecord; refreshToken: VerifierTokenRecord } | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const currentResult = await client.query(
+        `SELECT *
+         FROM verifier_tokens
+         WHERE token = $1
+         FOR UPDATE`,
+        [args.refreshToken]
+      );
+      const currentRow = currentResult.rows[0];
+      if (!currentRow) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+      const current = mapVerifierToken(currentRow);
+      if (
+        current.kind !== "REFRESH" ||
+        Boolean(current.revokedAt) ||
+        current.expiresAt <= args.rotatedAt
+      ) {
+        await client.query("ROLLBACK");
+        return null;
+      }
+
+      await client.query(
+        `UPDATE verifier_tokens
+         SET revoked_at = $2
+         WHERE token = $1`,
+        [args.refreshToken, args.rotatedAt]
+      );
+
+      const accessToken: VerifierTokenRecord = {
+        ...args.nextAccessToken,
+        rotatedFromTokenId: current.id
+      };
+      const refreshToken: VerifierTokenRecord = {
+        ...args.nextRefreshToken,
+        rotatedFromTokenId: current.id
+      };
+
+      await client.query(
+        `INSERT INTO verifier_tokens (
+           id,
+           user_id,
+           token,
+           kind,
+           created_at,
+           expires_at,
+           revoked_at,
+           rotated_from_token_id
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          accessToken.id,
+          accessToken.userId,
+          accessToken.token,
+          accessToken.kind,
+          accessToken.createdAt,
+          accessToken.expiresAt,
+          accessToken.revokedAt ?? null,
+          accessToken.rotatedFromTokenId ?? null
+        ]
+      );
+
+      await client.query(
+        `INSERT INTO verifier_tokens (
+           id,
+           user_id,
+           token,
+           kind,
+           created_at,
+           expires_at,
+           revoked_at,
+           rotated_from_token_id
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          refreshToken.id,
+          refreshToken.userId,
+          refreshToken.token,
+          refreshToken.kind,
+          refreshToken.createdAt,
+          refreshToken.expiresAt,
+          refreshToken.revokedAt ?? null,
+          refreshToken.rotatedFromTokenId ?? null
+        ]
+      );
+
+      await client.query("COMMIT");
+      return { accessToken, refreshToken };
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async revokeVerifierToken(token: string, revokedAt: number): Promise<boolean> {
+    const result = await this.pool.query(
+      `UPDATE verifier_tokens
+       SET revoked_at = $2
+       WHERE token = $1
+         AND revoked_at IS NULL`,
+      [token, revokedAt]
+    );
+    return Number(result.rowCount ?? 0) > 0;
+  }
+
+  async purgeExpiredVerifierAuth(nowTimestamp: number): Promise<void> {
+    await this.pool.query(
+      `DELETE FROM verifier_device_requests
+       WHERE expires_at <= $1`,
+      [nowTimestamp]
+    );
+    await this.pool.query(
+      `DELETE FROM verifier_tokens
+       WHERE expires_at <= $1 OR revoked_at IS NOT NULL`,
+      [nowTimestamp]
+    );
+  }
 }
 
 function toJson(value: unknown): string | null {
@@ -978,6 +1283,35 @@ function mapSession(row: Record<string, unknown>): Session {
     userId: String(row.user_id),
     createdAt: toNumber(row.created_at),
     expiresAt: toNumber(row.expires_at)
+  };
+}
+
+function mapVerifierDeviceRequest(row: Record<string, unknown>): VerifierDeviceRequest {
+  return {
+    id: String(row.id),
+    codeChallenge: String(row.code_challenge),
+    redirectUri: String(row.redirect_uri),
+    state: (row.state as string | null) ?? undefined,
+    userId: (row.user_id as string | null) ?? undefined,
+    exchangeCode: (row.exchange_code as string | null) ?? undefined,
+    status: String(row.status) as VerifierDeviceRequest["status"],
+    createdAt: toNumber(row.created_at),
+    expiresAt: toNumber(row.expires_at),
+    authorizedAt: row.authorized_at ? toNumber(row.authorized_at) : undefined,
+    consumedAt: row.consumed_at ? toNumber(row.consumed_at) : undefined
+  };
+}
+
+function mapVerifierToken(row: Record<string, unknown>): VerifierTokenRecord {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    token: String(row.token),
+    kind: String(row.kind) as VerifierTokenRecord["kind"],
+    createdAt: toNumber(row.created_at),
+    expiresAt: toNumber(row.expires_at),
+    revokedAt: row.revoked_at ? toNumber(row.revoked_at) : undefined,
+    rotatedFromTokenId: (row.rotated_from_token_id as string | null) ?? undefined
   };
 }
 

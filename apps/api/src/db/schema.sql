@@ -162,6 +162,37 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at bigint NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS verifier_device_requests (
+  id text PRIMARY KEY,
+  code_challenge text NOT NULL,
+  redirect_uri text NOT NULL,
+  state text,
+  user_id text REFERENCES users(id) ON DELETE CASCADE,
+  exchange_code text,
+  status text NOT NULL,
+  created_at bigint NOT NULL,
+  expires_at bigint NOT NULL,
+  authorized_at bigint,
+  consumed_at bigint
+);
+CREATE INDEX IF NOT EXISTS idx_verifier_device_requests_expires_at
+  ON verifier_device_requests (expires_at);
+
+CREATE TABLE IF NOT EXISTS verifier_tokens (
+  id text PRIMARY KEY,
+  user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token text NOT NULL UNIQUE,
+  kind text NOT NULL,
+  created_at bigint NOT NULL,
+  expires_at bigint NOT NULL,
+  revoked_at bigint,
+  rotated_from_token_id text
+);
+CREATE INDEX IF NOT EXISTS idx_verifier_tokens_expires_at
+  ON verifier_tokens (expires_at);
+CREATE INDEX IF NOT EXISTS idx_verifier_tokens_user_kind
+  ON verifier_tokens (user_id, kind);
+
 CREATE TABLE IF NOT EXISTS queues (
   id text PRIMARY KEY,
   league_id text NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,

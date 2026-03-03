@@ -1,11 +1,13 @@
+import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
-import type { Repository } from "../repository/types.js";
+import type { Repository, VerifierDeviceRequest, VerifierTokenRecord } from "../repository/types.js";
 import { createId, now, requireString } from "../utils.js";
 import {
   buildDefaultUser,
   ensureAuthReady,
   ensureSessionSecret,
   getAuthUser,
+  getVerifierBearerToken,
   resolveRedirect,
   type AuthContext
 } from "../auth/context.js";
@@ -29,6 +31,29 @@ import type { Region, Role, User } from "@ika/shared";
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
   reply.code(400).send({ error: message });
+}
+
+function createSecret(prefix: string): string {
+  return `${prefix}_${randomBytes(32).toString("base64url")}`;
+}
+
+function isValidPkceChallenge(value: string): boolean {
+  return /^[A-Za-z0-9\-._~]{43,128}$/.test(value);
+}
+
+function resolveLoopbackRedirect(value: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("redirectUri must be an absolute URL");
+  }
+  const host = parsed.hostname.toLowerCase();
+  const isLoopback = host === "127.0.0.1" || host === "localhost";
+  if (parsed.protocol !== "http:" || !isLoopback) {
+    throw new Error("redirectUri must use http://127.0.0.1 or http://localhost");
+  }
+  return parsed;
 }
 
 export async function registerAuthRoutes(
@@ -56,6 +81,31 @@ export async function registerAuthRoutes(
       return fallback;
     }
     return allowedRegions.includes(value as Region) ? (value as Region) : fallback;
+  };
+
+  const redirectToGoogleLogin = (redirectTo: string, reply: { redirect: (url: string) => void }) => {
+    ensureAuthReady(auth);
+    const state = createId("state");
+    const codeVerifier = createCodeVerifier();
+    const codeChallenge = createCodeChallenge(codeVerifier);
+    const nonce = createId("nonce");
+
+    auth.stateStore.save(state, {
+      codeVerifier,
+      redirectTo,
+      nonce,
+      createdAt: now()
+    });
+
+    const url = buildGoogleAuthUrl({
+      clientId: auth.config.googleClientId,
+      redirectUri: auth.config.googleRedirectUri,
+      state,
+      codeChallenge,
+      nonce,
+      prompt: "select_account"
+    });
+    reply.redirect(url);
   };
 
   app.get("/auth/google/start", async (request, reply) => {
@@ -206,6 +256,247 @@ export async function registerAuthRoutes(
     }
   });
 
+  app.post("/auth/verifier/device/start", async (request, reply) => {
+    try {
+      if (auth.config.authDisabled) {
+        reply.code(400).send({ error: "Auth is disabled" });
+        return;
+      }
+      const body = request.body as {
+        codeChallenge?: string;
+        redirectUri?: string;
+        state?: string;
+      };
+      const codeChallenge = requireString(body?.codeChallenge, "codeChallenge");
+      const redirectUri = requireString(body?.redirectUri, "redirectUri");
+      if (!isValidPkceChallenge(codeChallenge)) {
+        throw new Error("codeChallenge must be a valid PKCE S256 challenge");
+      }
+      const redirect = resolveLoopbackRedirect(redirectUri);
+      const createdAt = now();
+      const requestId = createId("vreq");
+      const deviceRequest: VerifierDeviceRequest = {
+        id: requestId,
+        codeChallenge,
+        redirectUri: redirect.toString(),
+        state: body?.state,
+        status: "PENDING",
+        createdAt,
+        expiresAt: createdAt + auth.config.verifierDeviceRequestTtlMs
+      };
+      await repo.createVerifierDeviceRequest(deviceRequest);
+      reply.send({
+        requestId,
+        authorizeUrl: `${auth.config.apiOrigin}/auth/verifier/device/bridge?requestId=${encodeURIComponent(requestId)}`,
+        expiresAt: deviceRequest.expiresAt
+      });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.get("/auth/verifier/device/bridge", async (request, reply) => {
+    try {
+      if (auth.config.authDisabled) {
+        reply.code(400).send({ error: "Auth is disabled" });
+        return;
+      }
+      const query = request.query as { requestId?: string };
+      const requestId = requireString(query?.requestId, "requestId");
+      const deviceRequest = await repo.findVerifierDeviceRequest(requestId);
+      if (!deviceRequest) {
+        reply.code(404).send({ error: "Verifier device request not found" });
+        return;
+      }
+      const timestamp = now();
+      if (deviceRequest.expiresAt <= timestamp) {
+        reply.code(410).send({ error: "Verifier device request expired" });
+        return;
+      }
+      if (deviceRequest.status === "CONSUMED") {
+        reply.code(409).send({ error: "Verifier device request already consumed" });
+        return;
+      }
+
+      const user = await getAuthUser(request, repo, auth);
+      if (!user) {
+        const redirectTo = `${auth.config.apiOrigin}/auth/verifier/device/bridge?requestId=${encodeURIComponent(requestId)}`;
+        redirectToGoogleLogin(redirectTo, reply);
+        return;
+      }
+
+      const exchangeCode = createSecret("vcode");
+      const authorized: VerifierDeviceRequest = {
+        ...deviceRequest,
+        userId: user.id,
+        exchangeCode,
+        status: "AUTHORIZED",
+        authorizedAt: timestamp
+      };
+      await repo.saveVerifierDeviceRequest(authorized);
+
+      const redirectUrl = new URL(authorized.redirectUri);
+      redirectUrl.searchParams.set("code", exchangeCode);
+      redirectUrl.searchParams.set("requestId", authorized.id);
+      if (authorized.state) {
+        redirectUrl.searchParams.set("state", authorized.state);
+      }
+      reply.redirect(redirectUrl.toString());
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.post("/auth/verifier/device/exchange", async (request, reply) => {
+    try {
+      if (auth.config.authDisabled) {
+        reply.code(400).send({ error: "Auth is disabled" });
+        return;
+      }
+      const body = request.body as {
+        requestId?: string;
+        code?: string;
+        codeVerifier?: string;
+      };
+      const requestId = requireString(body?.requestId, "requestId");
+      const code = requireString(body?.code, "code");
+      const codeVerifier = requireString(body?.codeVerifier, "codeVerifier");
+
+      const deviceRequest = await repo.findVerifierDeviceRequest(requestId);
+      if (!deviceRequest) {
+        reply.code(401).send({ error: "Invalid verifier device request" });
+        return;
+      }
+      if (deviceRequest.status !== "AUTHORIZED" || deviceRequest.exchangeCode !== code) {
+        reply.code(401).send({ error: "Invalid verifier exchange code" });
+        return;
+      }
+      if (deviceRequest.expiresAt <= now()) {
+        reply.code(401).send({ error: "Verifier exchange code expired" });
+        return;
+      }
+      if (createCodeChallenge(codeVerifier) !== deviceRequest.codeChallenge) {
+        reply.code(401).send({ error: "Invalid codeVerifier" });
+        return;
+      }
+
+      const consumed = await repo.consumeVerifierDeviceCode(requestId, code);
+      if (!consumed?.userId) {
+        reply.code(409).send({ error: "Verifier exchange request already consumed" });
+        return;
+      }
+
+      const issuedAt = now();
+      const accessToken: VerifierTokenRecord = {
+        id: createId("vtoken"),
+        userId: consumed.userId,
+        token: createSecret("vka"),
+        kind: "ACCESS",
+        createdAt: issuedAt,
+        expiresAt: issuedAt + auth.config.verifierAccessTokenTtlMs
+      };
+      const refreshToken: VerifierTokenRecord = {
+        id: createId("vtoken"),
+        userId: consumed.userId,
+        token: createSecret("vkr"),
+        kind: "REFRESH",
+        createdAt: issuedAt,
+        expiresAt: issuedAt + auth.config.verifierRefreshTokenTtlMs
+      };
+      await repo.createVerifierToken(accessToken);
+      await repo.createVerifierToken(refreshToken);
+
+      const user = await repo.findUser(consumed.userId);
+      reply.send({
+        tokenType: "Bearer",
+        accessToken: accessToken.token,
+        refreshToken: refreshToken.token,
+        expiresAt: accessToken.expiresAt,
+        refreshExpiresAt: refreshToken.expiresAt,
+        user: {
+          id: user.id,
+          displayName: user.displayName,
+          verification: user.verification
+        }
+      });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.post("/auth/verifier/token/refresh", async (request, reply) => {
+    try {
+      if (auth.config.authDisabled) {
+        reply.code(400).send({ error: "Auth is disabled" });
+        return;
+      }
+      const body = request.body as { refreshToken?: string };
+      const refreshToken = requireString(body?.refreshToken, "refreshToken");
+      const current = await repo.findVerifierToken(refreshToken, "REFRESH");
+      if (!current) {
+        reply.code(401).send({ error: "Invalid refresh token" });
+        return;
+      }
+
+      const rotatedAt = now();
+      const nextAccessToken: VerifierTokenRecord = {
+        id: createId("vtoken"),
+        userId: current.userId,
+        token: createSecret("vka"),
+        kind: "ACCESS",
+        createdAt: rotatedAt,
+        expiresAt: rotatedAt + auth.config.verifierAccessTokenTtlMs
+      };
+      const nextRefreshToken: VerifierTokenRecord = {
+        id: createId("vtoken"),
+        userId: current.userId,
+        token: createSecret("vkr"),
+        kind: "REFRESH",
+        createdAt: rotatedAt,
+        expiresAt: rotatedAt + auth.config.verifierRefreshTokenTtlMs
+      };
+      const rotated = await repo.rotateVerifierToken({
+        refreshToken,
+        nextAccessToken,
+        nextRefreshToken,
+        rotatedAt
+      });
+      if (!rotated) {
+        reply.code(401).send({ error: "Refresh token is no longer valid" });
+        return;
+      }
+      reply.send({
+        tokenType: "Bearer",
+        accessToken: rotated.accessToken.token,
+        refreshToken: rotated.refreshToken.token,
+        expiresAt: rotated.accessToken.expiresAt,
+        refreshExpiresAt: rotated.refreshToken.expiresAt
+      });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
+  app.post("/auth/verifier/token/revoke", async (request, reply) => {
+    try {
+      if (auth.config.authDisabled) {
+        reply.code(400).send({ error: "Auth is disabled" });
+        return;
+      }
+      const body = request.body as { token?: string; refreshToken?: string };
+      const token =
+        body?.token?.trim() || body?.refreshToken?.trim() || getVerifierBearerToken(request);
+      if (!token) {
+        reply.code(400).send({ error: "token is required" });
+        return;
+      }
+      await repo.revokeVerifierToken(token, now());
+      reply.send({ status: "ok" });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
   app.get("/auth/me", async (request, reply) => {
     try {
       const user = await getAuthUser(request, repo, auth);
@@ -221,6 +512,10 @@ export async function registerAuthRoutes(
 
   app.post("/auth/logout", async (request, reply) => {
     try {
+      const verifierBearer = getVerifierBearerToken(request);
+      if (verifierBearer) {
+        await repo.revokeVerifierToken(verifierBearer, now());
+      }
       if (!auth.config.authDisabled) {
         ensureSessionSecret(auth);
         const session = await getSessionFromRequest(

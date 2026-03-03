@@ -37,6 +37,35 @@ export interface PasswordAccountRecord extends PasswordAccount {
   updatedAt: number;
 }
 
+export type VerifierDeviceRequestStatus = "PENDING" | "AUTHORIZED" | "CONSUMED";
+
+export interface VerifierDeviceRequest {
+  id: string;
+  codeChallenge: string;
+  redirectUri: string;
+  state?: string;
+  userId?: string;
+  exchangeCode?: string;
+  status: VerifierDeviceRequestStatus;
+  createdAt: number;
+  expiresAt: number;
+  authorizedAt?: number;
+  consumedAt?: number;
+}
+
+export type VerifierTokenKind = "ACCESS" | "REFRESH";
+
+export interface VerifierTokenRecord {
+  id: string;
+  userId: string;
+  token: string;
+  kind: VerifierTokenKind;
+  createdAt: number;
+  expiresAt: number;
+  revokedAt?: number;
+  rotatedFromTokenId?: string;
+}
+
 export interface Repository {
   listAgents(): Promise<Agent[]>;
   listLeagues(): Promise<League[]>;
@@ -93,4 +122,26 @@ export interface Repository {
   deleteSession(sessionId: string): Promise<void>;
   deleteSessionsByUserId(userId: string): Promise<number>;
   purgeExpiredSessions(nowTimestamp: number): Promise<void>;
+  createVerifierDeviceRequest(
+    request: VerifierDeviceRequest
+  ): Promise<VerifierDeviceRequest>;
+  findVerifierDeviceRequest(requestId: string): Promise<VerifierDeviceRequest | null>;
+  saveVerifierDeviceRequest(request: VerifierDeviceRequest): Promise<VerifierDeviceRequest>;
+  consumeVerifierDeviceCode(
+    requestId: string,
+    exchangeCode: string
+  ): Promise<VerifierDeviceRequest | null>;
+  createVerifierToken(token: VerifierTokenRecord): Promise<VerifierTokenRecord>;
+  findVerifierToken(
+    token: string,
+    kind?: VerifierTokenKind
+  ): Promise<VerifierTokenRecord | null>;
+  rotateVerifierToken(args: {
+    refreshToken: string;
+    nextAccessToken: VerifierTokenRecord;
+    nextRefreshToken: VerifierTokenRecord;
+    rotatedAt: number;
+  }): Promise<{ accessToken: VerifierTokenRecord; refreshToken: VerifierTokenRecord } | null>;
+  revokeVerifierToken(token: string, revokedAt: number): Promise<boolean>;
+  purgeExpiredVerifierAuth(nowTimestamp: number): Promise<void>;
 }

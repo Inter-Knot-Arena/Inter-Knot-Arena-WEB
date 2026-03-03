@@ -13,7 +13,9 @@ import type {
   MatchmakingEntry,
   OAuthAccountRecord,
   PasswordAccountRecord,
-  Repository
+  Repository,
+  VerifierDeviceRequest,
+  VerifierTokenRecord
 } from "./types.js";
 
 interface MemoryState {
@@ -31,6 +33,8 @@ interface MemoryState {
   oauthAccounts: Map<string, OAuthAccountRecord>;
   passwordAccountsByEmail: Map<string, PasswordAccountRecord>;
   sessions: Map<string, Session>;
+  verifierDeviceRequests: Map<string, VerifierDeviceRequest>;
+  verifierTokensByValue: Map<string, VerifierTokenRecord>;
 }
 
 export function createMemoryRepository(): Repository {
@@ -48,7 +52,9 @@ export function createMemoryRepository(): Repository {
     matchmakingQueue: new Map(),
     oauthAccounts: new Map(),
     passwordAccountsByEmail: new Map(),
-    sessions: new Map()
+    sessions: new Map(),
+    verifierDeviceRequests: new Map(),
+    verifierTokensByValue: new Map()
   };
 
   return {
@@ -327,6 +333,103 @@ export function createMemoryRepository(): Repository {
       for (const [sessionId, session] of state.sessions.entries()) {
         if (session.expiresAt <= nowTimestamp) {
           state.sessions.delete(sessionId);
+        }
+      }
+    },
+    async createVerifierDeviceRequest(request) {
+      state.verifierDeviceRequests.set(request.id, request);
+      return request;
+    },
+    async findVerifierDeviceRequest(requestId) {
+      return state.verifierDeviceRequests.get(requestId) ?? null;
+    },
+    async saveVerifierDeviceRequest(request) {
+      state.verifierDeviceRequests.set(request.id, request);
+      return request;
+    },
+    async consumeVerifierDeviceCode(requestId, exchangeCode) {
+      const request = state.verifierDeviceRequests.get(requestId);
+      if (!request) {
+        return null;
+      }
+      if (request.exchangeCode !== exchangeCode || request.status !== "AUTHORIZED") {
+        return null;
+      }
+      if (request.expiresAt <= Date.now()) {
+        return null;
+      }
+      const consumed: VerifierDeviceRequest = {
+        ...request,
+        status: "CONSUMED",
+        consumedAt: Date.now()
+      };
+      state.verifierDeviceRequests.set(requestId, consumed);
+      return consumed;
+    },
+    async createVerifierToken(token) {
+      state.verifierTokensByValue.set(token.token, token);
+      return token;
+    },
+    async findVerifierToken(token, kind) {
+      const record = state.verifierTokensByValue.get(token);
+      if (!record) {
+        return null;
+      }
+      if (kind && record.kind !== kind) {
+        return null;
+      }
+      if (record.revokedAt) {
+        return null;
+      }
+      if (record.expiresAt <= Date.now()) {
+        return null;
+      }
+      return record;
+    },
+    async rotateVerifierToken(args) {
+      const current = state.verifierTokensByValue.get(args.refreshToken);
+      if (!current || current.kind !== "REFRESH") {
+        return null;
+      }
+      if (current.revokedAt || current.expiresAt <= args.rotatedAt) {
+        return null;
+      }
+      state.verifierTokensByValue.set(current.token, {
+        ...current,
+        revokedAt: args.rotatedAt
+      });
+      const accessToken: VerifierTokenRecord = {
+        ...args.nextAccessToken,
+        rotatedFromTokenId: current.id
+      };
+      const refreshToken: VerifierTokenRecord = {
+        ...args.nextRefreshToken,
+        rotatedFromTokenId: current.id
+      };
+      state.verifierTokensByValue.set(accessToken.token, accessToken);
+      state.verifierTokensByValue.set(refreshToken.token, refreshToken);
+      return { accessToken, refreshToken };
+    },
+    async revokeVerifierToken(token, revokedAt) {
+      const record = state.verifierTokensByValue.get(token);
+      if (!record || record.revokedAt) {
+        return false;
+      }
+      state.verifierTokensByValue.set(token, {
+        ...record,
+        revokedAt
+      });
+      return true;
+    },
+    async purgeExpiredVerifierAuth(nowTimestamp) {
+      for (const [requestId, request] of state.verifierDeviceRequests.entries()) {
+        if (request.expiresAt <= nowTimestamp) {
+          state.verifierDeviceRequests.delete(requestId);
+        }
+      }
+      for (const [tokenValue, token] of state.verifierTokensByValue.entries()) {
+        if (token.expiresAt <= nowTimestamp || Boolean(token.revokedAt)) {
+          state.verifierTokensByValue.delete(tokenValue);
         }
       }
     }

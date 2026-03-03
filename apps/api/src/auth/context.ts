@@ -17,6 +17,9 @@ export interface AuthConfig {
   sessionTtlMs: number;
   stateTtlMs: number;
   passwordMinLength: number;
+  verifierDeviceRequestTtlMs: number;
+  verifierAccessTokenTtlMs: number;
+  verifierRefreshTokenTtlMs: number;
   authDisabled: boolean;
 }
 
@@ -35,6 +38,15 @@ export function createAuthContext(repo: Repository): AuthContext {
   const stateTtlSec = Number(process.env.AUTH_STATE_TTL_SEC ?? 600);
   const parsedPasswordMinLength = Number(process.env.PASSWORD_MIN_LENGTH ?? 8);
   const passwordMinLength = Number.isFinite(parsedPasswordMinLength) ? parsedPasswordMinLength : 8;
+  const verifierDeviceRequestTtlMs = Number(
+    process.env.VERIFIER_DEVICE_REQUEST_TTL_MS ?? 5 * 60 * 1000
+  );
+  const verifierAccessTokenTtlMs = Number(
+    process.env.VERIFIER_ACCESS_TOKEN_TTL_MS ?? 30 * 60 * 1000
+  );
+  const verifierRefreshTokenTtlMs = Number(
+    process.env.VERIFIER_REFRESH_TOKEN_TTL_MS ?? 30 * 24 * 60 * 60 * 1000
+  );
 
   return {
     config: {
@@ -47,6 +59,9 @@ export function createAuthContext(repo: Repository): AuthContext {
       sessionTtlMs: sessionTtlDays * 24 * 60 * 60 * 1000,
       stateTtlMs: stateTtlSec * 1000,
       passwordMinLength,
+      verifierDeviceRequestTtlMs,
+      verifierAccessTokenTtlMs,
+      verifierRefreshTokenTtlMs,
       authDisabled: process.env.AUTH_DISABLED === "true"
     },
     sessionStore: createSessionStore(sessionTtlDays * 24 * 60 * 60 * 1000, {
@@ -97,7 +112,19 @@ export async function getAuthUser(
     auth.config.sessionSecret
   );
   if (!session) {
-    return null;
+    const verifierToken = getVerifierBearerToken(request);
+    if (!verifierToken) {
+      return null;
+    }
+    const access = await repo.findVerifierToken(verifierToken, "ACCESS");
+    if (!access) {
+      return null;
+    }
+    try {
+      return await repo.findUser(access.userId);
+    } catch {
+      return null;
+    }
   }
   try {
     return await repo.findUser(session.userId);
@@ -105,6 +132,23 @@ export async function getAuthUser(
     await auth.sessionStore.deleteSession(session.id);
     return null;
   }
+}
+
+export function getVerifierBearerToken(request: FastifyRequest): string | null {
+  const header = request.headers.authorization;
+  if (!header) {
+    return null;
+  }
+  const raw = Array.isArray(header) ? header[0] : header;
+  if (!raw) {
+    return null;
+  }
+  const [scheme, token] = raw.split(" ");
+  if (scheme?.toLowerCase() !== "bearer" || !token) {
+    return null;
+  }
+  const trimmed = token.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export function ensureSessionSecret(auth: AuthContext): void {

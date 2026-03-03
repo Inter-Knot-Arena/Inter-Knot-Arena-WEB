@@ -93,6 +93,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
     }, 60_000);
 
     schedule(() => {
+      void repo.purgeExpiredVerifierAuth(Date.now());
+    }, 60_000);
+
+    schedule(() => {
       void rosterStore.cleanupExpiredSnapshots();
     }, 10 * 60_000);
   }
