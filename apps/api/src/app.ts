@@ -44,7 +44,9 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
   const rosterStore = await createRosterStore();
   const flags = getFeatureFlags();
   const catalogStore =
-    flags.enableAgentCatalog || flags.enableEnkaImport ? await createCatalogStore() : null;
+    flags.enableAgentCatalog || flags.enableEnkaImport || flags.enableVerifierRosterImport
+      ? await createCatalogStore()
+      : null;
   await registerAuthRoutes(app, repo, auth);
   await registerUserRoutes(app, repo, auth, rosterStore);
   await registerIdentityRoutes(app, repo, auth);
@@ -65,7 +67,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
   if (catalogStore && flags.enableAgentCatalog) {
     await registerCatalogRoutes(app, catalogStore, repo, auth);
   }
-  if (catalogStore && flags.enableEnkaImport) {
+  if (catalogStore && (flags.enableEnkaImport || flags.enableVerifierRosterImport)) {
     const { client, config } = createCache();
     await registerRosterRoutes(app, repo, catalogStore, rosterStore, client, config.ttlMs, auth);
   }

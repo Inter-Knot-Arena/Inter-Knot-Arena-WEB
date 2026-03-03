@@ -10,7 +10,8 @@ import type {
   PlayerRosterImportSummary,
   PlayerRosterView,
   Region,
-  Ruleset
+  Ruleset,
+  User
 } from "@ika/shared";
 import { normalizeEnkaPayload } from "../enka/normalize.js";
 import { recordEnkaImportEvent } from "../enka/metrics.js";
@@ -24,6 +25,7 @@ function sendError(reply: { code: (status: number) => { send: (payload: unknown)
 const REGIONS: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
 const rateLimitMap = new Map<string, number>();
 const accumulativeEnabled = process.env.ENABLE_ACCUMULATIVE_IMPORT === "true";
+const legacyRosterImportEnabled = process.env.ENABLE_LEGACY_ROSTER_IMPORT === "true";
 const storeRawEnka = process.env.ENKA_STORE_RAW === "true";
 const rawEnkaTtlSeconds = Number(process.env.ENKA_RAW_TTL_SEC ?? 60 * 60 * 24 * 14);
 const ENKA_REGION_FALLBACKS: Region[] = ["NA", "EU", "ASIA", "SEA"];
@@ -266,8 +268,146 @@ export async function registerRosterRoutes(
     }
   });
 
+  app.post("/verifier/roster/import", async (request, reply) => {
+    try {
+      const user = await getAuthUser(request, repo, auth);
+      if (!user) {
+        reply.code(401).send({ error: "Unauthorized" });
+        return;
+      }
+      const body = request.body as {
+        uid?: string;
+        region?: string;
+        fullSync?: boolean;
+        agents?: Array<{
+          agentId?: string;
+          owned?: boolean;
+          level?: number;
+          dupes?: number;
+          mindscape?: number;
+          promotion?: number;
+          talent?: number;
+          core?: number;
+          weapon?: PlayerAgentDynamic["weapon"];
+          discs?: PlayerAgentDynamic["discs"];
+          confidence?: Record<string, number>;
+        }>;
+      };
+
+      const uid = typeof body.uid === "string" ? body.uid.trim() : "";
+      if (!validateUid(uid)) {
+        throw new Error("UID must be 6-12 digits");
+      }
+      const region = parseRegion(body.region);
+      if (!region) {
+        throw new Error("Invalid region");
+      }
+      if (user.verification.uid && user.verification.uid !== uid) {
+        reply.code(403).send({ error: "UID mismatch with linked account" });
+        return;
+      }
+
+      const incoming = Array.isArray(body.agents) ? body.agents : [];
+      const catalogData = catalog.getCatalog();
+      const catalogIds = new Set(catalogData.agents.map((agent) => agent.agentId));
+      const unknownIds: string[] = [];
+      const scannedById = new Map<string, PlayerAgentDynamic>();
+      const importedAt = new Date().toISOString();
+
+      for (const raw of incoming) {
+        const agentId = typeof raw?.agentId === "string" ? raw.agentId.trim() : "";
+        if (!agentId) {
+          continue;
+        }
+        if (!catalogIds.has(agentId)) {
+          unknownIds.push(agentId);
+          continue;
+        }
+        scannedById.set(agentId, {
+          agentId,
+          owned: raw.owned ?? true,
+          level: raw.level,
+          dupes: raw.dupes,
+          mindscape: raw.mindscape,
+          promotion: raw.promotion,
+          talent: raw.talent,
+          core: raw.core,
+          weapon: raw.weapon,
+          discs: raw.discs,
+          confidence: raw.confidence,
+          source: "VERIFIER_OCR",
+          lastImportedAt: importedAt,
+          updatedAt: importedAt
+        });
+      }
+
+      const fullSync = body.fullSync !== false;
+      const nextStates: PlayerAgentDynamic[] = fullSync
+        ? catalogData.agents.map((agent) => {
+            const scanned = scannedById.get(agent.agentId);
+            if (scanned) {
+              return scanned;
+            }
+            return {
+              agentId: agent.agentId,
+              owned: false,
+              source: "VERIFIER_OCR",
+              lastImportedAt: importedAt,
+              updatedAt: importedAt
+            };
+          })
+        : Array.from(scannedById.values());
+
+      if (!nextStates.length) {
+        throw new Error("No valid agents in verifier payload");
+      }
+
+      await rosterStore.upsertStates(uid, region, nextStates, { mergeStrategy: "DIRECT" });
+
+      const summary: PlayerRosterImportSummary = {
+        source: "VERIFIER_OCR",
+        importedCount: scannedById.size,
+        skippedCount: unknownIds.length,
+        unknownIds,
+        fetchedAt: importedAt,
+        status: "SUCCESS",
+        message: fullSync
+          ? "Verifier full-scan roster sync completed."
+          : "Verifier partial roster sync completed."
+      };
+      await rosterStore.saveImportSummary(uid, region, summary);
+
+      const updatedUser: User = {
+        ...user,
+        roles: user.roles.includes("VERIFIED") ? user.roles : [...user.roles, "VERIFIED"],
+        verification: {
+          status: "VERIFIED",
+          uid,
+          region
+        },
+        updatedAt: Date.now()
+      };
+      await repo.saveUser(updatedUser);
+
+      reply.send({
+        status: "OK",
+        summary,
+        verification: updatedUser.verification
+      });
+    } catch (error) {
+      sendError(reply, error);
+    }
+  });
+
   app.post("/players/:uid/import/enka", async (request, reply) => {
     try {
+      if (!legacyRosterImportEnabled) {
+        reply.code(410).send({
+          error:
+            "Enka import is deprecated. Use Verifier App OCR sync via /verifier/roster/import."
+        });
+        return;
+      }
       const user = await getAuthUser(request, repo, auth);
       if (!user) {
         reply.code(401).send({ error: "Unauthorized" });
@@ -467,6 +607,13 @@ export async function registerRosterRoutes(
 
   app.post("/players/:uid/roster/manual", async (request, reply) => {
     try {
+      if (!legacyRosterImportEnabled) {
+        reply.code(410).send({
+          error:
+            "Manual roster updates are deprecated. Use Verifier App OCR sync via /verifier/roster/import."
+        });
+        return;
+      }
       const user = await getAuthUser(request, repo, auth);
       if (!user) {
         reply.code(401).send({ error: "Unauthorized" });

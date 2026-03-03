@@ -2,8 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist",
-    "paths": {}
+    "outDir": "dist"
   },
   "include": ["src"],
   "references": [{ "path": "../../packages/shared" }]

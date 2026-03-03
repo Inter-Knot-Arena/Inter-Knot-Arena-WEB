@@ -13,6 +13,7 @@ const verifyAttemptMap = new Map<string, { startedAt: number; count: number }>()
 const pendingTtlMs = Number(process.env.UID_VERIFY_PENDING_TTL_MS ?? 30 * 60 * 1000);
 const attemptWindowMs = Number(process.env.UID_VERIFY_RATE_WINDOW_MS ?? 10 * 60 * 1000);
 const attemptMax = Number(process.env.UID_VERIFY_RATE_MAX_ATTEMPTS ?? 20);
+const legacyUidVerificationEnabled = process.env.ENABLE_LEGACY_UID_VERIFY === "true";
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown error";
@@ -79,6 +80,12 @@ export async function registerIdentityRoutes(
 ) {
   app.post("/identity/uid/submit", async (request, reply) => {
     try {
+      if (!legacyUidVerificationEnabled) {
+        reply.code(410).send({
+          error: "Legacy UID flow is deprecated. Use Verifier App OCR full-scan."
+        });
+        return;
+      }
       const user = await getAuthUser(request, repo, auth);
       if (!user) {
         reply.code(401).send({ error: "Unauthorized" });
@@ -116,6 +123,12 @@ export async function registerIdentityRoutes(
 
   app.post("/identity/uid/verify-proof", async (request, reply) => {
     try {
+      if (!legacyUidVerificationEnabled) {
+        reply.code(410).send({
+          error: "Legacy UID proof flow is deprecated. Use Verifier App OCR full-scan."
+        });
+        return;
+      }
       const user = await getAuthUser(request, repo, auth);
       if (!user) {
         reply.code(401).send({ error: "Unauthorized" });
