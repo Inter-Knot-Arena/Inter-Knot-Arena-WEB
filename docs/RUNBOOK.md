@@ -12,9 +12,14 @@ Operational runbook for the production-ready baseline (web + API), excluding des
 - `HOST` (default `0.0.0.0`)
 - `WEB_ORIGIN` (default `http://localhost:5173`)
 - `API_ORIGIN` (default `http://localhost:4000`)
-- Auth model: OAuth + signed session cookie (`ika_session`), no JWT access/refresh in baseline
+- Auth model:
+  - web: OAuth + signed session cookie (`ika_session`)
+  - verifier desktop: device auth flow + bearer tokens
 - `SESSION_SECRET` (required for non-dev auth)
 - `AUTH_DISABLED=true` (optional dev bypass)
+- `VERIFIER_DEVICE_REQUEST_TTL_MS` (default `300000`)
+- `VERIFIER_ACCESS_TOKEN_TTL_MS` (default `1800000`)
+- `VERIFIER_REFRESH_TOKEN_TTL_MS` (default `2592000000`)
 
 ### Repository mode
 
@@ -82,6 +87,11 @@ Web:
    - profile page loads
    - matchmaking search creates ticket
    - Verifier roster import (`POST /verifier/roster/import`) returns `OK`
+   - verifier auth device flow endpoints respond:
+     - `POST /auth/verifier/device/start`
+     - `GET /auth/verifier/device/bridge`
+     - `POST /auth/verifier/device/exchange`
+     - `POST /auth/verifier/token/refresh`
 
 ## 3. Deploy checklist
 

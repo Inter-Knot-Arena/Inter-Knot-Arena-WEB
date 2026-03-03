@@ -83,7 +83,13 @@ The web app uses `/api` proxy to `http://localhost:4000` by default.
 ## Auth modes
 
 - Normal mode: Google OAuth session cookies (`/auth/google/start`).
-- Baseline auth is session-cookie based (`ika_session`), not JWT access/refresh tokens.
+- Baseline web auth is session-cookie based (`ika_session`).
+- Desktop Verifier auth uses device flow + bearer tokens:
+  - `POST /auth/verifier/device/start`
+  - `GET /auth/verifier/device/bridge`
+  - `POST /auth/verifier/device/exchange`
+  - `POST /auth/verifier/token/refresh`
+  - `POST /auth/verifier/token/revoke`
 - Dev fallback: `AUTH_DISABLED=true` returns seed identity for quick local workflows.
 
 Required OAuth envs for normal mode:
@@ -125,6 +131,11 @@ Required OAuth envs for normal mode:
 
 - `GET /players/:uid/roster`
 - `POST /verifier/roster/import`
+- `POST /auth/verifier/device/start`
+- `GET /auth/verifier/device/bridge`
+- `POST /auth/verifier/device/exchange`
+- `POST /auth/verifier/token/refresh`
+- `POST /auth/verifier/token/revoke`
 
 ### Moderation and sanctions
 
