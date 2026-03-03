@@ -17,9 +17,28 @@ import { normalizeEnkaPayload } from "../enka/normalize.js";
 import { recordEnkaImportEvent } from "../enka/metrics.js";
 import { getAuthUser, type AuthContext } from "../auth/context.js";
 
+class RouteError extends Error {
+  constructor(
+    message: string,
+    public readonly status = 400,
+    public readonly code = "ROSTER_ERROR",
+    public readonly details?: unknown
+  ) {
+    super(message);
+  }
+}
+
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
+  if (error instanceof RouteError) {
+    reply.code(error.status).send({
+      error: error.message,
+      code: error.code,
+      details: error.details
+    });
+    return;
+  }
   const message = error instanceof Error ? error.message : "Unknown error";
-  reply.code(400).send({ error: message });
+  reply.code(400).send({ error: message, code: "ROSTER_ERROR" });
 }
 
 const REGIONS: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
@@ -296,14 +315,17 @@ export async function registerRosterRoutes(
 
       const uid = typeof body.uid === "string" ? body.uid.trim() : "";
       if (!validateUid(uid)) {
-        throw new Error("UID must be 6-12 digits");
+        throw new RouteError("UID must be 6-12 digits", 400, "INVALID_VERIFIER_UID");
       }
       const region = parseRegion(body.region);
       if (!region) {
-        throw new Error("Invalid region");
+        throw new RouteError("Invalid region", 400, "INVALID_VERIFIER_REGION");
       }
       if (user.verification.uid && user.verification.uid !== uid) {
-        reply.code(403).send({ error: "UID mismatch with linked account" });
+        reply.code(403).send({
+          error: "UID mismatch with linked account",
+          code: "UID_MISMATCH_LINKED_ACCOUNT"
+        });
         return;
       }
 
@@ -323,6 +345,24 @@ export async function registerRosterRoutes(
           unknownIds.push(agentId);
           continue;
         }
+        if (raw?.confidence && (typeof raw.confidence !== "object" || Array.isArray(raw.confidence))) {
+          throw new RouteError(
+            `confidence map is invalid for agent '${agentId}'.`,
+            400,
+            "INVALID_VERIFIER_CONFIDENCE_MAP"
+          );
+        }
+        const confidence = raw?.confidence ?? {};
+        for (const [key, value] of Object.entries(confidence)) {
+          if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
+            throw new RouteError(
+              `confidence.${key} is invalid for agent '${agentId}'. Expected range [0, 1].`,
+              400,
+              "INVALID_VERIFIER_CONFIDENCE_VALUE"
+            );
+          }
+        }
+
         scannedById.set(agentId, {
           agentId,
           owned: raw.owned ?? true,
@@ -359,7 +399,11 @@ export async function registerRosterRoutes(
         : Array.from(scannedById.values());
 
       if (!nextStates.length) {
-        throw new Error("No valid agents in verifier payload");
+        throw new RouteError(
+          "No valid agents in verifier payload",
+          400,
+          "EMPTY_VERIFIER_AGENTS"
+        );
       }
 
       await rosterStore.upsertStates(uid, region, nextStates, { mergeStrategy: "DIRECT" });

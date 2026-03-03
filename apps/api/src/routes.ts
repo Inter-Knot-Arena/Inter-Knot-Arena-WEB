@@ -43,7 +43,9 @@ import { getEnkaMetricsSnapshot } from "./enka/metrics.js";
 class HttpError extends Error {
   constructor(
     public readonly status: number,
-    message: string
+    message: string,
+    public readonly code: string = "HTTP_ERROR",
+    public readonly details?: unknown
   ) {
     super(message);
   }
@@ -88,7 +90,11 @@ function signaturesMatch(expected: string, received: string): boolean {
 
 function sendError(reply: { code: (status: number) => { send: (payload: unknown) => void } }, error: unknown) {
   if (error instanceof HttpError) {
-    reply.code(error.status).send({ error: error.message });
+    reply.code(error.status).send({
+      error: error.message,
+      code: error.code,
+      details: error.details
+    });
     return;
   }
   const message = error instanceof Error ? error.message : "Unknown error";
@@ -226,6 +232,37 @@ export async function registerRoutes(
     return regions.includes(normalized as Region) ? (normalized as Region) : "OTHER";
   };
 
+  const parseEvidenceResult = (value: unknown): EvidenceResult => {
+    const candidate = typeof value === "string" ? value.toUpperCase() : "LOW_CONF";
+    if (candidate === "PASS" || candidate === "VIOLATION" || candidate === "LOW_CONF") {
+      return candidate as EvidenceResult;
+    }
+    throw new HttpError(400, "Invalid evidence result.", "INVALID_EVIDENCE_RESULT");
+  };
+
+  const normalizeConfidenceMap = (value: unknown): Record<string, number> => {
+    if (value === undefined || value === null) {
+      return {};
+    }
+    if (typeof value !== "object" || Array.isArray(value)) {
+      throw new HttpError(400, "confidence must be an object.", "INVALID_CONFIDENCE_MAP");
+    }
+
+    const entries = Object.entries(value as Record<string, unknown>);
+    const normalized: Record<string, number> = {};
+    for (const [key, raw] of entries) {
+      if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0 || raw > 1) {
+        throw new HttpError(
+          400,
+          `confidence.${key} must be a finite number in range [0, 1].`,
+          "INVALID_CONFIDENCE_VALUE"
+        );
+      }
+      normalized[key] = raw;
+    }
+    return normalized;
+  };
+
   const assertNoQueueBan = async (userId: string): Promise<void> => {
     const sanctions = await moderation.listActiveSanctionsByUser(userId);
     const blocking = sanctions.find(
@@ -289,21 +326,22 @@ export async function registerRoutes(
     if (!sessionToken || !nonce || !signature) {
       throw new HttpError(
         401,
-        "Verifier session token, nonce, and signature are required for this ruleset."
+        "Verifier session token, nonce, and signature are required for this ruleset.",
+        "INVALID_SIGNATURE"
       );
     }
 
     purgeExpiredVerifierSessions();
     const session = verifierSessions.get(sessionToken);
     if (!session || session.matchId !== args.match.id || session.userId !== args.user.id) {
-      throw new HttpError(401, "Invalid verifier session token.");
+      throw new HttpError(401, "Invalid verifier session token.", "VERIFIER_SESSION_EXPIRED");
     }
     if (session.expiresAt <= now()) {
       verifierSessions.delete(sessionToken);
-      throw new HttpError(401, "Verifier session token expired.");
+      throw new HttpError(401, "Verifier session token expired.", "VERIFIER_SESSION_EXPIRED");
     }
     if (session.usedNonces.has(nonce)) {
-      throw new HttpError(409, "Verifier nonce already used.");
+      throw new HttpError(409, "Verifier nonce already used.", "NONCE_REPLAY");
     }
 
     const expectedSignature = buildVerifierSignature({
@@ -316,7 +354,7 @@ export async function registerRoutes(
       token: session.token
     });
     if (!signaturesMatch(expectedSignature, signature)) {
-      throw new HttpError(401, "Invalid verifier signature.");
+      throw new HttpError(401, "Invalid verifier signature.", "INVALID_SIGNATURE");
     }
 
     session.usedNonces.add(nonce);
@@ -845,8 +883,8 @@ export async function registerRoutes(
         timestamp: now(),
         userId: user.id,
         detectedAgents: requireArray<string>(body?.detectedAgents, "detectedAgents"),
-        confidence: body?.confidence ?? {},
-        result: (body?.result ?? "LOW_CONF") as EvidenceResult,
+        confidence: normalizeConfidenceMap(body?.confidence),
+        result: parseEvidenceResult(body?.result),
         frameHash: body?.frameHash,
         cropUrl: body?.cropUrl
       };
@@ -877,7 +915,13 @@ export async function registerRoutes(
               detectedAgents: record.detectedAgents
             }
           });
-          return { payload };
+          return {
+            payload: {
+              ...payload,
+              verifierDecisionCode:
+                record.result === "LOW_CONF" ? "LOW_CONF_ACCEPTED" : "EVIDENCE_ACCEPTED"
+            }
+          };
         }
       });
       if (result.replayed) {
@@ -911,8 +955,8 @@ export async function registerRoutes(
         timestamp: now(),
         userId: user.id,
         detectedAgents: requireArray<string>(body?.detectedAgents, "detectedAgents"),
-        confidence: body?.confidence ?? {},
-        result: (body?.result ?? "LOW_CONF") as EvidenceResult,
+        confidence: normalizeConfidenceMap(body?.confidence),
+        result: parseEvidenceResult(body?.result),
         frameHash: body?.frameHash,
         cropUrl: body?.cropUrl
       };
@@ -943,7 +987,13 @@ export async function registerRoutes(
               detectedAgents: record.detectedAgents
             }
           });
-          return { payload };
+          return {
+            payload: {
+              ...payload,
+              verifierDecisionCode:
+                record.result === "LOW_CONF" ? "LOW_CONF_ACCEPTED" : "EVIDENCE_ACCEPTED"
+            }
+          };
         }
       });
       if (result.replayed) {
