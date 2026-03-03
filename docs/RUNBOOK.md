@@ -22,9 +22,12 @@ Operational runbook for the production-ready baseline (web + API), excluding des
 - no `DATABASE_URL` -> memory repository mode
 - `IKA_REPOSITORY=memory` forces memory mode
 
-### Enka import
+### Verifier roster import
 
-- `ENABLE_ENKA_IMPORT=true`
+- `ENABLE_VERIFIER_ROSTER_IMPORT=true` (default)
+- `ENABLE_LEGACY_UID_VERIFY=false` (default)
+- `ENABLE_LEGACY_ROSTER_IMPORT=false` (default)
+- `ENABLE_ENKA_IMPORT=false` (recommended)
 - `ENKA_BASE_URL` (default `https://enka.network/api/zzz/uid`)
 - `CACHE_TTL_MS` (default `600000`)
 - `ENKA_RATE_LIMIT_MS` (default `30000`)
@@ -55,12 +58,14 @@ S3 mode:
 API:
 
 - `ENABLE_AGENT_CATALOG=true`
-- `ENABLE_ENKA_IMPORT=true`
+- `ENABLE_ENKA_IMPORT=false` (legacy)
+- `ENABLE_VERIFIER_ROSTER_IMPORT=true`
 
 Web:
 
 - `VITE_ENABLE_AGENT_CATALOG=true`
-- `VITE_ENABLE_ENKA_IMPORT=true`
+- `VITE_ENABLE_ENKA_IMPORT=false` (legacy)
+- `VITE_ENABLE_VERIFIER_ROSTER_IMPORT=true`
 - optional `VITE_API_URL`
 
 ## 2. Local startup checklist
@@ -76,7 +81,7 @@ Web:
    - login works
    - profile page loads
    - matchmaking search creates ticket
-   - roster import returns `SUCCESS|DEGRADED|FAILED`
+   - Verifier roster import (`POST /verifier/roster/import`) returns `OK`
 
 ## 3. Deploy checklist
 
@@ -91,19 +96,19 @@ Web:
    - `npm run build:web`
 5. Verify `/health` and `/metrics` after deploy.
 
-## 4. Enka degraded-mode operations
+## 4. Legacy Enka operations (optional)
 
-`POST /players/:uid/import/enka` always returns structured status:
+Legacy endpoint `POST /players/:uid/import/enka` is available only when `ENABLE_LEGACY_ROSTER_IMPORT=true` and returns structured status:
 
 - `SUCCESS` - import completed normally.
 - `DEGRADED` - Enka failed, fallback snapshot used; inspect `retryAfterSec` and `usedSnapshotAt`.
-- `FAILED` - no valid fallback snapshot; user should retry later or use manual roster.
+- `FAILED` - no valid fallback snapshot; user should retry later.
 
 Actions:
 
 1. Check `/metrics.enka` for error buckets (`http403`, `http429`, `timeout`, `http5xx`).
 2. If high failure rate, reduce import pressure or increase retry interval.
-3. Keep manual roster path available so ranked flow is not globally blocked.
+3. Do not expose legacy manual roster path in production unless required for incident fallback.
 
 ## 5. Evidence upload operations
 
@@ -148,6 +153,6 @@ Guardrails:
 
 ## 8. Known limits
 
-- Enka is third-party and may return 403/429 unpredictably.
+- Production flow is Verifier-based; Enka/manual UID flow is legacy-only and disabled by default.
 - Current metrics are in-memory snapshots (reset on API restart).
 - Web bundle chunk size warning remains and can be optimized later with code splitting.

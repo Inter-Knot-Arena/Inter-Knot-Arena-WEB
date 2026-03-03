@@ -10,7 +10,8 @@ This repository is the production-ready web/backend baseline without the desktop
 - Role model based on `MODER -> STAFF -> ADMIN` (no judge role model in product APIs/UI).
 - Profile summary and analytics endpoints (history, top agents, draft/evidence aggregates).
 - BO1 + full BO3 draft templates with timeout auto-pick/auto-ban and trust penalties.
-- Enka showcase import with graceful degraded mode (`SUCCESS`, `DEGRADED`, `FAILED`) and snapshot fallback.
+- Verifier OCR roster import (agents, discs, amplifiers, UID) as the primary sync flow.
+- Legacy Enka/manual roster flow is deprecated by default and can be enabled only via legacy flags.
 - Evidence upload in both S3 and local storage modes with validation, rate limits, and retention sweep.
 - Realtime match room updates via SSE with polling fallback on web.
 - CI checks for typecheck, API tests, and workspace builds.
@@ -49,7 +50,10 @@ $env:WEB_ORIGIN = "http://localhost:5173"
 $env:API_ORIGIN = "http://localhost:4000"
 
 $env:ENABLE_AGENT_CATALOG = "true"
-$env:ENABLE_ENKA_IMPORT = "true"
+$env:ENABLE_VERIFIER_ROSTER_IMPORT = "true"
+$env:ENABLE_ENKA_IMPORT = "false"
+$env:ENABLE_LEGACY_UID_VERIFY = "false"
+$env:ENABLE_LEGACY_ROSTER_IMPORT = "false"
 $env:ENABLE_ACCUMULATIVE_IMPORT = "true"
 $env:ENKA_STORE_RAW = "true"
 $env:ENKA_BASE_URL = "https://enka.network/api/zzz/uid"
@@ -69,7 +73,8 @@ npm run dev:api
 
 ```powershell
 $env:VITE_ENABLE_AGENT_CATALOG = "true"
-$env:VITE_ENABLE_ENKA_IMPORT = "true"
+$env:VITE_ENABLE_VERIFIER_ROSTER_IMPORT = "true"
+$env:VITE_ENABLE_ENKA_IMPORT = "false"
 npm run dev:web
 ```
 
@@ -116,11 +121,10 @@ Required OAuth envs for normal mode:
 - `GET /matches/:id`
 - `GET /matches/:id/events` (SSE stream)
 
-### Roster and Enka
+### Roster and Verifier
 
 - `GET /players/:uid/roster`
-- `POST /players/:uid/import/enka`
-- `POST /players/:uid/roster/manual`
+- `POST /verifier/roster/import`
 
 ### Moderation and sanctions
 
@@ -134,7 +138,7 @@ Required OAuth envs for normal mode:
 ### Ops
 
 - `GET /health`
-- `GET /metrics` (includes Enka import telemetry snapshot)
+- `GET /metrics` (includes import telemetry snapshot)
 
 ## Quality gates
 
@@ -148,6 +152,6 @@ CI runs these checks on push.
 
 ## Notes
 
-- Ranked queues rely on verification status and roster eligibility checks.
+- Ranked queues rely on Verifier-based UID/roster verification and roster eligibility checks.
 - Desktop Verifier app is intentionally out of scope in this codebase.
-- Enka import always has a recovery path: degraded response with retry hints and manual roster fallback.
+- Legacy Enka/manual roster endpoints return `410` unless explicitly re-enabled via legacy env flags.
