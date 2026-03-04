@@ -112,6 +112,20 @@ function assertParticipant(user: User, match: { players: Array<{ userId: string 
   }
 }
 
+function listVerifierExpectedAgents(match: Match, userId: string): string[] {
+  const picks = match.draft.actions
+    .filter((action) => action.type.startsWith("PICK") && action.userId === userId)
+    .map((action) => action.agentId);
+  return Array.from(new Set(picks));
+}
+
+function listVerifierBannedAgents(match: Match): string[] {
+  const bans = match.draft.actions
+    .filter((action) => action.type.startsWith("BAN"))
+    .map((action) => action.agentId);
+  return Array.from(new Set(bans));
+}
+
 async function requireAuthUser(
   request: FastifyRequest,
   repo: Repository,
@@ -847,6 +861,8 @@ export async function registerRoutes(
         matchId,
         verifierSessionToken: token,
         expiresAt,
+        expectedAgents: listVerifierExpectedAgents(match, user.id),
+        bannedAgents: listVerifierBannedAgents(match),
         ruleset: {
           requireVerifier: ruleset.requireVerifier,
           requireInrunCheck: ruleset.requireInrunCheck,

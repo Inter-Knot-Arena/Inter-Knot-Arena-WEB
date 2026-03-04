@@ -527,8 +527,17 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
     headers: { cookie: cookieA }
   });
   assert.equal(session.statusCode, 200);
-  const verifierSessionToken = (session.json() as { verifierSessionToken: string }).verifierSessionToken;
+  const sessionBody = session.json() as {
+    verifierSessionToken: string;
+    expectedAgents?: string[];
+    bannedAgents?: string[];
+  };
+  const verifierSessionToken = sessionBody.verifierSessionToken;
   assert.ok(verifierSessionToken);
+  assert.ok(Array.isArray(sessionBody.expectedAgents));
+  assert.ok((sessionBody.expectedAgents?.length ?? 0) > 0);
+  assert.ok(Array.isArray(sessionBody.bannedAgents));
+  assert.ok((sessionBody.bannedAgents?.length ?? 0) > 0);
 
   const frameHashInvalid = "frame-invalid-signature";
   const nonceInvalid = "nonce-invalid-signature";
