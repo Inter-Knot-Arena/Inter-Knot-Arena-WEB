@@ -34,7 +34,7 @@ import {
   runMatchLifecycle
 } from "./services/matchLifecycleService.js";
 import { createId, now, requireArray, requireString } from "./utils.js";
-import { getAuthUser, type AuthContext } from "./auth/context.js";
+import { getAuthUser, getVerifierBearerToken, type AuthContext } from "./auth/context.js";
 import type { AuditStore } from "./audit/types.js";
 import type { IdempotencyStore } from "./idempotency/types.js";
 import type { ModerationStore } from "./moderation/types.js";
@@ -136,6 +136,32 @@ async function requireAuthUser(
     throw new HttpError(401, "Unauthorized");
   }
   return user;
+}
+
+async function requireVerifierAuthUser(
+  request: FastifyRequest,
+  repo: Repository,
+  auth: AuthContext
+): Promise<User> {
+  if (auth.config.authDisabled) {
+    return requireAuthUser(request, repo, auth);
+  }
+
+  const token = getVerifierBearerToken(request);
+  if (!token) {
+    throw new HttpError(401, "Verifier bearer token required.", "VERIFIER_AUTH_REQUIRED");
+  }
+
+  const access = await repo.findVerifierToken(token, "ACCESS");
+  if (!access) {
+    throw new HttpError(401, "Verifier bearer token expired or invalid.", "VERIFIER_AUTH_REQUIRED");
+  }
+
+  try {
+    return await repo.findUser(access.userId);
+  } catch {
+    throw new HttpError(401, "Verifier bearer token expired or invalid.", "VERIFIER_AUTH_REQUIRED");
+  }
 }
 
 export async function registerRoutes(
@@ -825,7 +851,7 @@ export async function registerRoutes(
   app.post("/matches/:id/verifier/session", async (request, reply) => {
     try {
       await enforceLifecycle();
-      const user = await requireAuthUser(request, repo, auth);
+      const user = await requireVerifierAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
       const match = await repo.findMatch(matchId);
       assertParticipant(user, match);
@@ -879,9 +905,12 @@ export async function registerRoutes(
   app.post("/matches/:id/evidence/precheck", async (request, reply) => {
     try {
       await enforceLifecycle();
-      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
       const match = await repo.findMatch(matchId);
+      const ruleset = await repo.findRuleset(match.rulesetId);
+      const user = ruleset.requireVerifier
+        ? await requireVerifierAuthUser(request, repo, auth)
+        : await requireAuthUser(request, repo, auth);
       assertParticipant(user, match);
       const body = request.body as {
         detectedAgents?: string[];
@@ -951,9 +980,12 @@ export async function registerRoutes(
   app.post("/matches/:id/evidence/inrun", async (request, reply) => {
     try {
       await enforceLifecycle();
-      const user = await requireAuthUser(request, repo, auth);
       const matchId = requireString((request.params as { id?: string }).id, "matchId");
       const match = await repo.findMatch(matchId);
+      const ruleset = await repo.findRuleset(match.rulesetId);
+      const user = ruleset.requireVerifier
+        ? await requireVerifierAuthUser(request, repo, auth)
+        : await requireAuthUser(request, repo, auth);
       assertParticipant(user, match);
       const body = request.body as {
         detectedAgents?: string[];

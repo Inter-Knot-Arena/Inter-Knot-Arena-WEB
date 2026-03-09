@@ -521,10 +521,20 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
   const matchId = await ensureMatchCreated(cookieA, cookieB);
   const { userAId, userBId } = await completeDraftToPrecheck(matchId, cookieA, cookieB);
 
-  const session = await app.inject({
+  const cookieSession = await app.inject({
     method: "POST",
     url: `/matches/${encodeURIComponent(matchId)}/verifier/session`,
     headers: { cookie: cookieA }
+  });
+  assert.equal(cookieSession.statusCode, 401);
+  assert.equal((cookieSession.json() as { code: string }).code, "VERIFIER_AUTH_REQUIRED");
+
+  const session = await app.inject({
+    method: "POST",
+    url: `/matches/${encodeURIComponent(matchId)}/verifier/session`,
+    headers: {
+      authorization: `Bearer ${tokenA.accessToken}`
+    }
   });
   assert.equal(session.statusCode, 200);
   const sessionBody = session.json() as {
@@ -553,7 +563,9 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
   const invalidSignature = await app.inject({
     method: "POST",
     url: `/matches/${encodeURIComponent(matchId)}/evidence/precheck`,
-    headers: { cookie: cookieA },
+    headers: {
+      authorization: `Bearer ${tokenA.accessToken}`
+    },
     payload: {
       detectedAgents: ["agent_anby", "agent_nicole", "agent_ellen"],
       confidence: { agent_anby: 0.9, agent_nicole: 0.9, agent_ellen: 0.9 },
@@ -569,6 +581,23 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
 
   const frameHashLowConf = "frame-low-conf";
   const nonceLowConf = "nonce-low-conf";
+  const cookieOnlyEvidence = await app.inject({
+    method: "POST",
+    url: `/matches/${encodeURIComponent(matchId)}/evidence/precheck`,
+    headers: { cookie: cookieA },
+    payload: {
+      detectedAgents: ["agent_anby", "agent_nicole"],
+      confidence: { agent_anby: 0.78, agent_nicole: 0.76 },
+      result: "LOW_CONF",
+      frameHash: frameHashLowConf,
+      verifierSessionToken,
+      verifierNonce: nonceLowConf,
+      verifierSignature: "ignored"
+    }
+  });
+  assert.equal(cookieOnlyEvidence.statusCode, 401);
+  assert.equal((cookieOnlyEvidence.json() as { code: string }).code, "VERIFIER_AUTH_REQUIRED");
+
   const lowConfSignature = createEvidenceSignature({
     matchId,
     userId: userAId,
@@ -581,7 +610,9 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
   const lowConf = await app.inject({
     method: "POST",
     url: `/matches/${encodeURIComponent(matchId)}/evidence/precheck`,
-    headers: { cookie: cookieA },
+    headers: {
+      authorization: `Bearer ${tokenA.accessToken}`
+    },
     payload: {
       detectedAgents: ["agent_anby", "agent_nicole"],
       confidence: { agent_anby: 0.78, agent_nicole: 0.76 },
@@ -609,7 +640,9 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
   const firstPass = await app.inject({
     method: "POST",
     url: `/matches/${encodeURIComponent(matchId)}/evidence/precheck`,
-    headers: { cookie: cookieA },
+    headers: {
+      authorization: `Bearer ${tokenA.accessToken}`
+    },
     payload: {
       detectedAgents: ["agent_anby", "agent_nicole", "agent_ellen"],
       confidence: { agent_anby: 0.95, agent_nicole: 0.94, agent_ellen: 0.95 },
@@ -625,7 +658,9 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
   const replay = await app.inject({
     method: "POST",
     url: `/matches/${encodeURIComponent(matchId)}/evidence/precheck`,
-    headers: { cookie: cookieA },
+    headers: {
+      authorization: `Bearer ${tokenA.accessToken}`
+    },
     payload: {
       detectedAgents: ["agent_anby", "agent_nicole", "agent_ellen"],
       confidence: { agent_anby: 0.95, agent_nicole: 0.94, agent_ellen: 0.95 },

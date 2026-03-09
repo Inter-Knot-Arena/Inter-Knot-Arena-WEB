@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import type { Agent, DraftAction, DraftActionType, EvidenceResult, Match } from "@ika/shared";
+import type { Agent, DraftAction, DraftActionType, Match } from "@ika/shared";
 import {
   checkinMatch,
   confirmMatchResult,
   fetchAgents,
   fetchMatch,
-  fetchVerifierSession,
   openDispute,
   submitDraftAction,
-  submitInrun,
-  submitPrecheck,
   submitResult,
   uploadEvidenceFile
 } from "../api";
@@ -56,48 +53,6 @@ function userDraftedAgents(match: Match, userId: string): string[] {
     .map((action) => action.agentId);
 }
 
-function createVerifierNonce(): string {
-  if (typeof window !== "undefined" && window.crypto?.randomUUID) {
-    return window.crypto.randomUUID();
-  }
-  return `nonce-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function toHex(buffer: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buffer))
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function signVerifierEvidence(params: {
-  matchId: string;
-  userId: string;
-  type: "PRECHECK" | "INRUN";
-  result: EvidenceResult;
-  frameHash?: string;
-  nonce: string;
-  token: string;
-}): Promise<string> {
-  const payload = [
-    params.matchId,
-    params.userId,
-    params.type,
-    params.result,
-    params.frameHash ?? "",
-    params.nonce
-  ].join(":");
-  const encoder = new TextEncoder();
-  const key = await window.crypto.subtle.importKey(
-    "raw",
-    encoder.encode(params.token),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-  const signature = await window.crypto.subtle.sign("HMAC", key, encoder.encode(payload));
-  return toHex(signature);
-}
-
 export default function MatchRoom() {
   const { id } = useParams();
   const [match, setMatch] = useState<Match | null>(null);
@@ -113,7 +68,6 @@ export default function MatchRoom() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [disputeReason, setDisputeReason] = useState<string>("");
-  const [verifierSessionToken, setVerifierSessionToken] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -190,15 +144,6 @@ export default function MatchRoom() {
   const canAct = match.state === "DRAFTING" && isUserTurn(match, currentUserId);
   const side = getUserSide(match, currentUserId);
   const userPicks = userDraftedAgents(match, currentUserId);
-  const evidenceAgents = userPicks.length ? userPicks.slice(0, 3) : agents.slice(0, 3).map((agent) => agent.id);
-  const resolveVerifierSessionToken = async (): Promise<string> => {
-    if (verifierSessionToken) {
-      return verifierSessionToken;
-    }
-    const session = await fetchVerifierSession(match.id);
-    setVerifierSessionToken(session.verifierSessionToken);
-    return session.verifierSessionToken;
-  };
 
   const handleCheckin = async () => {
     try {
@@ -220,60 +165,6 @@ export default function MatchRoom() {
       setMatch(updated);
     } catch {
       setError("Draft action failed.");
-    }
-  };
-
-  const handlePrecheck = async (result: EvidenceResult) => {
-    try {
-      setError(null);
-      const sessionToken = await resolveVerifierSessionToken();
-      const verifierNonce = createVerifierNonce();
-      const verifierSignature = await signVerifierEvidence({
-        matchId: match.id,
-        userId: currentUserId,
-        type: "PRECHECK",
-        result,
-        nonce: verifierNonce,
-        token: sessionToken
-      });
-      const updated = await submitPrecheck(match.id, {
-        detectedAgents: evidenceAgents,
-        result,
-        confidence: Object.fromEntries(evidenceAgents.map((agentId) => [agentId, 0.92])),
-        verifierSessionToken: sessionToken,
-        verifierNonce,
-        verifierSignature
-      });
-      setMatch(updated);
-    } catch {
-      setError("Precheck upload failed.");
-    }
-  };
-
-  const handleInrun = async (result: EvidenceResult) => {
-    try {
-      setError(null);
-      const sessionToken = await resolveVerifierSessionToken();
-      const verifierNonce = createVerifierNonce();
-      const verifierSignature = await signVerifierEvidence({
-        matchId: match.id,
-        userId: currentUserId,
-        type: "INRUN",
-        result,
-        nonce: verifierNonce,
-        token: sessionToken
-      });
-      const updated = await submitInrun(match.id, {
-        detectedAgents: evidenceAgents,
-        result,
-        confidence: Object.fromEntries(evidenceAgents.map((agentId) => [agentId, 0.88])),
-        verifierSessionToken: sessionToken,
-        verifierNonce,
-        verifierSignature
-      });
-      setMatch(updated);
-    } catch {
-      setError("In-run upload failed.");
     }
   };
 
@@ -450,26 +341,14 @@ export default function MatchRoom() {
         <div className="card">
           <h3>Pre-check evidence</h3>
           <p>{match.evidence.precheck.length} submissions</p>
-          <div className="card-actions">
-            <button className="ghost-button" onClick={() => handlePrecheck("LOW_CONF")}>
-              Submit low-conf
-            </button>
-            <button className="primary-button" onClick={() => handlePrecheck("PASS")}>
-              Submit pass
-            </button>
-          </div>
+          <p>Submit verifier evidence from VerifierApp via device auth, not from the browser.</p>
+          <p>Expected picks: {userPicks.length ? userPicks.join(", ") : "Draft not finalized yet."}</p>
         </div>
         <div className="card">
           <h3>In-run checks</h3>
           <p>{match.evidence.inrun.length} captures</p>
-          <div className="card-actions">
-            <button className="ghost-button" onClick={() => handleInrun("LOW_CONF")}>
-              Submit low-conf
-            </button>
-            <button className="primary-button" onClick={() => handleInrun("PASS")}>
-              Submit pass
-            </button>
-          </div>
+          <p>Live captures now accept verifier bearer auth only.</p>
+          <p>Launch VerifierApp on the matched account before starting the run.</p>
         </div>
         <div className="card">
           <h3>Result proof</h3>
