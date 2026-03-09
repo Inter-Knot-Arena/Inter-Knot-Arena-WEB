@@ -275,8 +275,12 @@ export async function recordResult(
     if (hasViolation) {
       throw new Error("Result submission is blocked due to in-run violation");
     }
-    if (match.evidence.inrun.length === 0) {
-      throw new Error("Result submission requires in-run evidence");
+    const inrunUsers = new Set(
+      match.evidence.inrun.filter((item) => item.userId).map((item) => item.userId as string)
+    );
+    const allPlayersCaptured = match.players.every((player) => inrunUsers.has(player.userId));
+    if (!allPlayersCaptured) {
+      throw new Error("Result submission requires in-run evidence from both players");
     }
   }
   const mergedResult = mergeResultProof(match.evidence.result, result);
