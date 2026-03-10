@@ -138,6 +138,25 @@ export interface DiscProperty {
   value?: number | string;
 }
 
+export interface PlayerAgentDiscSubstat {
+  key: string;
+  value: number;
+}
+
+export interface PlayerAgentWeapon {
+  weaponId: string;
+  gameId?: number;
+  displayName?: string;
+  level?: number;
+  levelCap?: number;
+  breakLevel?: number;
+  rarity?: string;
+  baseStatKey?: string;
+  baseStatValue?: number;
+  advancedStatKey?: string;
+  advancedStatValue?: number;
+}
+
 export interface PlayerAgentDisc {
   discId: string;
   slot?: number;
@@ -149,11 +168,16 @@ export interface PlayerAgentDisc {
   setId?: string;
   setName?: string;
   setIconKey?: string;
+  displayName?: string;
   mainProps?: DiscProperty[];
   subProps?: DiscProperty[];
   level?: number;
+  levelCap?: number;
   breakLevel?: number;
   isLocked?: boolean;
+  mainStatKey?: string;
+  mainStatValue?: number;
+  substats?: PlayerAgentDiscSubstat[];
 }
 
 export interface PlayerAgentDynamic {
@@ -161,16 +185,23 @@ export interface PlayerAgentDynamic {
   agentGameId?: number;
   owned: boolean;
   level?: number;
+  levelCap?: number;
   dupes?: number;
   promotion?: number;
   talent?: number;
   core?: number;
-  weapon?: { weaponId: string; gameId?: number; level?: number; breakLevel?: number; rarity?: string };
+  weapon?: PlayerAgentWeapon;
+  weaponPresent?: boolean;
   discs?: PlayerAgentDisc[];
+  discSlotOccupancy?: Record<string, boolean>;
   skills?: Record<string, number>;
   mindscape?: number;
+  mindscapeCap?: number;
+  stats?: Record<string, number>;
   source: PlayerAgentSource;
+  confidenceByField?: Record<string, number>;
   confidence?: Record<string, number>;
+  fieldSources?: Record<string, string>;
   lastImportedAt?: string;
   lastShowcaseSeenAt?: string;
   updatedAt: string;
@@ -188,6 +219,16 @@ export interface PlayerRosterImportSummary {
   unknownIds: string[];
   fetchedAt: string;
   status?: "SUCCESS" | "DEGRADED" | "FAILED";
+  modelVersion?: string;
+  dataVersion?: string;
+  scanMeta?: string;
+  timingMs?: number;
+  resolution?: string;
+  locale?: string;
+  lowConfReasons?: string[];
+  confidenceByField?: Record<string, number>;
+  fieldSources?: Record<string, string>;
+  capabilities?: Record<string, boolean>;
   newAgentsCount?: number;
   updatedAgentsCount?: number;
   unchangedCount?: number;

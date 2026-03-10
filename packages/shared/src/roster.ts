@@ -53,6 +53,63 @@ function mergeSkills(
   return merged;
 }
 
+function mergeNumberMap(
+  existing?: Record<string, number>,
+  incoming?: Record<string, number>
+): Record<string, number> | undefined {
+  if (!incoming && !existing) {
+    return undefined;
+  }
+  if (!existing) {
+    return incoming;
+  }
+  if (!incoming) {
+    return existing;
+  }
+  return {
+    ...existing,
+    ...incoming
+  };
+}
+
+function mergeBooleanMap(
+  existing?: Record<string, boolean>,
+  incoming?: Record<string, boolean>
+): Record<string, boolean> | undefined {
+  if (!incoming && !existing) {
+    return undefined;
+  }
+  if (!existing) {
+    return incoming;
+  }
+  if (!incoming) {
+    return existing;
+  }
+  return {
+    ...existing,
+    ...incoming
+  };
+}
+
+function mergeStringMap(
+  existing?: Record<string, string>,
+  incoming?: Record<string, string>
+): Record<string, string> | undefined {
+  if (!incoming && !existing) {
+    return undefined;
+  }
+  if (!existing) {
+    return incoming;
+  }
+  if (!incoming) {
+    return existing;
+  }
+  return {
+    ...existing,
+    ...incoming
+  };
+}
+
 function mergeDiscProps(
   existing?: DiscProperty[],
   incoming?: DiscProperty[]
@@ -106,11 +163,17 @@ function mergeDisc(existing: PlayerAgentDisc | undefined, incoming: PlayerAgentD
     setId,
     setName,
     setIconKey,
+    displayName: incoming.displayName ?? existing.displayName,
     mainProps: mergeDiscProps(existing.mainProps, incoming.mainProps),
     subProps: mergeDiscProps(existing.subProps, incoming.subProps),
     level: maxNumber(existing.level, incoming.level),
+    levelCap: maxNumber(existing.levelCap, incoming.levelCap),
     breakLevel: maxNumber(existing.breakLevel, incoming.breakLevel),
-    isLocked: incoming.isLocked ?? existing.isLocked
+    isLocked: incoming.isLocked ?? existing.isLocked,
+    mainStatKey: incoming.mainStatKey ?? existing.mainStatKey,
+    mainStatValue: incoming.mainStatValue ?? existing.mainStatValue,
+    substats:
+      incoming.substats && incoming.substats.length ? incoming.substats : existing.substats
   };
 }
 
@@ -166,9 +229,15 @@ function mergeWeapon(
   return {
     weaponId: best.weaponId ?? other.weaponId,
     gameId: best.gameId ?? other.gameId,
+    displayName: best.displayName ?? other.displayName,
     level: maxNumber(best.level, other.level),
+    levelCap: maxNumber(best.levelCap, other.levelCap),
     breakLevel: maxNumber(best.breakLevel, other.breakLevel),
-    rarity: best.rarity ?? other.rarity
+    rarity: best.rarity ?? other.rarity,
+    baseStatKey: best.baseStatKey ?? other.baseStatKey,
+    baseStatValue: best.baseStatValue ?? other.baseStatValue,
+    advancedStatKey: best.advancedStatKey ?? other.advancedStatKey,
+    advancedStatValue: best.advancedStatValue ?? other.advancedStatValue
   };
 }
 
@@ -195,11 +264,17 @@ export function mergePlayerAgentDynamic(
   if (hasOwn(incoming, "level") && (canOverride || !hasOwn(existing, "level"))) {
     result.level = incoming.level;
   }
+  if (hasOwn(incoming, "levelCap") && (canOverride || !hasOwn(existing, "levelCap"))) {
+    result.levelCap = incoming.levelCap;
+  }
   if (hasOwn(incoming, "dupes") && (canOverride || !hasOwn(existing, "dupes"))) {
     result.dupes = incoming.dupes;
   }
   if (hasOwn(incoming, "mindscape") && (canOverride || !hasOwn(existing, "mindscape"))) {
     result.mindscape = incoming.mindscape;
+  }
+  if (hasOwn(incoming, "mindscapeCap") && (canOverride || !hasOwn(existing, "mindscapeCap"))) {
+    result.mindscapeCap = incoming.mindscapeCap;
   }
   if (hasOwn(incoming, "promotion") && (canOverride || !hasOwn(existing, "promotion"))) {
     result.promotion = incoming.promotion;
@@ -213,14 +288,34 @@ export function mergePlayerAgentDynamic(
   if (hasOwn(incoming, "weapon") && (canOverride || !hasOwn(existing, "weapon"))) {
     result.weapon = incoming.weapon;
   }
+  if (hasOwn(incoming, "weaponPresent") && (canOverride || !hasOwn(existing, "weaponPresent"))) {
+    result.weaponPresent = incoming.weaponPresent;
+  }
   if (hasOwn(incoming, "discs") && (canOverride || !hasOwn(existing, "discs"))) {
     result.discs = incoming.discs;
+  }
+  if (
+    hasOwn(incoming, "discSlotOccupancy") &&
+    (canOverride || !hasOwn(existing, "discSlotOccupancy"))
+  ) {
+    result.discSlotOccupancy = incoming.discSlotOccupancy;
   }
   if (hasOwn(incoming, "skills") && (canOverride || !hasOwn(existing, "skills"))) {
     result.skills = incoming.skills;
   }
-  if (hasOwn(incoming, "confidence") && (canOverride || !hasOwn(existing, "confidence"))) {
-    result.confidence = incoming.confidence;
+  if (hasOwn(incoming, "stats") && (canOverride || !hasOwn(existing, "stats"))) {
+    result.stats = incoming.stats;
+  }
+  if (
+    (hasOwn(incoming, "confidenceByField") || hasOwn(incoming, "confidence")) &&
+    (canOverride || (!hasOwn(existing, "confidenceByField") && !hasOwn(existing, "confidence")))
+  ) {
+    const confidenceByField = incoming.confidenceByField ?? incoming.confidence;
+    result.confidenceByField = confidenceByField;
+    result.confidence = confidenceByField;
+  }
+  if (hasOwn(incoming, "fieldSources") && (canOverride || !hasOwn(existing, "fieldSources"))) {
+    result.fieldSources = incoming.fieldSources;
   }
   if (hasOwn(incoming, "lastImportedAt") && (canOverride || !hasOwn(existing, "lastImportedAt"))) {
     result.lastImportedAt = incoming.lastImportedAt;
@@ -257,15 +352,27 @@ export function mergePlayerAgentDynamicAccumulative(
   };
 
   result.level = maxNumber(existing.level, incoming.level);
+  result.levelCap = maxNumber(existing.levelCap, incoming.levelCap);
   result.dupes = maxNumber(existing.dupes, incoming.dupes);
   result.mindscape = maxNumber(existing.mindscape, incoming.mindscape);
+  result.mindscapeCap = maxNumber(existing.mindscapeCap, incoming.mindscapeCap);
   result.promotion = maxNumber(existing.promotion, incoming.promotion);
   result.core = maxNumber(existing.core, incoming.core);
   result.talent = maxNumber(existing.talent, incoming.talent);
   result.weapon = mergeWeapon(existing.weapon, incoming.weapon);
+  result.weaponPresent = incoming.weaponPresent ?? existing.weaponPresent;
   result.discs = mergeDiscs(existing.discs, incoming.discs);
+  result.discSlotOccupancy = mergeBooleanMap(existing.discSlotOccupancy, incoming.discSlotOccupancy);
   result.skills = mergeSkills(existing.skills, incoming.skills);
-  result.confidence = incoming.confidence ?? existing.confidence;
+  result.stats = mergeNumberMap(existing.stats, incoming.stats);
+  const confidenceByField =
+    incoming.confidenceByField ??
+    incoming.confidence ??
+    existing.confidenceByField ??
+    existing.confidence;
+  result.confidenceByField = confidenceByField;
+  result.confidence = confidenceByField;
+  result.fieldSources = mergeStringMap(existing.fieldSources, incoming.fieldSources);
 
   result.lastImportedAt = incoming.lastImportedAt ?? existing.lastImportedAt;
   result.lastShowcaseSeenAt = incoming.lastShowcaseSeenAt ?? existing.lastShowcaseSeenAt;
