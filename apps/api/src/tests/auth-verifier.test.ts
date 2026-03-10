@@ -420,6 +420,32 @@ test("verifier device auth exchange issues bearer token accepted by auth and ros
   assert.equal(rosterImport.statusCode, 200);
 });
 
+test("verifier roster import surfaces degraded OCR summaries", async () => {
+  const cookie = await registerAndGetCookie("verifier-degraded@test.dev", "VerifierDegraded");
+  const token = await issueVerifierToken(cookie, 53129);
+
+  const rosterImport = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "987654321",
+      region: "EU",
+      fullSync: false,
+      lowConfReasons: ["agent_anby.weapon_missing", "equipment_low_confidence"],
+      agents: [{ agentId: "agent_anby", owned: true, level: 60 }]
+    }
+  });
+  assert.equal(rosterImport.statusCode, 200);
+  const body = rosterImport.json() as {
+    summary?: { status?: string; message?: string };
+  };
+  assert.equal(body.summary?.status, "DEGRADED");
+  assert.match(body.summary?.message ?? "", /low confidence/i);
+});
+
 test("verifier refresh rotates tokens and revoked token cannot be reused", async () => {
   const register = await app.inject({
     method: "POST",

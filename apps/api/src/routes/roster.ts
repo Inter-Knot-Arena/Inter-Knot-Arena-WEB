@@ -298,6 +298,7 @@ export async function registerRosterRoutes(
         uid?: string;
         region?: string;
         fullSync?: boolean;
+        lowConfReasons?: string[];
         agents?: Array<{
           agentId?: string;
           owned?: boolean;
@@ -330,6 +331,12 @@ export async function registerRosterRoutes(
       }
 
       const incoming = Array.isArray(body.agents) ? body.agents : [];
+      const lowConfReasons = Array.isArray(body.lowConfReasons)
+        ? body.lowConfReasons
+            .filter((value): value is string => typeof value === "string")
+            .map((value) => value.trim())
+            .filter(Boolean)
+        : [];
       const catalogData = catalog.getCatalog();
       const catalogIds = new Set(catalogData.agents.map((agent) => agent.agentId));
       const unknownIds: string[] = [];
@@ -414,10 +421,13 @@ export async function registerRosterRoutes(
         skippedCount: unknownIds.length,
         unknownIds,
         fetchedAt: importedAt,
-        status: "SUCCESS",
-        message: fullSync
-          ? "Verifier full-scan roster sync completed."
-          : "Verifier partial roster sync completed."
+        status: lowConfReasons.length > 0 ? "DEGRADED" : "SUCCESS",
+        message:
+          lowConfReasons.length > 0
+            ? `Verifier roster sync completed with low confidence: ${lowConfReasons.join(", ")}.`
+            : fullSync
+              ? "Verifier full-scan roster sync completed."
+              : "Verifier partial roster sync completed."
       };
       await rosterStore.saveImportSummary(uid, region, summary);
 
