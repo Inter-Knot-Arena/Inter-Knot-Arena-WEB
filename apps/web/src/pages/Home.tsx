@@ -8,55 +8,18 @@ import { LeaderboardPreviewTable, type LeaderboardRow } from "../components/home
 import { UpdatesFeed, type UpdateItem } from "../components/home/UpdatesFeed";
 import { isUidVerified } from "../lib/verification";
 import {
-  fetchAnalyticsSeasonReport,
-  fetchCurrentSeason,
-  fetchLeaderboard,
-  fetchLeagues,
-  fetchUsers
+  fetchAnalyticsSeasonReportStrict,
+  fetchCurrentSeasonStrict,
+  fetchLeaderboardStrict,
+  fetchLeaguesStrict,
+  fetchUsersStrict
 } from "../api";
 
-const fallbackSeasonInfo = {
-  name: "Season 01",
-  daysLeft: 60,
-  valueProp: "Queues, drafts, and proofs aligned for ranked play."
+const unavailableSeasonInfo = {
+  name: "Season data unavailable",
+  daysLeft: 0,
+  valueProp: "Live service data is currently unavailable."
 };
-
-const fallbackLeaderboardRows: LeaderboardRow[] = [
-  { rank: 1, player: "Ellen", elo: 1982, record: "42-18", region: "NA", league: "Standard" },
-  { rank: 2, player: "Lycaon", elo: 1910, record: "39-20", region: "EU", league: "Standard" },
-  { rank: 3, player: "Nicole", elo: 1884, record: "36-22", region: "SEA", league: "Standard" },
-  { rank: 4, player: "Anby", elo: 1801, record: "33-24", region: "ASIA", league: "Standard" },
-  { rank: 5, player: "Koleda", elo: 1768, record: "30-26", region: "NA", league: "Standard" },
-  { rank: 1, player: "Nekomata", elo: 1622, record: "19-16", region: "EU", league: "F2P" },
-  { rank: 2, player: "Billy", elo: 1580, record: "18-17", region: "NA", league: "F2P" },
-  { rank: 3, player: "Grace", elo: 1524, record: "16-18", region: "SEA", league: "F2P" },
-  { rank: 1, player: "Rina", elo: 1710, record: "12-6", region: "NA", league: "Unlimited" },
-  { rank: 2, player: "Ben", elo: 1658, record: "10-7", region: "EU", league: "Unlimited" }
-];
-
-const fallbackUpdates: UpdateItem[] = [
-  {
-    id: "u1",
-    title: "Moderation flow upgrade",
-    summary: "Dispute queue now prioritizes demo-first evidence review.",
-    type: "moderation",
-    date: "2 days ago"
-  },
-  {
-    id: "u2",
-    title: "Standard ruleset v1.1",
-    summary: "Adjusted roster caps and clarified proof requirements.",
-    type: "ruleset",
-    date: "5 days ago"
-  },
-  {
-    id: "u3",
-    title: "Season 01 mid-split",
-    summary: "Soft reset delayed; leaderboard badges updated.",
-    type: "season",
-    date: "1 week ago"
-  }
-];
 
 interface EloOption {
   id: string;
@@ -170,44 +133,119 @@ export default function Home() {
 
   const [selectedLeague, setSelectedLeague] = useState("standard");
   const showElo = userState !== "guest";
-  const [seasonInfo, setSeasonInfo] = useState(fallbackSeasonInfo);
-  const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>(fallbackLeaderboardRows);
-  const [updates, setUpdates] = useState<UpdateItem[]>(fallbackUpdates);
+  const [seasonInfo, setSeasonInfo] = useState(unavailableSeasonInfo);
+  const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
+  const [updates, setUpdates] = useState<UpdateItem[]>([]);
+  const [homeLoading, setHomeLoading] = useState(true);
+  const [homeError, setHomeError] = useState<string | null>(null);
+
+  const toErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message.trim()) {
+      return error.message;
+    }
+    return fallback;
+  };
 
   useEffect(() => {
     let active = true;
 
     const load = async () => {
-      try {
-        const [leagues, users, seasonReport, season] = await Promise.all([
-          fetchLeagues(),
-          fetchUsers(),
-          fetchAnalyticsSeasonReport(),
-          fetchCurrentSeason()
-        ]);
-        if (active && season) {
-          const daysLeft = Math.max(
-            0,
-            Math.ceil((season.endsAt - Date.now()) / (1000 * 60 * 60 * 24))
-          );
-          setSeasonInfo({
-            name: season.name,
-            daysLeft,
-            valueProp: fallbackSeasonInfo.valueProp
-          });
-        }
+      setHomeLoading(true);
+      setHomeError(null);
 
-        const userMap = new Map(users.map((item) => [item.id, item]));
-        const selectedLeagues = leagues.slice(0, 3);
-        const perLeague = await Promise.all(
+      const errors: string[] = [];
+      const [leaguesResult, usersResult, seasonReportResult, seasonResult] = await Promise.allSettled([
+        fetchLeaguesStrict(),
+        fetchUsersStrict(),
+        fetchAnalyticsSeasonReportStrict(),
+        fetchCurrentSeasonStrict()
+      ]);
+
+      if (!active) {
+        return;
+      }
+
+      const leagues = leaguesResult.status === "fulfilled" ? leaguesResult.value : [];
+      const users = usersResult.status === "fulfilled" ? usersResult.value : [];
+      const seasonReport = seasonReportResult.status === "fulfilled" ? seasonReportResult.value : null;
+      const season = seasonResult.status === "fulfilled" ? seasonResult.value : null;
+
+      if (leaguesResult.status === "rejected") {
+        errors.push(toErrorMessage(leaguesResult.reason, "Failed to load leagues."));
+      }
+      if (usersResult.status === "rejected") {
+        errors.push(toErrorMessage(usersResult.reason, "Failed to load users."));
+      }
+      if (seasonReportResult.status === "rejected") {
+        errors.push(toErrorMessage(seasonReportResult.reason, "Failed to load season report."));
+      }
+      if (seasonResult.status === "rejected") {
+        errors.push(toErrorMessage(seasonResult.reason, "Failed to load current season."));
+      }
+
+      if (season) {
+        const daysLeft = Math.max(
+          0,
+          Math.ceil((season.endsAt - Date.now()) / (1000 * 60 * 60 * 24))
+        );
+        setSeasonInfo({
+          name: season.name,
+          daysLeft,
+          valueProp: "Queues, drafts, and proofs aligned for ranked play."
+        });
+      } else {
+        setSeasonInfo(unavailableSeasonInfo);
+      }
+
+      if (seasonReport) {
+        setUpdates([
+          {
+            id: "season_report",
+            title: `Season ${seasonReport.seasonId}`,
+            summary: `Resolved matches: ${seasonReport.totalMatches}. Moderation resolves: ${seasonReport.resolvedWithModeration}.`,
+            type: "season",
+            date: "Live"
+          },
+          {
+            id: "disputes_open",
+            title: "Open dispute load",
+            summary: `${seasonReport.disputedOpen} active disputes in queue.`,
+            type: "moderation",
+            date: "Live"
+          },
+          {
+            id: "ruleset_status",
+            title: "Ruleset status",
+            summary: "Ranked queues enforce verified roster eligibility in draft.",
+            type: "ruleset",
+            date: "Live"
+          }
+        ]);
+      } else {
+        setUpdates([]);
+      }
+
+      const userMap = new Map(users.map((item) => [item.id, item]));
+      const selectedLeagues = leagues.slice(0, 3);
+      if (selectedLeagues.length > 0) {
+        const perLeague = await Promise.allSettled(
           selectedLeagues.map(async (league) => ({
             league,
-            ratings: await fetchLeaderboard(league.id)
+            ratings: await fetchLeaderboardStrict(league.id)
           }))
         );
 
+        if (!active) {
+          return;
+        }
+
         const rows: LeaderboardRow[] = [];
-        perLeague.forEach(({ league, ratings }) => {
+        perLeague.forEach((result) => {
+          if (result.status !== "fulfilled") {
+            errors.push(toErrorMessage(result.reason, "Failed to load leaderboard."));
+            return;
+          }
+          const { league, ratings } = result.value;
           const leagueLabel: "F2P" | "Standard" | "Unlimited" =
             league.type === "F2P"
               ? "F2P"
@@ -227,41 +265,13 @@ export default function Home() {
           });
         });
 
-        if (active && rows.length > 0) {
-          setLeaderboardRows(rows);
-        }
-        if (active) {
-          setUpdates([
-            {
-              id: "season_report",
-              title: `Season ${seasonReport.seasonId}`,
-              summary: `Resolved matches: ${seasonReport.totalMatches}. Moderation resolves: ${seasonReport.resolvedWithModeration}.`,
-              type: "season",
-              date: "Live"
-            },
-            {
-              id: "disputes_open",
-              title: "Open dispute load",
-              summary: `${seasonReport.disputedOpen} active disputes in queue.`,
-              type: "moderation",
-              date: "Live"
-            },
-            {
-              id: "ruleset_status",
-              title: "Ruleset status",
-              summary: "Ranked queues enforce verified roster eligibility in draft.",
-              type: "ruleset",
-              date: "Live"
-            }
-          ]);
-        }
-      } catch {
-        if (active) {
-          setLeaderboardRows(fallbackLeaderboardRows);
-          setUpdates(fallbackUpdates);
-          setSeasonInfo(fallbackSeasonInfo);
-        }
+        setLeaderboardRows(rows);
+      } else {
+        setLeaderboardRows([]);
       }
+
+      setHomeError(errors.length > 0 ? errors[0] ?? "Failed to load home data." : null);
+      setHomeLoading(false);
     };
 
     void load();
@@ -270,7 +280,7 @@ export default function Home() {
     };
   }, []);
 
-  if (isLoading) {
+  if (isLoading || homeLoading) {
     return <HomeSkeleton />;
   }
 
@@ -279,6 +289,11 @@ export default function Home() {
       <div className="mx-auto w-full max-w-[1280px] px-6 pb-20 pt-10">
         <div className="grid grid-cols-12 gap-8">
           <div className="col-span-12">
+            {homeError ? (
+              <div className="mb-6 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-ink-900">
+                Home data is degraded: {homeError}
+              </div>
+            ) : null}
             <HomeHeader
               state={userState}
               season={seasonInfo}

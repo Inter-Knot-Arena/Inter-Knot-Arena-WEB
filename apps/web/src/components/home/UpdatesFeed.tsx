@@ -43,6 +43,11 @@ export function UpdatesFeed({ items, variant = "card" }: UpdatesFeedProps) {
         </Button>
       </div>
       <div className="mt-5 space-y-4">
+        {items.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border bg-ika-700/20 p-4 text-sm text-ink-500">
+            No live platform updates available.
+          </div>
+        ) : null}
         {items.map((item) => (
           <div key={item.id} className="flex items-start gap-4 rounded-lg border border-border bg-ika-700/30 p-4">
             <div className="rounded-full border border-border bg-ika-800/70 p-2 text-ink-700">

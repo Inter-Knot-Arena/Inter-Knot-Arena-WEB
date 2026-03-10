@@ -76,6 +76,13 @@ export function LeaderboardPreviewTable({ rows, variant = "card" }: LeaderboardP
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
+            {filteredRows.length === 0 ? (
+              <tr>
+                <td className="px-6 py-8 text-center text-sm text-ink-500" colSpan={5}>
+                  No live leaderboard data available.
+                </td>
+              </tr>
+            ) : null}
             {filteredRows.map((row) => {
               const chipClass =
                 rankChipStyles[row.rank] ?? "border-border bg-ika-700/40 text-ink-700";

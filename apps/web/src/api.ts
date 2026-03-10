@@ -147,8 +147,16 @@ export function fetchLeagues(): Promise<League[]> {
   return requestJsonOr<League[]>("/leagues", []);
 }
 
+export function fetchLeaguesStrict(): Promise<League[]> {
+  return requestJson<League[]>("/leagues");
+}
+
 export function fetchCurrentSeason(): Promise<Season | null> {
   return requestJsonOr<Season | null>("/seasons/current", null);
+}
+
+export function fetchCurrentSeasonStrict(): Promise<Season> {
+  return requestJson<Season>("/seasons/current");
 }
 
 export function fetchLobbyStats(): Promise<LobbyStats[]> {
@@ -160,6 +168,11 @@ export async function fetchLeaderboard(leagueId: string): Promise<Rating[]> {
     `/leaderboards/${leagueId}`,
     { leagueId, ratings: [] }
   );
+  return data.ratings;
+}
+
+export async function fetchLeaderboardStrict(leagueId: string): Promise<Rating[]> {
+  const data = await requestJson<{ leagueId: string; ratings: Rating[] }>(`/leaderboards/${leagueId}`);
   return data.ratings;
 }
 
@@ -181,6 +194,10 @@ export function fetchChallenges(): Promise<Challenge[]> {
 
 export function fetchUsers(): Promise<User[]> {
   return requestJsonOr<User[]>("/users", []);
+}
+
+export function fetchUsersStrict(): Promise<User[]> {
+  return requestJson<User[]>("/users");
 }
 
 export function fetchProfile(userId: string): Promise<ProfileSummary> {
@@ -566,6 +583,10 @@ export function fetchAnalyticsSeasonReport(): Promise<SeasonReport> {
     resolvedWithModeration: 0,
     averageMatchDurationSec: null
   });
+}
+
+export function fetchAnalyticsSeasonReportStrict(): Promise<SeasonReport> {
+  return requestJson<SeasonReport>("/analytics/season/report");
 }
 
 export function requestPresignedUpload(payload: {
