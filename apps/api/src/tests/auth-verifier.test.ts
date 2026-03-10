@@ -20,19 +20,25 @@ function createEvidenceSignature(args: {
   matchId: string;
   userId: string;
   type: "PRECHECK" | "INRUN";
+  detectedAgents: string[];
+  confidence?: Record<string, number>;
   result: "PASS" | "VIOLATION" | "LOW_CONF";
   frameHash: string;
   nonce: string;
   token: string;
 }): string {
-  const payload = [
-    args.matchId,
-    args.userId,
-    args.type,
-    args.result,
-    args.frameHash,
-    args.nonce
-  ].join(":");
+  const payload = JSON.stringify({
+    matchId: args.matchId,
+    userId: args.userId,
+    type: args.type,
+    result: args.result,
+    frameHash: args.frameHash,
+    detectedAgents: args.detectedAgents,
+    confidence: Object.fromEntries(
+      Object.entries(args.confidence ?? {}).sort(([left], [right]) => left.localeCompare(right))
+    ),
+    nonce: args.nonce
+  });
   return createHmac("sha256", args.token).update(payload).digest("hex");
 }
 
@@ -581,6 +587,8 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
     matchId,
     userId: userBId,
     type: "PRECHECK",
+    detectedAgents: ["agent_anby", "agent_nicole", "agent_ellen"],
+    confidence: { agent_anby: 0.9, agent_nicole: 0.9, agent_ellen: 0.9 },
     result: "PASS",
     frameHash: frameHashInvalid,
     nonce: nonceInvalid,
@@ -628,6 +636,8 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
     matchId,
     userId: userAId,
     type: "PRECHECK",
+    detectedAgents: ["agent_anby", "agent_nicole"],
+    confidence: { agent_anby: 0.78, agent_nicole: 0.76 },
     result: "LOW_CONF",
     frameHash: frameHashLowConf,
     nonce: nonceLowConf,
@@ -658,6 +668,8 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
     matchId,
     userId: userAId,
     type: "PRECHECK",
+    detectedAgents: ["agent_anby", "agent_nicole", "agent_ellen"],
+    confidence: { agent_anby: 0.95, agent_nicole: 0.94, agent_ellen: 0.95 },
     result: "PASS",
     frameHash: frameHashPass,
     nonce: replayNonce,
@@ -699,4 +711,33 @@ test("verifier precheck enforces user-bound signatures, nonce replay checks, and
   });
   assert.equal(replay.statusCode, 409);
   assert.equal((replay.json() as { code: string }).code, "NONCE_REPLAY");
+
+  const tamperedAgents = await app.inject({
+    method: "POST",
+    url: `/matches/${encodeURIComponent(matchId)}/evidence/precheck`,
+    headers: {
+      authorization: `Bearer ${tokenA.accessToken}`
+    },
+    payload: {
+      detectedAgents: ["agent_anby", "agent_nicole", "agent_billy"],
+      confidence: { agent_anby: 0.95, agent_nicole: 0.94, agent_billy: 0.95 },
+      result: "PASS",
+      frameHash: "frame-tampered",
+      verifierSessionToken,
+      verifierNonce: "nonce-tampered",
+      verifierSignature: createEvidenceSignature({
+        matchId,
+        userId: userAId,
+        type: "PRECHECK",
+        detectedAgents: ["agent_anby", "agent_nicole", "agent_ellen"],
+        confidence: { agent_anby: 0.95, agent_nicole: 0.94, agent_ellen: 0.95 },
+        result: "PASS",
+        frameHash: "frame-tampered",
+        nonce: "nonce-tampered",
+        token: verifierSessionToken
+      })
+    }
+  });
+  assert.equal(tamperedAgents.statusCode, 401);
+  assert.equal((tamperedAgents.json() as { code: string }).code, "INVALID_SIGNATURE");
 });

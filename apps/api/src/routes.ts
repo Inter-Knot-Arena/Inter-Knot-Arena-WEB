@@ -59,23 +59,49 @@ interface VerifierSession {
   usedNonces: Set<string>;
 }
 
+function canonicalizeConfidenceMap(confidence: Record<string, number> | undefined): Record<string, number> {
+  if (!confidence) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(confidence).sort(([left], [right]) => left.localeCompare(right))
+  );
+}
+
+function buildVerifierSignaturePayload(params: {
+  matchId: string;
+  userId: string;
+  type: "PRECHECK" | "INRUN";
+  result: EvidenceResult;
+  frameHash?: string;
+  detectedAgents: string[];
+  confidence?: Record<string, number>;
+  nonce: string;
+}): string {
+  return JSON.stringify({
+    matchId: params.matchId,
+    userId: params.userId,
+    type: params.type,
+    result: params.result,
+    frameHash: params.frameHash ?? "",
+    detectedAgents: params.detectedAgents,
+    confidence: canonicalizeConfidenceMap(params.confidence),
+    nonce: params.nonce
+  });
+}
+
 function buildVerifierSignature(params: {
   matchId: string;
   userId: string;
   type: "PRECHECK" | "INRUN";
   result: EvidenceResult;
   frameHash?: string;
+  detectedAgents: string[];
+  confidence?: Record<string, number>;
   nonce: string;
   token: string;
 }): string {
-  const payload = [
-    params.matchId,
-    params.userId,
-    params.type,
-    params.result,
-    params.frameHash ?? "",
-    params.nonce
-  ].join(":");
+  const payload = buildVerifierSignaturePayload(params);
   return createHmac("sha256", params.token).update(payload).digest("hex");
 }
 
@@ -349,6 +375,8 @@ export async function registerRoutes(
     match: Match;
     user: User;
     type: "PRECHECK" | "INRUN";
+    detectedAgents: string[];
+    confidence: Record<string, number>;
     result: EvidenceResult;
     frameHash?: string;
     verifierSessionToken?: string;
@@ -388,6 +416,8 @@ export async function registerRoutes(
       matchId: args.match.id,
       userId: args.user.id,
       type: args.type,
+      detectedAgents: args.detectedAgents,
+      confidence: args.confidence,
       result: args.result,
       frameHash: args.frameHash,
       nonce,
@@ -943,6 +973,8 @@ export async function registerRoutes(
             match,
             user,
             type: "PRECHECK",
+            detectedAgents: record.detectedAgents,
+            confidence: record.confidence,
             result: record.result,
             frameHash: record.frameHash,
             verifierSessionToken: body?.verifierSessionToken,
@@ -1018,6 +1050,8 @@ export async function registerRoutes(
             match,
             user,
             type: "INRUN",
+            detectedAgents: record.detectedAgents,
+            confidence: record.confidence,
             result: record.result,
             frameHash: record.frameHash,
             verifierSessionToken: body?.verifierSessionToken,
