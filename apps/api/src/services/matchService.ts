@@ -7,6 +7,7 @@
   MatchState,
   Rating,
   ResultProof,
+  Ruleset,
   User
 } from "@ika/shared";
 import {
@@ -270,20 +271,20 @@ export async function recordResult(
       throw new Error("Result submission requires successful pre-check for both players");
     }
   }
+  const mergedResult = mergeResultProof(match.evidence.result, result);
   if (ruleset.requireInrunCheck) {
     const hasViolation = match.evidence.inrun.some((item) => item.result === "VIOLATION");
     if (hasViolation) {
       throw new Error("Result submission is blocked due to in-run violation");
     }
-    const inrunUsers = new Set(
-      match.evidence.inrun.filter((item) => item.userId).map((item) => item.userId as string)
-    );
-    const allPlayersCaptured = match.players.every((player) => inrunUsers.has(player.userId));
-    if (!allPlayersCaptured) {
-      throw new Error("Result submission requires in-run evidence from both players");
+    const coverage = summarizeInrunCoverage(match, ruleset, mergedResult.submittedAt);
+    if (coverage.missingUsers.length > 0) {
+      const intervalLabel = coverage.requiredIntervals === 1 ? "interval" : "intervals";
+      throw new Error(
+        `Result submission requires ${coverage.requiredIntervals} covered in-run ${intervalLabel} per player`
+      );
     }
   }
-  const mergedResult = mergeResultProof(match.evidence.result, result);
 
   if (match.state === "READY_TO_START") {
     transitionMatch(match, "IN_PROGRESS");
@@ -497,6 +498,119 @@ async function ensureAutoDispute(
     status: "OPEN",
     createdAt: now()
   });
+}
+
+function summarizeInrunCoverage(
+  match: Match,
+  ruleset: Pick<Ruleset, "inrunFrequencySec" | "evidencePolicy">,
+  resultSubmittedAt: number
+): { requiredIntervals: number; missingUsers: string[] } {
+  const frequencyMs = Math.max(1, ruleset.inrunFrequencySec) * 1000;
+  const monitoringStartedAt = inferInrunMonitoringStartedAt(match, ruleset, frequencyMs);
+  if (monitoringStartedAt === undefined) {
+    return {
+      requiredIntervals: 0,
+      missingUsers: []
+    };
+  }
+
+  const requiredIntervals = Math.floor(Math.max(0, resultSubmittedAt - monitoringStartedAt) / frequencyMs);
+  if (requiredIntervals <= 0) {
+    return {
+      requiredIntervals: 0,
+      missingUsers: []
+    };
+  }
+
+  const slotGraceMs = Math.min(2_000, Math.floor(frequencyMs / 4));
+  const coveredIntervalsByUser = new Map<string, Set<number>>(
+    match.players.map((player) => [player.userId, new Set<number>()])
+  );
+
+  for (const record of match.evidence.inrun) {
+    if (!record.userId || record.result === "VIOLATION") {
+      continue;
+    }
+    const intervals = coveredIntervalsByUser.get(record.userId);
+    if (!intervals) {
+      continue;
+    }
+    const intervalIndex = Math.floor(
+      (record.timestamp - monitoringStartedAt + slotGraceMs) / frequencyMs
+    );
+    if (intervalIndex >= 1 && intervalIndex <= requiredIntervals) {
+      intervals.add(intervalIndex);
+    }
+  }
+
+  const missingUsers = match.players
+    .filter((player) => {
+      const intervals = coveredIntervalsByUser.get(player.userId);
+      if (!intervals) {
+        return true;
+      }
+      for (let interval = 1; interval <= requiredIntervals; interval += 1) {
+        if (!intervals.has(interval)) {
+          return true;
+        }
+      }
+      return false;
+    })
+    .map((player) => player.userId);
+
+  return {
+    requiredIntervals,
+    missingUsers
+  };
+}
+
+function inferInrunMonitoringStartedAt(
+  match: Match,
+  ruleset: Pick<Ruleset, "evidencePolicy">,
+  frequencyMs: number
+): number | undefined {
+  const readyToStartAt = inferReadyToStartAt(match, ruleset);
+  const firstInrunAt = match.evidence.inrun.reduce<number | undefined>((earliest, record) => {
+    if (!Number.isFinite(record.timestamp)) {
+      return earliest;
+    }
+    if (earliest === undefined || record.timestamp < earliest) {
+      return record.timestamp;
+    }
+    return earliest;
+  }, undefined);
+
+  if (firstInrunAt === undefined) {
+    return readyToStartAt;
+  }
+
+  return Math.max(readyToStartAt ?? firstInrunAt, firstInrunAt - frequencyMs);
+}
+
+function inferReadyToStartAt(
+  match: Match,
+  ruleset: Pick<Ruleset, "evidencePolicy">
+): number | undefined {
+  if (ruleset.evidencePolicy.precheckRequired) {
+    const playerIds = new Set(match.players.map((player) => player.userId));
+    const successfulPrechecks = match.evidence.precheck.filter(
+      (record) => record.result === "PASS" && record.userId && playerIds.has(record.userId)
+    );
+    if (successfulPrechecks.length >= playerIds.size && successfulPrechecks.length > 0) {
+      return Math.max(...successfulPrechecks.map((record) => record.timestamp));
+    }
+  }
+
+  const draftCompletedAt = match.draft.actions[match.draft.actions.length - 1]?.timestamp;
+  if (Number.isFinite(draftCompletedAt)) {
+    return draftCompletedAt;
+  }
+
+  if (match.state === "READY_TO_START") {
+    return match.updatedAt;
+  }
+
+  return undefined;
 }
 
 async function finalizeMatchResolution(
