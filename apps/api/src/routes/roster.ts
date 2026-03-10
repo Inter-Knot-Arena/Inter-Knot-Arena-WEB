@@ -86,6 +86,131 @@ function parseRegion(value: unknown): Region | null {
   return REGIONS.includes(value as Region) ? (value as Region) : null;
 }
 
+function normalizeConfidenceMap(
+  value: unknown,
+  context: string
+): Record<string, number> | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new RouteError(
+      `${context} must be an object.`,
+      400,
+      "INVALID_VERIFIER_CONFIDENCE_MAP"
+    );
+  }
+
+  const normalized: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw !== "number" || !Number.isFinite(raw) || raw < 0 || raw > 1) {
+      throw new RouteError(
+        `${context}.${key} is invalid. Expected range [0, 1].`,
+        400,
+        "INVALID_VERIFIER_CONFIDENCE_VALUE"
+      );
+    }
+    normalized[key] = raw;
+  }
+  return normalized;
+}
+
+function normalizeNumberMap(
+  value: unknown,
+  context: string
+): Record<string, number> | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new RouteError(`${context} must be an object.`, 400, "INVALID_VERIFIER_NUMERIC_MAP");
+  }
+
+  const normalized: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw !== "number" || !Number.isFinite(raw)) {
+      throw new RouteError(
+        `${context}.${key} must be a finite number.`,
+        400,
+        "INVALID_VERIFIER_NUMERIC_VALUE"
+      );
+    }
+    normalized[key] = raw;
+  }
+  return normalized;
+}
+
+function normalizeBooleanMap(
+  value: unknown,
+  context: string
+): Record<string, boolean> | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new RouteError(`${context} must be an object.`, 400, "INVALID_VERIFIER_BOOLEAN_MAP");
+  }
+
+  const normalized: Record<string, boolean> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw !== "boolean") {
+      throw new RouteError(
+        `${context}.${key} must be a boolean.`,
+        400,
+        "INVALID_VERIFIER_BOOLEAN_VALUE"
+      );
+    }
+    normalized[key] = raw;
+  }
+  return normalized;
+}
+
+function normalizeStringMap(
+  value: unknown,
+  context: string
+): Record<string, string> | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new RouteError(`${context} must be an object.`, 400, "INVALID_VERIFIER_STRING_MAP");
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof raw !== "string") {
+      throw new RouteError(
+        `${context}.${key} must be a string.`,
+        400,
+        "INVALID_VERIFIER_STRING_VALUE"
+      );
+    }
+    normalized[key] = raw;
+  }
+  return normalized;
+}
+
+function normalizeOptionalString(value: unknown, fieldName: string): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new RouteError(`${fieldName} must be a string.`, 400, "INVALID_VERIFIER_STRING");
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeOptionalNumber(value: unknown, fieldName: string): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new RouteError(`${fieldName} must be a non-negative number.`, 400, "INVALID_VERIFIER_NUMBER");
+  }
+  return value;
+}
+
 function buildEnkaUrl(uid: string, region: Region, includeRegion = true): string {
   const base = process.env.ENKA_BASE_URL ?? "https://enka.network/api/zzz/uid";
   const trimmed = base.replace(/\/+$/, "");
@@ -298,19 +423,35 @@ export async function registerRosterRoutes(
         uid?: string;
         region?: string;
         fullSync?: boolean;
+        modelVersion?: string;
+        dataVersion?: string;
+        scanMeta?: string;
+        timingMs?: number;
+        resolution?: string;
+        locale?: string;
         lowConfReasons?: string[];
+        confidenceByField?: Record<string, number>;
+        fieldSources?: Record<string, string>;
+        capabilities?: Record<string, boolean>;
         agents?: Array<{
           agentId?: string;
           owned?: boolean;
           level?: number;
+          levelCap?: number;
           dupes?: number;
           mindscape?: number;
+          mindscapeCap?: number;
           promotion?: number;
           talent?: number;
           core?: number;
+          stats?: Record<string, number>;
           weapon?: PlayerAgentDynamic["weapon"];
+          weaponPresent?: boolean;
+          discSlotOccupancy?: Record<string, boolean>;
           discs?: PlayerAgentDynamic["discs"];
+          confidenceByField?: Record<string, number>;
           confidence?: Record<string, number>;
+          fieldSources?: Record<string, string>;
         }>;
       };
 
@@ -337,6 +478,18 @@ export async function registerRosterRoutes(
             .map((value) => value.trim())
             .filter(Boolean)
         : [];
+      const importConfidenceByField = normalizeConfidenceMap(
+        body.confidenceByField,
+        "confidenceByField"
+      );
+      const importFieldSources = normalizeStringMap(body.fieldSources, "fieldSources");
+      const importCapabilities = normalizeBooleanMap(body.capabilities, "capabilities");
+      const modelVersion = normalizeOptionalString(body.modelVersion, "modelVersion");
+      const dataVersion = normalizeOptionalString(body.dataVersion, "dataVersion");
+      const scanMeta = normalizeOptionalString(body.scanMeta, "scanMeta");
+      const resolution = normalizeOptionalString(body.resolution, "resolution");
+      const locale = normalizeOptionalString(body.locale, "locale");
+      const timingMs = normalizeOptionalNumber(body.timingMs, "timingMs");
       const catalogData = catalog.getCatalog();
       const catalogIds = new Set(catalogData.agents.map((agent) => agent.agentId));
       const unknownIds: string[] = [];
@@ -352,36 +505,39 @@ export async function registerRosterRoutes(
           unknownIds.push(agentId);
           continue;
         }
-        if (raw?.confidence && (typeof raw.confidence !== "object" || Array.isArray(raw.confidence))) {
-          throw new RouteError(
-            `confidence map is invalid for agent '${agentId}'.`,
-            400,
-            "INVALID_VERIFIER_CONFIDENCE_MAP"
-          );
-        }
-        const confidence = raw?.confidence ?? {};
-        for (const [key, value] of Object.entries(confidence)) {
-          if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) {
-            throw new RouteError(
-              `confidence.${key} is invalid for agent '${agentId}'. Expected range [0, 1].`,
-              400,
-              "INVALID_VERIFIER_CONFIDENCE_VALUE"
-            );
-          }
-        }
+        const confidenceByField = normalizeConfidenceMap(
+          raw?.confidenceByField ?? raw?.confidence,
+          `confidenceByField for agent '${agentId}'`
+        );
+        const stats = normalizeNumberMap(raw?.stats, `stats for agent '${agentId}'`);
+        const discSlotOccupancy = normalizeBooleanMap(
+          raw?.discSlotOccupancy,
+          `discSlotOccupancy for agent '${agentId}'`
+        );
+        const fieldSources = normalizeStringMap(
+          raw?.fieldSources,
+          `fieldSources for agent '${agentId}'`
+        );
 
         scannedById.set(agentId, {
           agentId,
           owned: raw.owned ?? true,
           level: raw.level,
+          levelCap: raw.levelCap,
           dupes: raw.dupes,
           mindscape: raw.mindscape,
+          mindscapeCap: raw.mindscapeCap,
           promotion: raw.promotion,
           talent: raw.talent,
           core: raw.core,
+          stats,
           weapon: raw.weapon,
+          weaponPresent: raw.weaponPresent,
+          discSlotOccupancy,
           discs: raw.discs,
-          confidence: raw.confidence,
+          confidenceByField,
+          confidence: confidenceByField,
+          fieldSources,
           source: "VERIFIER_OCR",
           lastImportedAt: importedAt,
           updatedAt: importedAt
@@ -422,6 +578,16 @@ export async function registerRosterRoutes(
         unknownIds,
         fetchedAt: importedAt,
         status: lowConfReasons.length > 0 ? "DEGRADED" : "SUCCESS",
+        modelVersion,
+        dataVersion,
+        scanMeta,
+        timingMs,
+        resolution,
+        locale,
+        lowConfReasons,
+        confidenceByField: importConfidenceByField,
+        fieldSources: importFieldSources,
+        capabilities: importCapabilities,
         message:
           lowConfReasons.length > 0
             ? `Verifier roster sync completed with low confidence: ${lowConfReasons.join(", ")}.`
