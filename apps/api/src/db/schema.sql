@@ -193,6 +193,26 @@ CREATE INDEX IF NOT EXISTS idx_verifier_tokens_expires_at
 CREATE INDEX IF NOT EXISTS idx_verifier_tokens_user_kind
   ON verifier_tokens (user_id, kind);
 
+CREATE TABLE IF NOT EXISTS uid_verification_pending (
+  user_id text PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  code text NOT NULL,
+  uid text NOT NULL,
+  region text NOT NULL,
+  created_at bigint NOT NULL,
+  expires_at bigint NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_uid_verification_pending_expires_at
+  ON uid_verification_pending (expires_at);
+
+CREATE TABLE IF NOT EXISTS uid_verification_attempts (
+  user_id text PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  started_at bigint NOT NULL,
+  count integer NOT NULL,
+  expires_at bigint NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_uid_verification_attempts_expires_at
+  ON uid_verification_attempts (expires_at);
+
 CREATE TABLE IF NOT EXISTS queues (
   id text PRIMARY KEY,
   league_id text NOT NULL REFERENCES leagues(id) ON DELETE CASCADE,
@@ -224,6 +244,19 @@ CREATE TABLE IF NOT EXISTS matches (
 );
 
 ALTER TABLE matches ADD COLUMN IF NOT EXISTS resolution jsonb;
+
+CREATE TABLE IF NOT EXISTS verifier_sessions (
+  token text PRIMARY KEY,
+  match_id text NOT NULL REFERENCES matches(id) ON DELETE CASCADE,
+  user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at bigint NOT NULL,
+  expires_at bigint NOT NULL,
+  used_nonces jsonb NOT NULL DEFAULT '[]'::jsonb
+);
+CREATE INDEX IF NOT EXISTS idx_verifier_sessions_expires_at
+  ON verifier_sessions (expires_at);
+CREATE INDEX IF NOT EXISTS idx_verifier_sessions_match_user
+  ON verifier_sessions (match_id, user_id);
 
 CREATE TABLE IF NOT EXISTS matchmaking_queue (
   id text PRIMARY KEY,

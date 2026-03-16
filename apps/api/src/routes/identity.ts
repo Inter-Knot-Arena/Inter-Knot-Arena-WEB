@@ -3,13 +3,9 @@ import type { Repository } from "../repository/types.js";
 import type { Region, User } from "@ika/shared";
 import { getAuthUser, type AuthContext } from "../auth/context.js";
 import { now, requireString } from "../utils.js";
+import type { VerificationStateStore } from "../verificationState/types.js";
 
 const REGIONS: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
-const pendingMap = new Map<
-  string,
-  { code: string; uid: string; region: Region; createdAt: number }
->();
-const verifyAttemptMap = new Map<string, { startedAt: number; count: number }>();
 const pendingTtlMs = Number(process.env.UID_VERIFY_PENDING_TTL_MS ?? 30 * 60 * 1000);
 const attemptWindowMs = Number(process.env.UID_VERIFY_RATE_WINDOW_MS ?? 10 * 60 * 1000);
 const attemptMax = Number(process.env.UID_VERIFY_RATE_MAX_ATTEMPTS ?? 20);
@@ -43,24 +39,29 @@ function isValidProofUrl(value: string): boolean {
   }
 }
 
-function purgeExpiredPending(timestamp = now()): void {
-  for (const [userId, pending] of pendingMap.entries()) {
-    if (timestamp - pending.createdAt > pendingTtlMs) {
-      pendingMap.delete(userId);
-    }
-  }
-}
-
-function assertAttemptRateLimit(userId: string): void {
+async function assertAttemptRateLimit(
+  userId: string,
+  verificationState: VerificationStateStore
+): Promise<void> {
   const timestamp = now();
-  const row = verifyAttemptMap.get(userId);
-  if (!row || timestamp - row.startedAt > attemptWindowMs) {
-    verifyAttemptMap.set(userId, { startedAt: timestamp, count: 1 });
+  const row = await verificationState.findUidVerificationAttempt(userId);
+  if (!row || row.expiresAt <= timestamp) {
+    await verificationState.saveUidVerificationAttempt({
+      userId,
+      startedAt: timestamp,
+      count: 1,
+      expiresAt: timestamp + attemptWindowMs
+    });
     return;
   }
-  row.count += 1;
-  verifyAttemptMap.set(userId, row);
-  if (row.count > attemptMax) {
+  const nextCount = row.count + 1;
+  await verificationState.saveUidVerificationAttempt({
+    userId,
+    startedAt: row.startedAt,
+    count: nextCount,
+    expiresAt: row.expiresAt
+  });
+  if (nextCount > attemptMax) {
     throw new Error("Too many UID verification attempts. Please retry later.");
   }
 }
@@ -76,7 +77,8 @@ function generateCode(): string {
 export async function registerIdentityRoutes(
   app: FastifyInstance,
   repo: Repository,
-  auth: AuthContext
+  auth: AuthContext,
+  verificationState: VerificationStateStore
 ) {
   app.post("/identity/uid/submit", async (request, reply) => {
     try {
@@ -91,8 +93,8 @@ export async function registerIdentityRoutes(
         reply.code(401).send({ error: "Unauthorized" });
         return;
       }
-      assertAttemptRateLimit(user.id);
-      purgeExpiredPending();
+      await assertAttemptRateLimit(user.id, verificationState);
+      await verificationState.purgeExpired();
 
       const body = request.body as { uid?: string; region?: string };
       const uid = requireString(body?.uid, "uid");
@@ -105,7 +107,15 @@ export async function registerIdentityRoutes(
       }
 
       const code = generateCode();
-      pendingMap.set(user.id, { code, uid, region, createdAt: now() });
+      const createdAt = now();
+      await verificationState.saveUidVerificationPending({
+        userId: user.id,
+        code,
+        uid,
+        region,
+        createdAt,
+        expiresAt: createdAt + pendingTtlMs
+      });
 
       const updated: User = {
         ...user,
@@ -134,8 +144,8 @@ export async function registerIdentityRoutes(
         reply.code(401).send({ error: "Unauthorized" });
         return;
       }
-      assertAttemptRateLimit(user.id);
-      purgeExpiredPending();
+      await assertAttemptRateLimit(user.id, verificationState);
+      await verificationState.purgeExpired();
 
       const body = request.body as { uid?: string; region?: string; code?: string; proofUrl?: string };
       const uid = requireString(body?.uid, "uid");
@@ -152,12 +162,12 @@ export async function registerIdentityRoutes(
         throw new Error("proofUrl must be a valid URL");
       }
 
-      const pending = pendingMap.get(user.id);
+      const pending = await verificationState.findUidVerificationPending(user.id);
       if (!pending) {
         throw new Error("No pending UID verification found");
       }
-      if (now() - pending.createdAt > pendingTtlMs) {
-        pendingMap.delete(user.id);
+      if (pending.expiresAt <= now()) {
+        await verificationState.deleteUidVerificationPending(user.id);
         throw new Error("UID verification request expired. Submit again.");
       }
       if (pending.code !== code) {
@@ -174,7 +184,7 @@ export async function registerIdentityRoutes(
         updatedAt: now()
       };
       await repo.saveUser(updated);
-      pendingMap.delete(user.id);
+      await verificationState.deleteUidVerificationPending(user.id);
 
       reply.send(updated);
     } catch (error) {

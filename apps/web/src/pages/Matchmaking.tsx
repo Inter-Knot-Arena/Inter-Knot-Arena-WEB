@@ -21,11 +21,11 @@ type LobbyCounters = {
 
 const leagueOrder = ["league_f2p", "league_standard", "league_unlimited"];
 
-function readCurrentUserId(): string {
+function readCurrentUserId(): string | null {
   if (typeof window === "undefined") {
-    return "user_ellen";
+    return null;
   }
-  return window.localStorage.getItem("ika:userId") ?? "user_ellen";
+  return window.localStorage.getItem("ika:userId");
 }
 
 function toLobbyMap(stats: { leagueId: string; waiting: number; inProgress: number }[]) {
@@ -61,14 +61,21 @@ export default function Matchmaking() {
     fetchQueues().then(setQueues);
     fetchChallenges().then(setChallenges);
     fetchLeagues().then(setLeagues);
+    refreshLobbyStats();
+  }, [refreshLobbyStats]);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      setProfile(null);
+      return;
+    }
     fetchProfile(currentUserId)
       .then(setProfile)
       .catch(() => setProfile(null));
-    refreshLobbyStats();
-  }, []);
+  }, [currentUserId]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== "undefined" && currentUserId) {
       window.localStorage.setItem("ika:userId", currentUserId);
     }
   }, [currentUserId]);
@@ -154,6 +161,10 @@ export default function Matchmaking() {
     }
     if (!isAuthed) {
       setStatus("Sign in to join ranked matchmaking.");
+      return;
+    }
+    if (!currentUserId) {
+      setStatus("Profile is still loading. Retry in a moment.");
       return;
     }
     if (isQueueLocked) {

@@ -38,6 +38,7 @@ import { getAuthUser, getVerifierBearerToken, type AuthContext } from "./auth/co
 import type { AuditStore } from "./audit/types.js";
 import type { IdempotencyStore } from "./idempotency/types.js";
 import type { ModerationStore } from "./moderation/types.js";
+import type { VerificationStateStore } from "./verificationState/types.js";
 import { getEnkaMetricsSnapshot } from "./enka/metrics.js";
 
 class HttpError extends Error {
@@ -49,14 +50,6 @@ class HttpError extends Error {
   ) {
     super(message);
   }
-}
-
-interface VerifierSession {
-  token: string;
-  matchId: string;
-  userId: string;
-  expiresAt: number;
-  usedNonces: Set<string>;
 }
 
 function canonicalizeConfidenceMap(confidence: Record<string, number> | undefined): Record<string, number> {
@@ -200,6 +193,7 @@ export async function registerRoutes(
   idempotency: IdempotencyStore,
   rosterStore: PlayerAgentStateStore,
   moderation: ModerationStore,
+  verificationState: VerificationStateStore,
   catalogStore?: CatalogStore
 ) {
   const enforceLifecycle = async () => {
@@ -211,7 +205,6 @@ export async function registerRoutes(
   const uploadMaxRequests = Number(process.env.UPLOAD_RATE_MAX_REQUESTS ?? 30);
   const uploadRateMap = new Map<string, { startedAt: number; count: number }>();
   const verifierSessionTtlMs = Number(process.env.VERIFIER_SESSION_TTL_MS ?? 30 * 60 * 1000);
-  const verifierSessions = new Map<string, VerifierSession>();
 
   const readIdempotencyKey = (request: FastifyRequest): string | null => {
     const raw = request.headers["idempotency-key"];
@@ -364,11 +357,7 @@ export async function registerRoutes(
   };
 
   const purgeExpiredVerifierSessions = (timestamp = now()) => {
-    for (const [token, session] of verifierSessions.entries()) {
-      if (session.expiresAt <= timestamp) {
-        verifierSessions.delete(token);
-      }
-    }
+    return verificationState.purgeExpired(timestamp);
   };
 
   const assertVerifierEvidenceSignature = async (args: {
@@ -399,16 +388,17 @@ export async function registerRoutes(
       );
     }
 
-    purgeExpiredVerifierSessions();
-    const session = verifierSessions.get(sessionToken);
+    await purgeExpiredVerifierSessions();
+    const session = await verificationState.findVerifierSession(sessionToken);
     if (!session || session.matchId !== args.match.id || session.userId !== args.user.id) {
       throw new HttpError(401, "Invalid verifier session token.", "VERIFIER_SESSION_EXPIRED");
     }
     if (session.expiresAt <= now()) {
-      verifierSessions.delete(sessionToken);
+      await verificationState.deleteVerifierSession(sessionToken);
       throw new HttpError(401, "Verifier session token expired.", "VERIFIER_SESSION_EXPIRED");
     }
-    if (session.usedNonces.has(nonce)) {
+    const usedNonces = new Set(session.usedNonces);
+    if (usedNonces.has(nonce)) {
       throw new HttpError(409, "Verifier nonce already used.", "NONCE_REPLAY");
     }
 
@@ -427,14 +417,17 @@ export async function registerRoutes(
       throw new HttpError(401, "Invalid verifier signature.", "INVALID_SIGNATURE");
     }
 
-    session.usedNonces.add(nonce);
-    if (session.usedNonces.size > 2048) {
-      const oldest = session.usedNonces.values().next().value;
+    usedNonces.add(nonce);
+    if (usedNonces.size > 2048) {
+      const oldest = usedNonces.values().next().value;
       if (oldest) {
-        session.usedNonces.delete(oldest);
+        usedNonces.delete(oldest);
       }
     }
-    verifierSessions.set(sessionToken, session);
+    await verificationState.saveVerifierSession({
+      ...session,
+      usedNonces: Array.from(usedNonces)
+    });
   };
 
   app.get("/health", async () => ({ status: "ok" }));
@@ -891,15 +884,17 @@ export async function registerRoutes(
         throw new HttpError(403, "Verifier session requires verified UID account.");
       }
 
-      purgeExpiredVerifierSessions();
+      await purgeExpiredVerifierSessions();
       const token = createId("vsession");
+      const issuedAt = now();
       const expiresAt = now() + verifierSessionTtlMs;
-      verifierSessions.set(token, {
+      await verificationState.saveVerifierSession({
         token,
         matchId,
         userId: user.id,
+        createdAt: issuedAt,
         expiresAt,
-        usedNonces: new Set<string>()
+        usedNonces: []
       });
 
       await recordAudit({

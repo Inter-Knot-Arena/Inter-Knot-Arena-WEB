@@ -18,6 +18,7 @@ import { readMatchLifecycleConfig, runMatchLifecycle } from "./services/matchLif
 import { createAuditStore } from "./audit/index.js";
 import { createIdempotencyStore } from "./idempotency/index.js";
 import { createModerationStore } from "./moderation/index.js";
+import { createVerificationStateStore } from "./verificationState/index.js";
 import { registerAdminRoutes } from "./routes/admin.js";
 
 export interface CreateAppOptions {
@@ -41,6 +42,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
   const audit = createAuditStore();
   const idempotency = createIdempotencyStore();
   const moderation = createModerationStore();
+  const verificationState = createVerificationStateStore();
   const rosterStore = await createRosterStore();
   const flags = getFeatureFlags();
   const catalogStore =
@@ -49,7 +51,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
       : null;
   await registerAuthRoutes(app, repo, auth);
   await registerUserRoutes(app, repo, auth, rosterStore);
-  await registerIdentityRoutes(app, repo, auth);
+  await registerIdentityRoutes(app, repo, auth, verificationState);
   await registerRoutes(
     app,
     repo,
@@ -60,6 +62,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
     idempotency,
     rosterStore,
     moderation,
+    verificationState,
     catalogStore ?? undefined
   );
   await registerAdminRoutes(app, repo, moderation, audit, auth);
@@ -94,6 +97,10 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
 
     schedule(() => {
       void repo.purgeExpiredVerifierAuth(Date.now());
+    }, 60_000);
+
+    schedule(() => {
+      void verificationState.purgeExpired();
     }, 60_000);
 
     schedule(() => {
