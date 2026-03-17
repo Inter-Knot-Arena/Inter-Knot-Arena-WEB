@@ -466,20 +466,37 @@ export function submitVerifierRosterImport(payload: {
   uid: string;
   region: string;
   fullSync?: boolean;
+  modelVersion?: string;
+  dataVersion?: string;
+  scanMeta?: string;
+  timingMs?: number;
+  locale?: string;
+  resolution?: string;
+  lowConfReasons?: string[];
+  confidenceByField?: Record<string, number>;
+  fieldSources?: Record<string, string>;
+  capabilities?: Record<string, boolean>;
   agents: Array<
     Pick<
       PlayerAgentDynamic,
       | "agentId"
       | "owned"
       | "level"
+      | "levelCap"
       | "dupes"
       | "mindscape"
+      | "mindscapeCap"
       | "promotion"
       | "talent"
       | "core"
+      | "stats"
       | "weapon"
+      | "weaponPresent"
+      | "discSlotOccupancy"
       | "discs"
       | "confidence"
+      | "confidenceByField"
+      | "fieldSources"
     >
   >;
 }): Promise<{
