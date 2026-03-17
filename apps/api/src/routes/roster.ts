@@ -542,9 +542,29 @@ export async function registerRosterRoutes(
         }>;
       };
 
-      const uid = typeof body.uid === "string" ? body.uid.trim() : "";
-      if (!validateUid(uid)) {
+      const rawUid = typeof body.uid === "string" ? body.uid.trim() : "";
+      const linkedUid =
+        typeof user.verification?.uid === "string" ? user.verification.uid.trim() : "";
+      const hasValidBodyUid = rawUid.length > 0 && validateUid(rawUid);
+      const hasLinkedUid = linkedUid.length > 0;
+
+      let uid = "";
+      if (hasValidBodyUid) {
+        uid = rawUid;
+      } else if (hasLinkedUid) {
+        uid = linkedUid;
+      }
+
+      if (!uid) {
         throw new RouteError("UID must be 6-12 digits", 400, "INVALID_VERIFIER_UID");
+      }
+
+      if (hasLinkedUid && hasValidBodyUid && linkedUid !== rawUid) {
+        reply.code(403).send({
+          error: "UID mismatch with linked account",
+          code: "UID_MISMATCH_LINKED_ACCOUNT"
+        });
+        return;
       }
       const region = parseRegion(body.region);
       if (!region) {

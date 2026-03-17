@@ -692,6 +692,56 @@ test("verifier roster import preserves rich OCR contract fields", async () => {
   });
 });
 
+test("verifier roster import falls back to linked UID when payload uid is missing or invalid", async () => {
+  const cookie = await registerAndGetCookie("verifier-fallback@test.dev", "VerifierFallback");
+  const token = await issueVerifierToken(cookie, 53137);
+
+  await importRoster(token.accessToken, "888999000", "EU");
+
+  const fallbackImport = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "invalid",
+      region: "EU",
+      fullSync: false,
+      agents: [{ agentId: "agent_anby", owned: true, level: 60 }]
+    }
+  });
+  assert.equal(fallbackImport.statusCode, 200);
+  const fallbackBody = fallbackImport.json() as { verification?: { uid?: string } };
+  assert.equal(fallbackBody.verification?.uid, "888999000");
+});
+
+test("verifier roster import still rejects mismatched linked UID", async () => {
+  const cookie = await registerAndGetCookie("verifier-fallback-mismatch@test.dev", "VerifierFallbackMismatch");
+  const token = await issueVerifierToken(cookie, 53138);
+
+  await importRoster(token.accessToken, "777888999", "EU");
+
+  const mismatch = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "000111222",
+      region: "EU",
+      fullSync: false,
+      agents: [{ agentId: "agent_anby", owned: true, level: 60 }]
+    }
+  });
+  assert.equal(mismatch.statusCode, 403);
+  assert.deepEqual(mismatch.json(), {
+    error: "UID mismatch with linked account",
+    code: "UID_MISMATCH_LINKED_ACCOUNT"
+  });
+});
+
 test("verifier fullSync rejects payloads without full roster coverage", async () => {
   const cookie = await registerAndGetCookie("vfsguard1@test.dev", "VerifierFullSyncGuard1");
   const token = await issueVerifierToken(cookie, 53133);
