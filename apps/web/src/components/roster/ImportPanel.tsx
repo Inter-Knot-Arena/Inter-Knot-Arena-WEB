@@ -12,6 +12,14 @@ interface ImportPanelProps {
   onRefresh: () => void;
 }
 
+const capabilityLabels: Record<string, string> = {
+  uidFromImageCrop: "UID crop",
+  agentDetailsFromPixels: "Agent details",
+  equipmentFromPixels: "Equipment",
+  fullRosterCoverage: "Full roster",
+  inputLockValidated: "Input lock"
+};
+
 export function ImportPanel({
   enabled,
   isRefreshing,
@@ -31,7 +39,7 @@ export function ImportPanel({
         <div>
           <div className="text-sm font-semibold text-ink-900">Verifier OCR sync</div>
           <p className="text-xs text-ink-500">
-            Roster and UID are synced by Verifier App scan (region {region}).
+            Roster and UID are synced by Verifier App visible-slice scan (region {region}).
           </p>
         </div>
         {enabled ? (
@@ -80,8 +88,27 @@ export function ImportPanel({
             {lastImport.unchangedCount !== undefined ? (
               <span>Unchanged: {lastImport.unchangedCount}</span>
             ) : null}
+            {lastImport.modelVersion ? <span>Model: {lastImport.modelVersion}</span> : null}
+            {lastImport.locale ? <span>Locale: {lastImport.locale}</span> : null}
+            {lastImport.resolution ? <span>Resolution: {lastImport.resolution}</span> : null}
             <span>Fetched: {new Date(lastImport.fetchedAt).toLocaleString()}</span>
           </div>
+          {lastImport.capabilities ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {Object.entries(lastImport.capabilities).map(([key, enabled]) => (
+                <Badge
+                  key={key}
+                  className={
+                    enabled
+                      ? "border border-emerald-500/40 bg-emerald-500/10 text-emerald-100"
+                      : "border border-border bg-ika-800/60 text-ink-500"
+                  }
+                >
+                  {capabilityLabels[key] ?? key}: {enabled ? "on" : "off"}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
           {typeof lastImport.retryAfterSec === "number" ? (
             <div className="mt-2">Retry hint: wait about {lastImport.retryAfterSec} sec.</div>
           ) : null}
@@ -93,6 +120,11 @@ export function ImportPanel({
           {lastImport.unknownIds.length ? (
             <div className="mt-2 text-amber-200">
               Unknown IDs: {lastImport.unknownIds.join(", ")}
+            </div>
+          ) : null}
+          {lastImport.lowConfReasons?.length ? (
+            <div className="mt-2 text-amber-200">
+              Low confidence: {lastImport.lowConfReasons.join(", ")}
             </div>
           ) : null}
           {lastImport.message ? <div className="mt-2">{lastImport.message}</div> : null}
@@ -130,7 +162,7 @@ export function ImportPanel({
       ) : null}
 
       <div className="mt-3 text-xs text-ink-500">
-        Launch Verifier App and run full scan to update owned agents, discs, amplifiers, and UID.
+        Launch Verifier App and run visible roster scan to update UID plus the currently visible agents and their detailed OCR fields.
       </div>
     </div>
   );
