@@ -692,6 +692,163 @@ test("verifier roster import preserves rich OCR contract fields", async () => {
   });
 });
 
+test("verifier fullSync rejects payloads without full roster coverage", async () => {
+  const cookie = await registerAndGetCookie("vfsguard1@test.dev", "VerifierFullSyncGuard1");
+  const token = await issueVerifierToken(cookie, 53133);
+
+  const rosterImport = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "222333444",
+      region: "EU",
+      fullSync: true,
+      capabilities: {
+        fullRosterCoverage: false
+      },
+      agents: [{ agentId: "agent_anby", owned: true, level: 60 }]
+    }
+  });
+  assert.equal(rosterImport.statusCode, 409);
+  assert.deepEqual(rosterImport.json(), {
+    error: "Verifier fullSync requires capabilities.fullRosterCoverage=true.",
+    code: "FULLSYNC_REQUIRES_FULL_ROSTER_COVERAGE"
+  });
+});
+
+test("verifier fullSync rejects payloads that omit full roster coverage capability", async () => {
+  const cookie = await registerAndGetCookie("vfsguard2@test.dev", "VerifierFullSyncGuard2");
+  const token = await issueVerifierToken(cookie, 53134);
+
+  const rosterImport = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "333444555",
+      region: "EU",
+      fullSync: true,
+      agents: [{ agentId: "agent_anby", owned: true, level: 60 }]
+    }
+  });
+  assert.equal(rosterImport.statusCode, 409);
+  assert.deepEqual(rosterImport.json(), {
+    error: "Verifier fullSync requires capabilities.fullRosterCoverage=true.",
+    code: "FULLSYNC_REQUIRES_FULL_ROSTER_COVERAGE"
+  });
+});
+
+test("verifier fullSync preserves existing roster when coverage guard rejects overwrite", async () => {
+  const cookie = await registerAndGetCookie("vfsguard3@test.dev", "VerifierFullSyncGuard3");
+  const token = await issueVerifierToken(cookie, 53135);
+
+  const partialImport = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "444555777",
+      region: "EU",
+      fullSync: false,
+      agents: [{ agentId: "agent_anby", owned: true, level: 60 }]
+    }
+  });
+  assert.equal(partialImport.statusCode, 200);
+
+  const rejectedFullSync = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "444555777",
+      region: "EU",
+      fullSync: true,
+      capabilities: {
+        fullRosterCoverage: false
+      },
+      agents: [{ agentId: "agent_billy", owned: true, level: 50 }]
+    }
+  });
+  assert.equal(rejectedFullSync.statusCode, 409);
+
+  const rosterResponse = await app.inject({
+    method: "GET",
+    url: "/players/444555777/roster?region=EU"
+  });
+  assert.equal(rosterResponse.statusCode, 200);
+  const roster = rosterResponse.json() as {
+    agents: Array<{
+      agent: { agentId: string };
+      state?: { owned?: boolean; level?: number };
+    }>;
+  };
+
+  const anby = roster.agents.find((entry) => entry.agent.agentId === "agent_anby");
+  const billy = roster.agents.find((entry) => entry.agent.agentId === "agent_billy");
+  assert.equal(anby?.state?.owned, true);
+  assert.equal(anby?.state?.level, 60);
+  assert.equal(billy?.state, undefined);
+});
+
+test("verifier fullSync accepts payloads that declare full roster coverage", async () => {
+  const cookie = await registerAndGetCookie("vfsguard4@test.dev", "VerifierFullSyncGuard4");
+  const token = await issueVerifierToken(cookie, 53136);
+
+  const rosterImport = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "666777888",
+      region: "EU",
+      fullSync: true,
+      capabilities: {
+        fullRosterCoverage: true,
+        equipmentFromPixels: true
+      },
+      agents: [{ agentId: "agent_anby", owned: true, level: 60 }]
+    }
+  });
+  assert.equal(rosterImport.statusCode, 200);
+  const body = rosterImport.json() as {
+    summary?: { message?: string; capabilities?: Record<string, boolean> };
+  };
+  assert.equal(body.summary?.message, "Verifier full roster sync completed.");
+  assert.deepEqual(body.summary?.capabilities, {
+    fullRosterCoverage: true,
+    equipmentFromPixels: true
+  });
+
+  const rosterResponse = await app.inject({
+    method: "GET",
+    url: "/players/666777888/roster?region=EU"
+  });
+  assert.equal(rosterResponse.statusCode, 200);
+  const roster = rosterResponse.json() as {
+    agents: Array<{
+      agent: { agentId: string };
+      state?: { owned?: boolean; level?: number };
+    }>;
+  };
+
+  const anby = roster.agents.find((entry) => entry.agent.agentId === "agent_anby");
+  const billy = roster.agents.find((entry) => entry.agent.agentId === "agent_billy");
+  assert.equal(anby?.state?.owned, true);
+  assert.equal(anby?.state?.level, 60);
+  assert.equal(billy?.state?.owned, false);
+});
+
 test("verifier refresh rotates tokens and revoked token cannot be reused", async () => {
   const register = await app.inject({
     method: "POST",

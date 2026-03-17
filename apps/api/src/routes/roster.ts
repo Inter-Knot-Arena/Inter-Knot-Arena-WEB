@@ -544,7 +544,16 @@ export async function registerRosterRoutes(
         });
       }
 
-      const fullSync = body.fullSync !== false;
+      const requestedFullSync = body.fullSync === true;
+      const hasFullRosterCoverage = importCapabilities?.fullRosterCoverage === true;
+      if (requestedFullSync && !hasFullRosterCoverage) {
+        throw new RouteError(
+          "Verifier fullSync requires capabilities.fullRosterCoverage=true.",
+          409,
+          "FULLSYNC_REQUIRES_FULL_ROSTER_COVERAGE"
+        );
+      }
+      const fullSync = requestedFullSync;
       const nextStates: PlayerAgentDynamic[] = fullSync
         ? catalogData.agents.map((agent) => {
             const scanned = scannedById.get(agent.agentId);
