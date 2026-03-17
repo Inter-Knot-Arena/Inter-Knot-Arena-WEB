@@ -24,6 +24,8 @@ const sourceLabels: Record<PlayerAgentDynamic["source"], string> = {
 };
 
 const discSlots = [1, 2, 3, 4, 5, 6];
+const preferredStatOrder = ["hp_flat", "attack_flat", "defense_flat", "impact"];
+const preferredOcrFields = ["agentId", "level", "mindscape", "stats", "weapon", "discs"];
 
 function formatDiscProp(prop: DiscProperty): string {
   const level = prop.level !== undefined ? ` L${prop.level}` : "";
@@ -39,12 +41,94 @@ function getDiscIconLabel(disc: PlayerAgentDisc | undefined): string {
   return cleaned.slice(0, 3).toUpperCase() || disc.setIconKey.slice(0, 3).toUpperCase();
 }
 
+function formatStatLabel(key: string): string {
+  switch (key) {
+    case "hp_flat":
+      return "HP";
+    case "attack_flat":
+      return "ATK";
+    case "defense_flat":
+      return "DEF";
+    case "impact":
+      return "Impact";
+    default:
+      return key
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+  }
+}
+
+function formatStatValue(value: number): string {
+  if (Number.isInteger(value)) {
+    return value.toLocaleString();
+  }
+  if (Math.abs(value) >= 100) {
+    return value.toFixed(1);
+  }
+  return value.toFixed(2).replace(/0+$/g, "").replace(/\.$/, "");
+}
+
+function formatConfidence(value: number | undefined): string | null {
+  if (value === undefined || !Number.isFinite(value)) {
+    return null;
+  }
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatOcrFieldLabel(field: string): string {
+  if (field === "agentId") {
+    return "Agent";
+  }
+  return field.charAt(0).toUpperCase() + field.slice(1);
+}
+
 export function PlayerAgentCard({ agent, state, eligibility }: PlayerAgentCardProps) {
   const [imageFailed, setImageFailed] = useState(false);
   const owned = state?.owned ?? false;
   const eligibilityBadge = eligibility.draftEligible ? "Eligible" : "Not eligible";
   const discMap = new Map<number, PlayerAgentDisc>();
   const mindscapeUrl = imageFailed ? null : getFullMindscapeUrl(agent.agentId);
+  const weapon = state?.weapon;
+  const weaponLabel =
+    weapon?.displayName ?? weapon?.weaponId ?? (state?.weaponPresent === false ? "Unequipped" : null);
+  const weaponLevel =
+    weapon?.level !== undefined
+      ? `L${weapon.level}${weapon.levelCap !== undefined ? `/${weapon.levelCap}` : ""}`
+      : null;
+  const statEntries = Object.entries(state?.stats ?? {})
+    .sort((left, right) => {
+      const leftIndex = preferredStatOrder.indexOf(left[0]);
+      const rightIndex = preferredStatOrder.indexOf(right[0]);
+      if (leftIndex === -1 && rightIndex === -1) {
+        return left[0].localeCompare(right[0]);
+      }
+      if (leftIndex === -1) {
+        return 1;
+      }
+      if (rightIndex === -1) {
+        return -1;
+      }
+      return leftIndex - rightIndex;
+    })
+    .slice(0, 6);
+  const ocrFields =
+    state?.source === "VERIFIER_OCR"
+      ? preferredOcrFields.flatMap((field) => {
+          const confidence = formatConfidence(state.confidenceByField?.[field]);
+          const source = state.fieldSources?.[field];
+          if (!confidence && !source) {
+            return [];
+          }
+          return [
+            {
+              field,
+              label: formatOcrFieldLabel(field),
+              confidence,
+              source: source ?? "unspecified"
+            }
+          ];
+        })
+      : [];
   state?.discs?.forEach((disc) => {
     if (disc.slot && disc.slot >= 1 && disc.slot <= 6) {
       discMap.set(disc.slot, disc);
@@ -104,6 +188,77 @@ export function PlayerAgentCard({ agent, state, eligibility }: PlayerAgentCardPr
         <span>Dupes: {state?.dupes ?? "-"}</span>
         <span>Mindscape: {state?.mindscape ?? "-"}</span>
       </div>
+
+      {(weaponLabel || statEntries.length > 0) && (
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {weaponLabel ? (
+            <div className="rounded-lg border border-border bg-ika-900/40 p-3 text-xs text-ink-500">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-ink-500">Weapon</div>
+              <div className="mt-2 text-sm font-semibold text-ink-900">{weaponLabel}</div>
+              {weaponLevel ? <div className="mt-1">{weaponLevel}</div> : null}
+              {weapon?.baseStatKey && weapon.baseStatValue !== undefined ? (
+                <div className="mt-2">
+                  {weapon.baseStatKey}: {formatStatValue(weapon.baseStatValue)}
+                </div>
+              ) : null}
+              {weapon?.advancedStatKey && weapon.advancedStatValue !== undefined ? (
+                <div className="mt-1">
+                  {weapon.advancedStatKey}: {formatStatValue(weapon.advancedStatValue)}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {statEntries.length > 0 ? (
+            <div className="rounded-lg border border-border bg-ika-900/40 p-3 text-xs text-ink-500">
+              <div className="text-[11px] uppercase tracking-[0.2em] text-ink-500">Stats</div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {statEntries.map(([key, value]) => (
+                  <div key={key} className="rounded-md border border-border bg-ika-800/60 px-2 py-1">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-ink-500">
+                      {formatStatLabel(key)}
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-ink-900">
+                      {formatStatValue(value)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {ocrFields.length > 0 ? (
+        <div className="mt-4 rounded-lg border border-border bg-ika-900/40 p-3 text-xs text-ink-500">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-ink-500">OCR Fields</div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {ocrFields.map((field) => {
+              const badge = (
+                <Badge className="border border-border bg-ika-800/60 text-ink-700">
+                  {field.label}
+                  {field.confidence ? ` ${field.confidence}` : ""}
+                </Badge>
+              );
+
+              return (
+                <Tooltip key={`${field.field}:${field.source}`}>
+                  <TooltipTrigger asChild>{badge}</TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <div className="text-xs font-semibold text-ink-900">{field.label}</div>
+                    <div className="mt-1 text-[11px] text-ink-500">Source: {field.source}</div>
+                    {field.confidence ? (
+                      <div className="mt-1 text-[11px] text-ink-500">
+                        Confidence: {field.confidence}
+                      </div>
+                    ) : null}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-4">
         <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Discs</div>
