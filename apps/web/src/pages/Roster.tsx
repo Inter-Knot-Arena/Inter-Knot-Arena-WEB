@@ -30,7 +30,7 @@ export default function Roster() {
         <section className="section-header">
           <h2>Roster</h2>
           <p>
-            UID and roster are now verified only through Verifier App OCR full-scan.
+            UID and roster are now verified only through Verifier App OCR sync.
           </p>
         </section>
         <div className="card">

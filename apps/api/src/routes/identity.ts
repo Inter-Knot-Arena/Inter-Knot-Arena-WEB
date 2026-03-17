@@ -84,7 +84,7 @@ export async function registerIdentityRoutes(
     try {
       if (!legacyUidVerificationEnabled) {
         reply.code(410).send({
-          error: "Legacy UID flow is deprecated. Use Verifier App OCR full-scan."
+          error: "Legacy UID flow is deprecated. Use Verifier App OCR sync."
         });
         return;
       }
@@ -135,7 +135,7 @@ export async function registerIdentityRoutes(
     try {
       if (!legacyUidVerificationEnabled) {
         reply.code(410).send({
-          error: "Legacy UID proof flow is deprecated. Use Verifier App OCR full-scan."
+          error: "Legacy UID proof flow is deprecated. Use Verifier App OCR sync."
         });
         return;
       }

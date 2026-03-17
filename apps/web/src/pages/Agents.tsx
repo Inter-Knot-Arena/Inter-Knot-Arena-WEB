@@ -138,7 +138,7 @@ export default function Agents() {
         <div className="rounded-xl border border-border bg-ika-800/70 p-6">
           <div className="text-lg font-semibold text-ink-900">My Agents</div>
           <p className="mt-2 text-sm text-ink-500">
-            Complete Verifier OCR full-scan to link UID and roster.
+            Complete Verifier OCR visible-slice sync to link UID and roster.
           </p>
           <Button className="mt-4" asChild>
             <a href="/uid-verify">Open Verifier setup</a>

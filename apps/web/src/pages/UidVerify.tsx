@@ -39,7 +39,7 @@ export default function UidVerify() {
         <div className="rounded-xl border border-border bg-ika-800/70 p-6">
           <div className="text-lg font-semibold text-ink-900">Verifier setup</div>
           <p className="mt-2 text-sm text-ink-500">
-            Sign in first, then run Verifier App full scan to verify UID and sync roster.
+            Sign in first, then run Verifier App visible roster scan to verify UID and sync roster.
           </p>
           <Button className="mt-4" asChild>
             <Link to="/signin">Sign in</Link>
@@ -57,7 +57,7 @@ export default function UidVerify() {
         <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Verifier onboarding</div>
         <h1 className="text-2xl font-display text-ink-900">UID and roster verification</h1>
         <p className="mt-2 text-sm text-ink-500">
-          Enka import and manual UID flow are replaced by Verifier App OCR full-scan.
+          Enka import and manual UID flow are replaced by Verifier App OCR visible-slice sync.
         </p>
       </div>
 
@@ -100,8 +100,8 @@ export default function UidVerify() {
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-ink-500">
             <li>Download and launch Verifier App.</li>
             <li>Sign in with your Inter-Knot Arena account.</li>
-            <li>Start ZZZ and run full OCR scan from Verifier.</li>
-            <li>Wait for auto-upload of UID and roster.</li>
+            <li>Start ZZZ and run visible roster scan from Verifier.</li>
+            <li>Wait for auto-upload of UID and the currently visible agent slice.</li>
             <li>Return here and press Refresh status.</li>
           </ol>
 

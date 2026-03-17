@@ -592,7 +592,7 @@ export async function registerRosterRoutes(
           lowConfReasons.length > 0
             ? `Verifier roster sync completed with low confidence: ${lowConfReasons.join(", ")}.`
             : fullSync
-              ? "Verifier full-scan roster sync completed."
+              ? "Verifier full roster sync completed."
               : "Verifier partial roster sync completed."
       };
       await rosterStore.saveImportSummary(uid, region, summary);
