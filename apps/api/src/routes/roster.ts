@@ -4,7 +4,7 @@ import type { Repository } from "../repository/types.js";
 import type { CatalogStore } from "../catalog/store.js";
 import type { CacheClient } from "../cache/types.js";
 import type { PlayerAgentStateStore } from "../roster/types.js";
-import { computeEligibility, mergePlayerAgentDynamicAccumulative } from "@ika/shared";
+import { computeEligibility, mergePlayerAgentDynamic, mergePlayerAgentDynamicAccumulative } from "@ika/shared";
 import type {
   PlayerAgentDynamic,
   PlayerRosterImportSummary,
@@ -209,6 +209,93 @@ function normalizeOptionalNumber(value: unknown, fieldName: string): number | un
     throw new RouteError(`${fieldName} must be a non-negative number.`, 400, "INVALID_VERIFIER_NUMBER");
   }
   return value;
+}
+
+function keepNonEmptyMap<T>(value: Record<string, T> | undefined): Record<string, T> | undefined {
+  if (!value) {
+    return undefined;
+  }
+  return Object.keys(value).length > 0 ? value : undefined;
+}
+
+function buildVerifierImportedAgentState(args: {
+  agentId: string;
+  raw: {
+    owned?: boolean;
+    level?: number;
+    levelCap?: number;
+    dupes?: number;
+    mindscape?: number;
+    mindscapeCap?: number;
+    promotion?: number;
+    talent?: number;
+    core?: number;
+    weapon?: PlayerAgentDynamic["weapon"];
+    weaponPresent?: boolean;
+    discs?: PlayerAgentDynamic["discs"];
+  };
+  stats?: Record<string, number>;
+  discSlotOccupancy?: Record<string, boolean>;
+  confidenceByField?: Record<string, number>;
+  fieldSources?: Record<string, string>;
+  importedAt: string;
+}): PlayerAgentDynamic {
+  const state: PlayerAgentDynamic = {
+    agentId: args.agentId,
+    owned: args.raw.owned ?? true,
+    source: "VERIFIER_OCR",
+    lastImportedAt: args.importedAt,
+    updatedAt: args.importedAt
+  };
+
+  if (args.raw.level !== undefined) {
+    state.level = args.raw.level;
+  }
+  if (args.raw.levelCap !== undefined) {
+    state.levelCap = args.raw.levelCap;
+  }
+  if (args.raw.dupes !== undefined) {
+    state.dupes = args.raw.dupes;
+  }
+  if (args.raw.mindscape !== undefined) {
+    state.mindscape = args.raw.mindscape;
+  }
+  if (args.raw.mindscapeCap !== undefined) {
+    state.mindscapeCap = args.raw.mindscapeCap;
+  }
+  if (args.raw.promotion !== undefined) {
+    state.promotion = args.raw.promotion;
+  }
+  if (args.raw.talent !== undefined) {
+    state.talent = args.raw.talent;
+  }
+  if (args.raw.core !== undefined) {
+    state.core = args.raw.core;
+  }
+  if (args.stats) {
+    state.stats = args.stats;
+  }
+  if (args.raw.weapon !== undefined) {
+    state.weapon = args.raw.weapon;
+  }
+  if (args.raw.weaponPresent !== undefined) {
+    state.weaponPresent = args.raw.weaponPresent;
+  }
+  if (args.discSlotOccupancy) {
+    state.discSlotOccupancy = args.discSlotOccupancy;
+  }
+  if (args.raw.discs !== undefined) {
+    state.discs = args.raw.discs;
+  }
+  if (args.confidenceByField) {
+    state.confidenceByField = args.confidenceByField;
+    state.confidence = args.confidenceByField;
+  }
+  if (args.fieldSources) {
+    state.fieldSources = args.fieldSources;
+  }
+
+  return state;
 }
 
 function buildEnkaUrl(uid: string, region: Region, includeRegion = true): string {
@@ -509,39 +596,52 @@ export async function registerRosterRoutes(
           raw?.confidenceByField ?? raw?.confidence,
           `confidenceByField for agent '${agentId}'`
         );
-        const stats = normalizeNumberMap(raw?.stats, `stats for agent '${agentId}'`);
-        const discSlotOccupancy = normalizeBooleanMap(
+        const stats = keepNonEmptyMap(
+          normalizeNumberMap(raw?.stats, `stats for agent '${agentId}'`)
+        );
+        const discSlotOccupancy = keepNonEmptyMap(normalizeBooleanMap(
           raw?.discSlotOccupancy,
           `discSlotOccupancy for agent '${agentId}'`
-        );
-        const fieldSources = normalizeStringMap(
+        ));
+        const fieldSources = keepNonEmptyMap(normalizeStringMap(
           raw?.fieldSources,
           `fieldSources for agent '${agentId}'`
-        );
+        ));
+        const filteredConfidenceByField = keepNonEmptyMap(confidenceByField);
+        const weapon =
+          raw?.weapon && typeof raw.weapon === "object" && Object.keys(raw.weapon).length > 0
+            ? raw.weapon
+            : undefined;
+        const discs =
+          Array.isArray(raw?.discs) && raw.discs.length > 0
+            ? raw.discs
+            : undefined;
 
-        scannedById.set(agentId, {
+        scannedById.set(
           agentId,
-          owned: raw.owned ?? true,
-          level: raw.level,
-          levelCap: raw.levelCap,
-          dupes: raw.dupes,
-          mindscape: raw.mindscape,
-          mindscapeCap: raw.mindscapeCap,
-          promotion: raw.promotion,
-          talent: raw.talent,
-          core: raw.core,
-          stats,
-          weapon: raw.weapon,
-          weaponPresent: raw.weaponPresent,
-          discSlotOccupancy,
-          discs: raw.discs,
-          confidenceByField,
-          confidence: confidenceByField,
-          fieldSources,
-          source: "VERIFIER_OCR",
-          lastImportedAt: importedAt,
-          updatedAt: importedAt
-        });
+          buildVerifierImportedAgentState({
+            agentId,
+            raw: {
+              owned: raw.owned,
+              level: raw.level,
+              levelCap: raw.levelCap,
+              dupes: raw.dupes,
+              mindscape: raw.mindscape,
+              mindscapeCap: raw.mindscapeCap,
+              promotion: raw.promotion,
+              talent: raw.talent,
+              core: raw.core,
+              weapon,
+              weaponPresent: raw.weaponPresent,
+              discs
+            },
+            stats,
+            discSlotOccupancy,
+            confidenceByField: filteredConfidenceByField,
+            fieldSources,
+            importedAt
+          })
+        );
       }
 
       const requestedFullSync = body.fullSync === true;
@@ -554,11 +654,13 @@ export async function registerRosterRoutes(
         );
       }
       const fullSync = requestedFullSync;
+      const existingStates = await rosterStore.listStates(uid, region);
+      const existingStateById = new Map(existingStates.map((state) => [state.agentId, state]));
       const nextStates: PlayerAgentDynamic[] = fullSync
         ? catalogData.agents.map((agent) => {
             const scanned = scannedById.get(agent.agentId);
             if (scanned) {
-              return scanned;
+              return mergePlayerAgentDynamic(existingStateById.get(agent.agentId), scanned);
             }
             return {
               agentId: agent.agentId,
@@ -568,7 +670,9 @@ export async function registerRosterRoutes(
               updatedAt: importedAt
             };
           })
-        : Array.from(scannedById.values());
+        : Array.from(scannedById.values()).map((scanned) =>
+            mergePlayerAgentDynamic(existingStateById.get(scanned.agentId), scanned)
+          );
 
       if (!nextStates.length) {
         throw new RouteError(

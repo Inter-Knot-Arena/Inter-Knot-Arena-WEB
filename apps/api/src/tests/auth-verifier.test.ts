@@ -849,6 +849,124 @@ test("verifier fullSync accepts payloads that declare full roster coverage", asy
   assert.equal(billy?.state?.owned, false);
 });
 
+test("verifier fullSync preserves existing detailed fields when payload omits them", async () => {
+  const cookie = await registerAndGetCookie("vfsguard5@test.dev", "VerifierFullSyncGuard5");
+  const token = await issueVerifierToken(cookie, 53137);
+
+  const initialImport = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "777888999",
+      region: "EU",
+      fullSync: false,
+      agents: [
+        {
+          agentId: "agent_anby",
+          owned: true,
+          level: 50,
+          weapon: {
+            weaponId: "weapon_demara_battery_mark_ii",
+            displayName: "Demara Battery Mark II",
+            level: 50,
+            levelCap: 60
+          },
+          weaponPresent: true,
+          discs: [
+            {
+              slot: 1,
+              setId: "discset_woodpecker_electro",
+              displayName: "Woodpecker Electro [1]",
+              level: 15
+            }
+          ],
+          discSlotOccupancy: {
+            "1": true
+          },
+          stats: {
+            hp: 10001,
+            atk: 2500
+          }
+        }
+      ]
+    }
+  });
+  assert.equal(initialImport.statusCode, 200);
+
+  const followupImport = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "777888999",
+      region: "EU",
+      fullSync: true,
+      capabilities: {
+        fullRosterCoverage: true
+      },
+      agents: [
+        {
+          agentId: "agent_anby",
+          owned: true,
+          level: 60
+        }
+      ]
+    }
+  });
+  assert.equal(followupImport.statusCode, 200);
+
+  const rosterResponse = await app.inject({
+    method: "GET",
+    url: "/players/777888999/roster?region=EU"
+  });
+  assert.equal(rosterResponse.statusCode, 200);
+  const roster = rosterResponse.json() as {
+    agents: Array<{
+      agent: { agentId: string };
+      state?: {
+        owned?: boolean;
+        level?: number;
+        weaponPresent?: boolean;
+        stats?: Record<string, number>;
+        weapon?: { weaponId?: string; level?: number; levelCap?: number };
+        discs?: Array<{ slot?: number; setId?: string; level?: number }>;
+        discSlotOccupancy?: Record<string, boolean>;
+      };
+    }>;
+  };
+
+  const anby = roster.agents.find((entry) => entry.agent.agentId === "agent_anby");
+  assert.equal(anby?.state?.owned, true);
+  assert.equal(anby?.state?.level, 60);
+  assert.equal(anby?.state?.weaponPresent, true);
+  assert.deepEqual(anby?.state?.stats, {
+    hp: 10001,
+    atk: 2500
+  });
+  assert.deepEqual(anby?.state?.weapon, {
+    weaponId: "weapon_demara_battery_mark_ii",
+    displayName: "Demara Battery Mark II",
+    level: 50,
+    levelCap: 60
+  });
+  assert.deepEqual(anby?.state?.discs, [
+    {
+      slot: 1,
+      setId: "discset_woodpecker_electro",
+      displayName: "Woodpecker Electro [1]",
+      level: 15
+    }
+  ]);
+  assert.deepEqual(anby?.state?.discSlotOccupancy, {
+    "1": true
+  });
+});
+
 test("verifier refresh rotates tokens and revoked token cannot be reused", async () => {
   const register = await app.inject({
     method: "POST",
