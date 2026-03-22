@@ -692,6 +692,242 @@ test("verifier roster import preserves rich OCR contract fields", async () => {
   });
 });
 
+test("verifier fullSync import preserves desktop payload fields and linked UID fallback", async () => {
+  const cookie = await registerAndGetCookie("verifier-rc@test.dev", "VerifierRc");
+  const token = await issueVerifierToken(cookie, 53140);
+
+  await importRoster(token.accessToken, "777888999", "EU");
+
+  const rosterImport = await app.inject({
+    method: "POST",
+    url: "/verifier/roster/import",
+    headers: {
+      authorization: `Bearer ${token.accessToken}`
+    },
+    payload: {
+      uid: "invalid",
+      region: "EU",
+      fullSync: true,
+      modelVersion: "ocr-v2.1.0",
+      dataVersion: "dataset-2026-03-10",
+      scanMeta: "capture=inventory;pass=2",
+      timingMs: 842.5,
+      resolution: "1920x1080",
+      locale: "en-US",
+      lowConfReasons: ["agent_anby.disc_slot_2_missing"],
+      confidenceByField: {
+        uid: 0.998,
+        roster: 0.973
+      },
+      fieldSources: {
+        uid: "ocr.uid_panel",
+        roster: "ocr.agent_overview"
+      },
+      capabilities: {
+        fullRosterCoverage: true,
+        equipmentFromPixels: true
+      },
+      agents: [
+        {
+          agentId: "agent_anby",
+          owned: true,
+          level: 50,
+          levelCap: 60,
+          mindscape: 1,
+          mindscapeCap: 6,
+          stats: {
+            hp: 10543,
+            atk: 2487,
+            impact: 118
+          },
+          weapon: {
+            weaponId: "weapon_demara_battery_mark_ii",
+            displayName: "Demara Battery Mark II",
+            level: 50,
+            levelCap: 60,
+            baseStatKey: "atk",
+            baseStatValue: 624,
+            advancedStatKey: "impact",
+            advancedStatValue: 18
+          },
+          weaponPresent: true,
+          discSlotOccupancy: {
+            "1": true,
+            "2": false
+          },
+          discs: [
+            {
+              slot: 1,
+              setId: "discset_woodpecker_electro",
+              displayName: "Woodpecker Electro [1]",
+              level: 15,
+              levelCap: 15,
+              mainStatKey: "atk_percent",
+              mainStatValue: 30.4,
+              substats: [
+                { key: "crit_rate", value: 8 },
+                { key: "hp_flat", value: 112 }
+              ]
+            }
+          ],
+          confidenceByField: {
+            level: 0.994,
+            weapon: 0.965,
+            disc_1: 0.941
+          },
+          fieldSources: {
+            level: "ocr.agent_panel.level",
+            weapon: "ocr.weapon_panel",
+            disc_1: "ocr.disc_slot_1"
+          }
+        }
+      ]
+    }
+  });
+
+  assert.equal(rosterImport.statusCode, 200);
+  const importBody = rosterImport.json() as {
+    summary?: {
+      status?: string;
+      message?: string;
+      lowConfReasons?: string[];
+      confidenceByField?: Record<string, number>;
+      fieldSources?: Record<string, string>;
+      capabilities?: Record<string, boolean>;
+    };
+  };
+  assert.equal(importBody.summary?.status, "DEGRADED");
+  assert.match(importBody.summary?.message ?? "", /low confidence/i);
+  assert.deepEqual(importBody.summary?.lowConfReasons, ["agent_anby.disc_slot_2_missing"]);
+  assert.deepEqual(importBody.summary?.confidenceByField, {
+    uid: 0.998,
+    roster: 0.973
+  });
+  assert.deepEqual(importBody.summary?.fieldSources, {
+    uid: "ocr.uid_panel",
+    roster: "ocr.agent_overview"
+  });
+  assert.deepEqual(importBody.summary?.capabilities, {
+    fullRosterCoverage: true,
+    equipmentFromPixels: true
+  });
+
+  const rosterResponse = await app.inject({
+    method: "GET",
+    url: "/players/777888999/roster?region=EU"
+  });
+  assert.equal(rosterResponse.statusCode, 200);
+  const roster = rosterResponse.json() as {
+    agents: Array<{
+      agent: { agentId: string };
+      state?: {
+        level?: number;
+        levelCap?: number;
+        mindscape?: number;
+        mindscapeCap?: number;
+        stats?: Record<string, number>;
+        weaponPresent?: boolean;
+        discSlotOccupancy?: Record<string, boolean>;
+        confidenceByField?: Record<string, number>;
+        fieldSources?: Record<string, string>;
+        weapon?: {
+          weaponId?: string;
+          displayName?: string;
+          level?: number;
+          levelCap?: number;
+          baseStatKey?: string;
+          baseStatValue?: number;
+          advancedStatKey?: string;
+          advancedStatValue?: number;
+        };
+        discs?: Array<{
+          slot?: number;
+          setId?: string;
+          displayName?: string;
+          level?: number;
+          levelCap?: number;
+          mainStatKey?: string;
+          mainStatValue?: number;
+          substats?: Array<{ key?: string; value?: number }>;
+        }>;
+      };
+    }>;
+    lastImport?: {
+      status?: string;
+      lowConfReasons?: string[];
+      confidenceByField?: Record<string, number>;
+      fieldSources?: Record<string, string>;
+      capabilities?: Record<string, boolean>;
+    };
+  };
+
+  const anby = roster.agents.find((entry) => entry.agent.agentId === "agent_anby");
+  assert.ok(anby?.state);
+  assert.equal(anby.state.level, 50);
+  assert.equal(anby.state.levelCap, 60);
+  assert.equal(anby.state.mindscape, 1);
+  assert.equal(anby.state.mindscapeCap, 6);
+  assert.deepEqual(anby.state.stats, {
+    hp: 10543,
+    atk: 2487,
+    impact: 118
+  });
+  assert.equal(anby.state.weaponPresent, true);
+  assert.deepEqual(anby.state.discSlotOccupancy, {
+    "1": true,
+    "2": false
+  });
+  assert.deepEqual(anby.state.confidenceByField, {
+    level: 0.994,
+    weapon: 0.965,
+    disc_1: 0.941
+  });
+  assert.deepEqual(anby.state.fieldSources, {
+    level: "ocr.agent_panel.level",
+    weapon: "ocr.weapon_panel",
+    disc_1: "ocr.disc_slot_1"
+  });
+  assert.deepEqual(anby.state.weapon, {
+    weaponId: "weapon_demara_battery_mark_ii",
+    displayName: "Demara Battery Mark II",
+    level: 50,
+    levelCap: 60,
+    baseStatKey: "atk",
+    baseStatValue: 624,
+    advancedStatKey: "impact",
+    advancedStatValue: 18
+  });
+  assert.deepEqual(anby.state.discs, [
+    {
+      slot: 1,
+      setId: "discset_woodpecker_electro",
+      displayName: "Woodpecker Electro [1]",
+      level: 15,
+      levelCap: 15,
+      mainStatKey: "atk_percent",
+      mainStatValue: 30.4,
+      substats: [
+        { key: "crit_rate", value: 8 },
+        { key: "hp_flat", value: 112 }
+      ]
+    }
+  ]);
+  assert.equal(roster.lastImport?.status, "DEGRADED");
+  assert.deepEqual(roster.lastImport?.lowConfReasons, ["agent_anby.disc_slot_2_missing"]);
+  assert.deepEqual(roster.lastImport?.confidenceByField, {
+    uid: 0.998,
+    roster: 0.973
+  });
+  assert.deepEqual(roster.lastImport?.fieldSources, {
+    uid: "ocr.uid_panel",
+    roster: "ocr.agent_overview"
+  });
+  assert.deepEqual(roster.lastImport?.capabilities, {
+    fullRosterCoverage: true,
+    equipmentFromPixels: true
+  });
+});
+
 test("verifier roster import falls back to linked UID when payload uid is missing or invalid", async () => {
   const cookie = await registerAndGetCookie("verifier-fallback@test.dev", "VerifierFallback");
   const token = await issueVerifierToken(cookie, 53137);
