@@ -1,23 +1,227 @@
 import { useEffect, useMemo, useState } from "react";
-import type { PlayerRosterView, Region } from "@ika/shared";
-import { fetchPlayerRoster } from "../api";
+import { Link } from "react-router-dom";
+import type { AgentStatic, PlayerRosterView, Region } from "@ika/shared";
+import { fetchAgentCatalog, fetchPlayerRoster } from "../api";
 import { featureFlags } from "../flags";
 import { useAuth } from "../auth/AuthProvider";
 import { ImportPanel } from "../components/roster/ImportPanel";
 import { RosterGrid } from "../components/roster/RosterGrid";
+import { getFullMindscapeUrl } from "../components/roster/mindscape";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { RarityIcon } from "../components/RarityIcon";
 import { Skeleton } from "../components/ui/skeleton";
 import { TooltipProvider } from "../components/ui/tooltip";
 
 const regionOptions: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
+const spotlightAgentIds = new Set([
+  "agent_ellen",
+  "agent_miyabi",
+  "agent_zhu_yuan",
+  "agent_anby",
+  "agent_nicole",
+  "agent_lycaon"
+]);
+
+const safetyNotes = [
+  "No game password required",
+  "Read-only visible roster scan",
+  "No shop, pull, or currency actions"
+];
 
 function normalizeRegion(value: unknown): Region {
   if (typeof value === "string" && regionOptions.includes(value as Region)) {
     return value as Region;
   }
   return "OTHER";
+}
+
+function PublicAgentCard({ agent }: { agent: AgentStatic }) {
+  const mindscapeUrl = getFullMindscapeUrl(agent.agentId);
+
+  return (
+    <article className="agent-dossier-card">
+      <div className="agent-dossier-visual">
+        {mindscapeUrl ? (
+          <img src={mindscapeUrl} alt="" aria-hidden />
+        ) : (
+          <div className="agent-dossier-fallback">{agent.name.slice(0, 2).toUpperCase()}</div>
+        )}
+        <div className="agent-dossier-scanline" />
+      </div>
+      <div className="agent-dossier-body">
+        <div className="agent-dossier-topline">
+          <span>{agent.attribute}</span>
+          <RarityIcon rarity={agent.rarity} className="h-6 w-6 object-contain" />
+        </div>
+        <h3>{agent.name}</h3>
+        <p>{agent.shortDescription ?? `${agent.faction} ${agent.role.toLowerCase()} agent.`}</p>
+        <div className="agent-dossier-tags">
+          <span>{agent.role}</span>
+          <span>{agent.attackType}</span>
+          <span>{agent.faction}</span>
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function PublicAgentCatalog({
+  agents,
+  loading,
+  catalogError,
+  userHasUid,
+  isSignedIn
+}: {
+  agents: AgentStatic[];
+  loading: boolean;
+  catalogError: string | null;
+  userHasUid: boolean;
+  isSignedIn: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const [attributeFilter, setAttributeFilter] = useState("ALL");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+
+  const attributes = useMemo(() => {
+    return ["ALL", ...Array.from(new Set(agents.map((agent) => agent.attribute))).sort()];
+  }, [agents]);
+
+  const roles = useMemo(() => {
+    return ["ALL", ...Array.from(new Set(agents.map((agent) => agent.role))).sort()];
+  }, [agents]);
+
+  const filteredAgents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return agents.filter((agent) => {
+      if (attributeFilter !== "ALL" && agent.attribute !== attributeFilter) {
+        return false;
+      }
+      if (roleFilter !== "ALL" && agent.role !== roleFilter) {
+        return false;
+      }
+      if (query && !agent.name.toLowerCase().includes(query)) {
+        return false;
+      }
+      return true;
+    });
+  }, [agents, attributeFilter, roleFilter, search]);
+
+  const spotlightAgents = useMemo(() => {
+    const preferred = filteredAgents.filter((agent) => spotlightAgentIds.has(agent.agentId));
+    return (preferred.length ? preferred : filteredAgents).slice(0, 6);
+  }, [filteredAgents]);
+
+  const primaryCta = isSignedIn
+    ? { label: "Start verifier sync", to: "/uid-verify" }
+    : { label: "Sign in to sync roster", to: "/signin" };
+
+  return (
+    <div className="agent-public-page">
+      <section className="agent-public-hero">
+        <div>
+          <div className="eyebrow">Agent dossier // public catalog</div>
+          <h1>{userHasUid ? "Roster intelligence" : "Build your verified ZZZ roster"}</h1>
+          <p>
+            Browse the competitive agent catalog, then connect Verifier to turn this public dossier
+            into your owned, match-ready roster.
+          </p>
+          <div className="agent-public-actions">
+            <Button asChild>
+              <Link to={primaryCta.to}>{primaryCta.label}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link to="/rulesets">View rulesets</Link>
+            </Button>
+          </div>
+        </div>
+
+        <div className="agent-safety-panel" aria-label="Verifier safety notes">
+          <div className="agent-safety-title">Verifier safety lock</div>
+          {safetyNotes.map((note) => (
+            <div key={note} className="agent-safety-row">
+              <span />
+              {note}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="agent-catalog-console">
+        <div className="agent-console-header">
+          <div>
+            <div className="eyebrow">Catalog console</div>
+            <h2>Draft-ready agents</h2>
+            <p>{agents.length} catalog entries available for roster sync and ruleset checks.</p>
+          </div>
+          <Input
+            placeholder="Search agent"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full md:w-72"
+          />
+        </div>
+
+        <div className="agent-filter-bank">
+          <div>
+            <span>Attribute</span>
+            <div>
+              {attributes.map((attribute) => (
+                <button
+                  key={attribute}
+                  type="button"
+                  className={attributeFilter === attribute ? "is-active" : undefined}
+                  onClick={() => setAttributeFilter(attribute)}
+                >
+                  {attribute}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <span>Role</span>
+            <div>
+              {roles.map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  className={roleFilter === role ? "is-active" : undefined}
+                  onClick={() => setRoleFilter(role)}
+                >
+                  {role}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {catalogError ? (
+          <div className="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">
+            {catalogError}
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="agent-dossier-grid">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-72" />
+            ))}
+          </div>
+        ) : spotlightAgents.length ? (
+          <div className="agent-dossier-grid">
+            {spotlightAgents.map((agent) => (
+              <PublicAgentCard key={agent.agentId} agent={agent} />
+            ))}
+          </div>
+        ) : (
+          <div className="agent-empty-state">
+            No agents match these filters. Clear search or switch attribute/role filters.
+          </div>
+        )}
+      </section>
+    </div>
+  );
 }
 
 export default function Agents() {
@@ -31,6 +235,26 @@ export default function Agents() {
   const [error, setError] = useState<string | null>(null);
   const [searchOwned, setSearchOwned] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [catalogAgents, setCatalogAgents] = useState<AgentStatic[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!featureFlags.enableAgentCatalog) {
+      setCatalogLoading(false);
+      return;
+    }
+
+    setCatalogLoading(true);
+    setCatalogError(null);
+    fetchAgentCatalog()
+      .then((catalog) => setCatalogAgents(catalog.agents))
+      .catch(() => {
+        setCatalogAgents([]);
+        setCatalogError("Failed to load public agent catalog.");
+      })
+      .finally(() => setCatalogLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!featureFlags.enableAgentCatalog) {
@@ -118,33 +342,25 @@ export default function Agents() {
 
   if (!user) {
     return (
-      <div className="mx-auto w-full max-w-[1100px] px-6 pb-16 pt-8">
-        <div className="rounded-xl border border-border bg-ika-800/70 p-6">
-          <div className="text-lg font-semibold text-ink-900">My Agents</div>
-          <p className="mt-2 text-sm text-ink-500">
-            Sign in to view your Verifier-synced roster.
-          </p>
-          <Button className="mt-4" asChild>
-            <a href="/signin">Sign in</a>
-          </Button>
-        </div>
-      </div>
+      <PublicAgentCatalog
+        agents={catalogAgents}
+        loading={catalogLoading}
+        catalogError={catalogError}
+        userHasUid={false}
+        isSignedIn={false}
+      />
     );
   }
 
   if (!uid) {
     return (
-      <div className="mx-auto w-full max-w-[1100px] px-6 pb-16 pt-8">
-        <div className="rounded-xl border border-border bg-ika-800/70 p-6">
-          <div className="text-lg font-semibold text-ink-900">My Agents</div>
-          <p className="mt-2 text-sm text-ink-500">
-            Complete Verifier OCR visible-slice sync to link UID and roster.
-          </p>
-          <Button className="mt-4" asChild>
-            <a href="/uid-verify">Open Verifier setup</a>
-          </Button>
-        </div>
-      </div>
+      <PublicAgentCatalog
+        agents={catalogAgents}
+        loading={catalogLoading}
+        catalogError={catalogError}
+        userHasUid={false}
+        isSignedIn
+      />
     );
   }
 
