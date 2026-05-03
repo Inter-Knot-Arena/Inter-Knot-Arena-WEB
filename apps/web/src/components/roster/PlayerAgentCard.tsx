@@ -18,7 +18,6 @@ interface PlayerAgentCardProps {
 }
 
 const sourceLabels: Record<PlayerAgentDynamic["source"], string> = {
-  ENKA_SHOWCASE: "Enka",
   VERIFIER_OCR: "Scan",
   MANUAL: "Manual"
 };

@@ -11,7 +11,6 @@ This repository is the production-ready web/backend baseline without the desktop
 - Profile summary and analytics endpoints (history, top agents, draft/evidence aggregates).
 - BO1 + full BO3 draft templates with timeout auto-pick/auto-ban and trust penalties.
 - Verifier OCR roster import (agents, discs, amplifiers, UID) as the primary sync flow.
-- Legacy Enka/manual roster flow is deprecated by default and can be enabled only via legacy flags.
 - Evidence upload in both S3 and local storage modes with validation, rate limits, and retention sweep.
 - Realtime match room updates via SSE with polling fallback on web.
 - CI checks for typecheck, API tests, and workspace builds.
@@ -51,16 +50,8 @@ $env:API_ORIGIN = "http://localhost:4000"
 
 $env:ENABLE_AGENT_CATALOG = "true"
 $env:ENABLE_VERIFIER_ROSTER_IMPORT = "true"
-$env:ENABLE_ENKA_IMPORT = "false"
 $env:ENABLE_LEGACY_UID_VERIFY = "false"
 $env:ENABLE_LEGACY_ROSTER_IMPORT = "false"
-$env:ENABLE_ACCUMULATIVE_IMPORT = "true"
-$env:ENKA_STORE_RAW = "true"
-$env:ENKA_BASE_URL = "https://enka.network/api/zzz/uid"
-$env:CACHE_TTL_MS = "600000"
-$env:ENKA_RATE_LIMIT_MS = "30000"
-$env:ENKA_TIMEOUT_MS = "8000"
-$env:ENKA_RAW_TTL_SEC = "1209600"
 
 # Storage mode: local fallback (no S3 required)
 $env:IKA_STORAGE = "local"
@@ -74,7 +65,6 @@ npm run dev:api
 ```powershell
 $env:VITE_ENABLE_AGENT_CATALOG = "true"
 $env:VITE_ENABLE_VERIFIER_ROSTER_IMPORT = "true"
-$env:VITE_ENABLE_ENKA_IMPORT = "false"
 npm run dev:web
 ```
 
@@ -149,7 +139,7 @@ Required OAuth envs for normal mode:
 ### Ops
 
 - `GET /health`
-- `GET /metrics` (includes import telemetry snapshot)
+- `GET /metrics` (queues, tickets, active matches, disputes)
 
 ## Quality gates
 
@@ -165,4 +155,3 @@ CI runs these checks on push.
 
 - Ranked queues rely on Verifier-based UID/roster verification and roster eligibility checks.
 - Desktop Verifier app is intentionally out of scope in this codebase.
-- Legacy Enka/manual roster endpoints return `410` unless explicitly re-enabled via legacy env flags.

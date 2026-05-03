@@ -303,20 +303,11 @@ CREATE TABLE IF NOT EXISTS roster_imports (
   PRIMARY KEY (uid, region)
 );
 
-CREATE TABLE IF NOT EXISTS player_import_snapshots (
-  snapshot_id text PRIMARY KEY,
-  uid text NOT NULL,
-  region text NOT NULL,
-  fetched_at bigint NOT NULL,
-  showcase_agent_ids jsonb NOT NULL,
-  raw_enka jsonb,
-  ttl_seconds integer NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_player_import_snapshots_uid_region
-  ON player_import_snapshots (uid, region);
-CREATE INDEX IF NOT EXISTS idx_player_import_snapshots_fetched_at
-  ON player_import_snapshots (fetched_at);
+DELETE FROM player_agent_states
+  WHERE state->>'source' = CONCAT(CHR(69), CHR(78), CHR(75), CHR(65), '_SHOWCASE');
+DELETE FROM roster_imports
+  WHERE summary->>'source' = CONCAT(CHR(69), CHR(78), CHR(75), CHR(65), '_SHOWCASE');
+DROP TABLE IF EXISTS player_import_snapshots;
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id text PRIMARY KEY,

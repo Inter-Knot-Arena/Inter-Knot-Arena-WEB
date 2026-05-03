@@ -130,7 +130,7 @@ export interface DiscSetCatalog {
   discSets: DiscSet[];
 }
 
-export type PlayerAgentSource = "ENKA_SHOWCASE" | "VERIFIER_OCR" | "MANUAL";
+export type PlayerAgentSource = "VERIFIER_OCR" | "MANUAL";
 
 export interface DiscProperty {
   propertyId: number;
@@ -203,7 +203,6 @@ export interface PlayerAgentDynamic {
   confidence?: Record<string, number>;
   fieldSources?: Record<string, string>;
   lastImportedAt?: string;
-  lastShowcaseSeenAt?: string;
   updatedAt: string;
 }
 
@@ -232,9 +231,6 @@ export interface PlayerRosterImportSummary {
   newAgentsCount?: number;
   updatedAgentsCount?: number;
   unchangedCount?: number;
-  ttlSeconds?: number;
-  retryAfterSec?: number;
-  usedSnapshotAt?: string;
   message?: string;
 }
 
@@ -248,13 +244,6 @@ export interface PlayerRosterView {
     eligibility: AgentEligibility;
   }>;
   lastImport?: PlayerRosterImportSummary;
-}
-
-export interface EnkaMapping {
-  mappingVersion: string;
-  characters: Record<string, string>;
-  weapons: Record<string, string>;
-  discs: Record<string, string>;
 }
 
 export type RosterEvidenceLevel = "DECLARED" | "SCREEN_PROVED" | "VIDEO_PROVED";

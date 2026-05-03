@@ -32,14 +32,6 @@ Operational runbook for the production-ready baseline (web + API), excluding des
 - `ENABLE_VERIFIER_ROSTER_IMPORT=true` (default)
 - `ENABLE_LEGACY_UID_VERIFY=false` (default)
 - `ENABLE_LEGACY_ROSTER_IMPORT=false` (default)
-- `ENABLE_ENKA_IMPORT=false` (recommended)
-- `ENKA_BASE_URL` (default `https://enka.network/api/zzz/uid`)
-- `CACHE_TTL_MS` (default `600000`)
-- `ENKA_RATE_LIMIT_MS` (default `30000`)
-- `ENKA_TIMEOUT_MS` (default `8000`)
-- `ENABLE_ACCUMULATIVE_IMPORT=true`
-- `ENKA_STORE_RAW=true|false`
-- `ENKA_RAW_TTL_SEC` (default `1209600`)
 
 ### Storage mode
 
@@ -63,13 +55,11 @@ S3 mode:
 API:
 
 - `ENABLE_AGENT_CATALOG=true`
-- `ENABLE_ENKA_IMPORT=false` (legacy)
 - `ENABLE_VERIFIER_ROSTER_IMPORT=true`
 
 Web:
 
 - `VITE_ENABLE_AGENT_CATALOG=true`
-- `VITE_ENABLE_ENKA_IMPORT=false` (legacy)
 - `VITE_ENABLE_VERIFIER_ROSTER_IMPORT=true`
 - optional `VITE_API_URL`
 
@@ -106,21 +96,7 @@ Web:
    - `npm run build:web`
 5. Verify `/health` and `/metrics` after deploy.
 
-## 4. Legacy Enka operations (optional)
-
-Legacy endpoint `POST /players/:uid/import/enka` is available only when `ENABLE_LEGACY_ROSTER_IMPORT=true` and returns structured status:
-
-- `SUCCESS` - import completed normally.
-- `DEGRADED` - Enka failed, fallback snapshot used; inspect `retryAfterSec` and `usedSnapshotAt`.
-- `FAILED` - no valid fallback snapshot; user should retry later.
-
-Actions:
-
-1. Check `/metrics.enka` for error buckets (`http403`, `http429`, `timeout`, `http5xx`).
-2. If high failure rate, reduce import pressure or increase retry interval.
-3. Do not expose legacy manual roster path in production unless required for incident fallback.
-
-## 5. Evidence upload operations
+## 4. Evidence upload operations
 
 1. `POST /uploads/presign` allocates upload destination.
 2. Local mode:
@@ -135,13 +111,12 @@ Guardrails:
 - payload max bytes (`UPLOAD_MAX_BYTES`)
 - content type allow-list (`image/*`, `video/*`, `application/octet-stream`)
 
-## 6. Scheduled jobs and lifecycle
+## 5. Scheduled jobs and lifecycle
 
 - Match lifecycle sweep runs continuously (timeouts, transitions, auto-draft actions).
-- Roster snapshot cleanup runs every 10 minutes.
 - Evidence retention sweep runs on lifecycle interval and redacts/cleans data per ruleset policy.
 
-## 7. Incident playbook
+## 6. Incident playbook
 
 ### Matchmaking blocked unexpectedly
 
@@ -161,8 +136,8 @@ Guardrails:
 3. Re-run workspace builds.
 4. Identify failing commit by hash and rollback/patch.
 
-## 8. Known limits
+## 7. Known limits
 
-- Production flow is Verifier-based; Enka/manual UID flow is legacy-only and disabled by default.
+- Production flow is Verifier-based; manual UID flow is legacy-only and disabled by default.
 - Current metrics are in-memory snapshots (reset on API restart).
 - Web bundle chunk size warning remains and can be optimized later with code splitting.

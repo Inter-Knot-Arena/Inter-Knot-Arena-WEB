@@ -419,11 +419,8 @@ export function fetchAgentCatalog(): Promise<AgentCatalog> {
   return requestJsonOr<AgentCatalog>("/catalog/agents", { catalogVersion: "unknown", agents: [] });
 }
 
-export function reloadAdminCatalog(): Promise<{ catalogVersion: string; mappingVersion: string }> {
-  return requestJson<{ catalogVersion: string; mappingVersion: string }>(
-    "/admin/catalog/reload",
-    jsonRequest({})
-  );
+export function reloadAdminCatalog(): Promise<{ catalogVersion: string }> {
+  return requestJson<{ catalogVersion: string }>("/admin/catalog/reload", jsonRequest({}));
 }
 
 export async function fetchPlayerRoster(options: {
@@ -443,23 +440,6 @@ export async function fetchPlayerRoster(options: {
     throw new Error(await readError(response));
   }
   return (await response.json()) as PlayerRosterView;
-}
-
-export async function importRosterFromEnka(payload: {
-  uid: string;
-  region: string;
-  force?: boolean;
-}): Promise<PlayerRosterImportSummary> {
-  const response = await fetch(`${API_BASE}/players/${payload.uid}/import/enka`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ region: payload.region, force: payload.force })
-  });
-  if (!response.ok) {
-    throw new Error(await readError(response));
-  }
-  return (await response.json()) as PlayerRosterImportSummary;
 }
 
 export function submitVerifierRosterImport(payload: {

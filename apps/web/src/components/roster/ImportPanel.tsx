@@ -109,14 +109,6 @@ export function ImportPanel({
               ))}
             </div>
           ) : null}
-          {typeof lastImport.retryAfterSec === "number" ? (
-            <div className="mt-2">Retry hint: wait about {lastImport.retryAfterSec} sec.</div>
-          ) : null}
-          {lastImport.usedSnapshotAt ? (
-            <div className="mt-1">
-              Fallback snapshot used: {new Date(lastImport.usedSnapshotAt).toLocaleString()}
-            </div>
-          ) : null}
           {lastImport.unknownIds.length ? (
             <div className="mt-2 text-amber-200">
               Unknown IDs: {lastImport.unknownIds.join(", ")}
@@ -137,7 +129,7 @@ export function ImportPanel({
           {missingAgents && missingAgents.length ? (
             <div className="rounded-lg border border-border bg-ika-900/40 p-3">
               <div className="text-[11px] uppercase tracking-[0.2em] text-ink-500">
-                Put these agents into showcase next
+                Scan these agents next
               </div>
               <div className="mt-2 flex flex-wrap gap-2">
                 {missingAgents.slice(0, 10).map((name) => (

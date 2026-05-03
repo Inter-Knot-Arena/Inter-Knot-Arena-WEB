@@ -39,7 +39,6 @@ import type { AuditStore } from "./audit/types.js";
 import type { IdempotencyStore } from "./idempotency/types.js";
 import type { ModerationStore } from "./moderation/types.js";
 import type { VerificationStateStore } from "./verificationState/types.js";
-import { getEnkaMetricsSnapshot } from "./enka/metrics.js";
 
 class HttpError extends Error {
   constructor(
@@ -352,7 +351,7 @@ export async function registerRoutes(
       throw new Error("Agent is not available in your verified roster.");
     }
     if (state.source === "MANUAL") {
-      throw new Error("Ranked draft requires showcase-verified roster evidence.");
+      throw new Error("Ranked draft requires Verifier roster evidence.");
     }
   };
 
@@ -455,7 +454,6 @@ export async function registerRoutes(
         matchmakingTickets: waitingTickets.length,
         activeMatches: activeMatches.length,
         openDisputes: openDisputes.length,
-        enka: getEnkaMetricsSnapshot(),
         timestamp: now()
       });
     } catch (error) {

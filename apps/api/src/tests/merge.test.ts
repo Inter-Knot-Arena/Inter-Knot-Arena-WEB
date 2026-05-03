@@ -15,7 +15,7 @@ test("mergePlayerAgentDynamic respects source priority", () => {
     agentId: "agent_ellen",
     owned: true,
     level: 50,
-    source: "ENKA_SHOWCASE",
+    source: "MANUAL",
     updatedAt: "2025-01-02T00:00:00.000Z"
   };
 
@@ -36,12 +36,12 @@ test("mergePlayerAgentDynamic upgrades lower priority data", () => {
     agentId: "agent_ellen",
     owned: true,
     level: 30,
-    source: "ENKA_SHOWCASE",
+    source: "VERIFIER_OCR",
     updatedAt: "2025-01-02T00:00:00.000Z"
   };
 
   const merged = mergePlayerAgentDynamic(existing, incoming);
   assert.equal(merged.level, 30);
   assert.equal(merged.owned, true);
-  assert.equal(merged.source, "ENKA_SHOWCASE");
+  assert.equal(merged.source, "VERIFIER_OCR");
 });

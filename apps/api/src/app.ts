@@ -10,7 +10,6 @@ import { registerIdentityRoutes } from "./routes/identity.js";
 import { createAuthContext } from "./auth/context.js";
 import { getFeatureFlags } from "./featureFlags.js";
 import { createCatalogStore } from "./catalog/store.js";
-import { createCache } from "./cache/index.js";
 import { createRosterStore } from "./roster/index.js";
 import { registerCatalogRoutes } from "./routes/catalog.js";
 import { registerRosterRoutes } from "./routes/roster.js";
@@ -46,9 +45,7 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
   const rosterStore = await createRosterStore();
   const flags = getFeatureFlags();
   const catalogStore =
-    flags.enableAgentCatalog || flags.enableEnkaImport || flags.enableVerifierRosterImport
-      ? await createCatalogStore()
-      : null;
+    flags.enableAgentCatalog || flags.enableVerifierRosterImport ? await createCatalogStore() : null;
   await registerAuthRoutes(app, repo, auth);
   await registerUserRoutes(app, repo, auth, rosterStore);
   await registerIdentityRoutes(app, repo, auth, verificationState);
@@ -70,9 +67,8 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
   if (catalogStore && flags.enableAgentCatalog) {
     await registerCatalogRoutes(app, catalogStore, repo, auth);
   }
-  if (catalogStore && (flags.enableEnkaImport || flags.enableVerifierRosterImport)) {
-    const { client, config } = createCache();
-    await registerRosterRoutes(app, repo, catalogStore, rosterStore, client, config.ttlMs, auth);
+  if (catalogStore && flags.enableVerifierRosterImport) {
+    await registerRosterRoutes(app, repo, catalogStore, rosterStore, auth);
   }
 
   const intervals: NodeJS.Timeout[] = [];
@@ -103,9 +99,6 @@ export async function createApp(options: CreateAppOptions = {}): Promise<Fastify
       void verificationState.purgeExpired();
     }, 60_000);
 
-    schedule(() => {
-      void rosterStore.cleanupExpiredSnapshots();
-    }, 10 * 60_000);
   }
 
   app.addHook("onClose", async () => {

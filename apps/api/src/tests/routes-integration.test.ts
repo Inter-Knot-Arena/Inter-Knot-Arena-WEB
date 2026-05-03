@@ -44,12 +44,17 @@ test("health and metrics endpoints respond with expected payload", async () => {
   });
   assert.equal(metrics.statusCode, 200);
   const payload = metrics.json() as {
-    enka?: {
-      totals: { imports: number };
-    };
+    queuesConfigured?: number;
+    matchmakingTickets?: number;
+    activeMatches?: number;
+    openDisputes?: number;
+    timestamp?: number;
   };
-  assert.ok(payload.enka);
-  assert.equal(payload.enka?.totals.imports, 0);
+  assert.equal(typeof payload.queuesConfigured, "number");
+  assert.equal(typeof payload.matchmakingTickets, "number");
+  assert.equal(typeof payload.activeMatches, "number");
+  assert.equal(typeof payload.openDisputes, "number");
+  assert.equal(typeof payload.timestamp, "number");
 });
 
 test("profile endpoints return summary, paged matches, and analytics", async () => {

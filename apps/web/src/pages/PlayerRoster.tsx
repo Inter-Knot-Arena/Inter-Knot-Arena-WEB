@@ -12,12 +12,7 @@ import { Skeleton } from "../components/ui/skeleton";
 import { TooltipProvider } from "../components/ui/tooltip";
 
 const regionOptions = ["NA", "EU", "ASIA", "SEA", "OTHER"];
-const sourceOptions: Array<"ALL" | PlayerAgentSource> = [
-  "ALL",
-  "ENKA_SHOWCASE",
-  "VERIFIER_OCR",
-  "MANUAL"
-];
+const sourceOptions: Array<"ALL" | PlayerAgentSource> = ["ALL", "VERIFIER_OCR", "MANUAL"];
 
 export default function PlayerRoster() {
   const { uid } = useParams();

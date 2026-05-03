@@ -11,7 +11,7 @@ test("mergePlayerAgentDynamicAccumulative keeps highest numeric progress", () =>
     dupes: 2,
     mindscape: 1,
     promotion: 3,
-    source: "ENKA_SHOWCASE",
+    source: "VERIFIER_OCR",
     updatedAt: "2025-01-01T00:00:00.000Z"
   };
   const incoming: PlayerAgentDynamic = {
@@ -21,7 +21,7 @@ test("mergePlayerAgentDynamicAccumulative keeps highest numeric progress", () =>
     dupes: 1,
     mindscape: 0,
     promotion: 2,
-    source: "ENKA_SHOWCASE",
+    source: "VERIFIER_OCR",
     updatedAt: "2025-01-02T00:00:00.000Z"
   };
 
@@ -37,14 +37,14 @@ test("mergePlayerAgentDynamicAccumulative merges skills by max per key", () => {
     agentId: "agent_ellen",
     owned: true,
     skills: { basic: 10, skill: 4 },
-    source: "ENKA_SHOWCASE",
+    source: "VERIFIER_OCR",
     updatedAt: "2025-01-01T00:00:00.000Z"
   };
   const incoming: PlayerAgentDynamic = {
     agentId: "agent_ellen",
     owned: true,
     skills: { basic: 8, skill: 6, ult: 3 },
-    source: "ENKA_SHOWCASE",
+    source: "VERIFIER_OCR",
     updatedAt: "2025-01-02T00:00:00.000Z"
   };
 
@@ -62,7 +62,7 @@ test("mergePlayerAgentDynamicAccumulative merges discs per slot without losing d
       { discId: "disc_31041", slot: 1, setName: "Woodpecker Electro", level: 12 },
       { discId: "disc_32042", slot: 2, setName: "Inferno Metal", level: 6 }
     ],
-    source: "ENKA_SHOWCASE",
+    source: "VERIFIER_OCR",
     updatedAt: "2025-01-01T00:00:00.000Z"
   };
   const incoming: PlayerAgentDynamic = {
@@ -71,7 +71,7 @@ test("mergePlayerAgentDynamicAccumulative merges discs per slot without losing d
     discs: [
       { discId: "disc_99992", slot: 2, setName: "Unknown set 32000", level: 4 }
     ],
-    source: "ENKA_SHOWCASE",
+    source: "VERIFIER_OCR",
     updatedAt: "2025-01-02T00:00:00.000Z"
   };
 

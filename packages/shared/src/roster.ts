@@ -10,8 +10,7 @@ import type {
 
 const SOURCE_PRIORITY: Record<PlayerAgentSource, number> = {
   MANUAL: 0,
-  ENKA_SHOWCASE: 1,
-  VERIFIER_OCR: 2
+  VERIFIER_OCR: 1
 };
 
 function hasOwn<T extends object, K extends keyof T>(value: T, key: K): boolean {
@@ -320,13 +319,6 @@ export function mergePlayerAgentDynamic(
   if (hasOwn(incoming, "lastImportedAt") && (canOverride || !hasOwn(existing, "lastImportedAt"))) {
     result.lastImportedAt = incoming.lastImportedAt;
   }
-  if (
-    hasOwn(incoming, "lastShowcaseSeenAt") &&
-    (canOverride || !hasOwn(existing, "lastShowcaseSeenAt"))
-  ) {
-    result.lastShowcaseSeenAt = incoming.lastShowcaseSeenAt;
-  }
-
   result.source = canOverride ? incoming.source : existing.source;
   result.updatedAt = canOverride ? incoming.updatedAt : existing.updatedAt;
 
@@ -375,7 +367,6 @@ export function mergePlayerAgentDynamicAccumulative(
   result.fieldSources = mergeStringMap(existing.fieldSources, incoming.fieldSources);
 
   result.lastImportedAt = incoming.lastImportedAt ?? existing.lastImportedAt;
-  result.lastShowcaseSeenAt = incoming.lastShowcaseSeenAt ?? existing.lastShowcaseSeenAt;
   result.source = incoming.source ?? existing.source;
   result.updatedAt = incoming.updatedAt ?? existing.updatedAt;
 

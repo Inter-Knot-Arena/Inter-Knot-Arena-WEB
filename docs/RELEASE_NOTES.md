@@ -42,15 +42,6 @@
   - upload rate limiting
 - Added evidence retention sweep/redaction behavior in lifecycle processing.
 
-### Enka degraded mode
-
-- `POST /players/:uid/import/enka` now returns structured outcomes:
-  - `SUCCESS`
-  - `DEGRADED` with `retryAfterSec`, `usedSnapshotAt`
-  - `FAILED` with retry hints
-- Added fallback to latest valid snapshot when Enka is unavailable.
-- Added Enka import telemetry (latency, status counts, error buckets) exposed under `/metrics`.
-
 ### Realtime and CI
 
 - Added SSE endpoint `GET /matches/:id/events` with web fallback polling.
@@ -60,7 +51,6 @@
 
 - BO3 draft template progression tests.
 - Profile privacy/history service tests.
-- Enka metrics aggregation/error classification tests.
 
 ### Operational docs
 

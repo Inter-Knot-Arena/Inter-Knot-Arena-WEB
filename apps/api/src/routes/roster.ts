@@ -1,10 +1,8 @@
 import type { FastifyInstance } from "fastify";
-import https from "node:https";
 import type { Repository } from "../repository/types.js";
 import type { CatalogStore } from "../catalog/store.js";
-import type { CacheClient } from "../cache/types.js";
 import type { PlayerAgentStateStore } from "../roster/types.js";
-import { computeEligibility, mergePlayerAgentDynamic, mergePlayerAgentDynamicAccumulative } from "@ika/shared";
+import { computeEligibility, mergePlayerAgentDynamic } from "@ika/shared";
 import type {
   PlayerAgentDynamic,
   PlayerRosterImportSummary,
@@ -13,8 +11,6 @@ import type {
   Ruleset,
   User
 } from "@ika/shared";
-import { normalizeEnkaPayload } from "../enka/normalize.js";
-import { recordEnkaImportEvent } from "../enka/metrics.js";
 import { getAuthUser, type AuthContext } from "../auth/context.js";
 
 class RouteError extends Error {
@@ -42,38 +38,7 @@ function sendError(reply: { code: (status: number) => { send: (payload: unknown)
 }
 
 const REGIONS: Region[] = ["NA", "EU", "ASIA", "SEA", "OTHER"];
-const rateLimitMap = new Map<string, number>();
-const accumulativeEnabled = process.env.ENABLE_ACCUMULATIVE_IMPORT === "true";
 const legacyRosterImportEnabled = process.env.ENABLE_LEGACY_ROSTER_IMPORT === "true";
-const storeRawEnka = process.env.ENKA_STORE_RAW === "true";
-const rawEnkaTtlSeconds = Number(process.env.ENKA_RAW_TTL_SEC ?? 60 * 60 * 24 * 14);
-const ENKA_REGION_FALLBACKS: Region[] = ["NA", "EU", "ASIA", "SEA"];
-const ENKA_USER_AGENT =
-  process.env.ENKA_USER_AGENT ??
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36";
-const ENKA_REQUEST_HEADERS: Record<string, string> = {
-  "User-Agent": ENKA_USER_AGENT,
-  Accept: "application/json,text/plain,*/*",
-  "Accept-Language": "en-US,en;q=0.9",
-  Referer: "https://enka.network/",
-  Origin: "https://enka.network"
-};
-
-class EnkaHttpError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly requestUrl: string
-  ) {
-    super(`Enka request failed (${status})`);
-  }
-}
-
-class EnkaTimeoutError extends Error {
-  constructor(public readonly requestUrl: string) {
-    super("Enka request timed out");
-    this.name = "AbortError";
-  }
-}
 
 function validateUid(uid: string): boolean {
   return /^\d{6,12}$/.test(uid);
@@ -298,145 +263,6 @@ function buildVerifierImportedAgentState(args: {
   return state;
 }
 
-function buildEnkaUrl(uid: string, region: Region, includeRegion = true): string {
-  const base = process.env.ENKA_BASE_URL ?? "https://enka.network/api/zzz/uid";
-  const trimmed = base.replace(/\/+$/, "");
-  const url = new URL(`${trimmed}/${uid}`);
-  if (includeRegion && region && region !== "OTHER") {
-    url.searchParams.set("region", region);
-  }
-  return url.toString();
-}
-
-async function fetchJsonWithRetry(url: string, timeoutMs: number): Promise<unknown> {
-  const attempts = 2;
-  let lastError: unknown = null;
-
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    try {
-      return await fetchJsonViaHttps(url, timeoutMs);
-    } catch (error) {
-      lastError = error;
-      const canRetry =
-        !(error instanceof EnkaHttpError) || error.status === 429 || error.status >= 500;
-      if (attempt < attempts - 1 && canRetry) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-      }
-    }
-  }
-
-  throw lastError;
-}
-
-function fetchJsonViaHttps(url: string, timeoutMs: number): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const request = https.get(url, { headers: ENKA_REQUEST_HEADERS }, (response) => {
-      const status = Number(response.statusCode ?? 0);
-      let body = "";
-      response.setEncoding("utf8");
-
-      response.on("data", (chunk: string) => {
-        body += chunk;
-      });
-      response.on("error", reject);
-      response.on("end", () => {
-        if (status < 200 || status >= 300) {
-          reject(new EnkaHttpError(status, url));
-          return;
-        }
-        try {
-          resolve(JSON.parse(body) as unknown);
-        } catch {
-          reject(new Error("Invalid Enka JSON response"));
-        }
-      });
-    });
-
-    request.on("error", reject);
-    request.setTimeout(timeoutMs, () => {
-      request.destroy(new EnkaTimeoutError(url));
-    });
-  });
-}
-
-async function fetchEnkaPayload(uid: string, region: Region, timeoutMs: number): Promise<unknown> {
-  const candidates: string[] = [];
-  const seen = new Set<string>();
-
-  const pushCandidate = (url: string) => {
-    if (!seen.has(url)) {
-      seen.add(url);
-      candidates.push(url);
-    }
-  };
-
-  if (region !== "OTHER") {
-    pushCandidate(buildEnkaUrl(uid, region, true));
-    pushCandidate(buildEnkaUrl(uid, region, false));
-  } else {
-    pushCandidate(buildEnkaUrl(uid, region, false));
-  }
-
-  ENKA_REGION_FALLBACKS.forEach((candidateRegion) => {
-    if (candidateRegion !== region) {
-      pushCandidate(buildEnkaUrl(uid, candidateRegion, true));
-    }
-  });
-
-  let lastError: unknown = null;
-  for (const candidate of candidates) {
-    try {
-      return await fetchJsonWithRetry(candidate, timeoutMs);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  if (lastError instanceof Error) {
-    throw lastError;
-  }
-  throw new Error("Enka request failed");
-}
-
-function messageForEnkaError(error: unknown, region: Region): string {
-  if (error instanceof EnkaHttpError) {
-    if (error.status === 404) {
-      return `Showcase not found for UID in region ${region}. Check region and ensure showcase is public.`;
-    }
-    if (error.status === 403) {
-      return "Enka denied request. Please retry later.";
-    }
-    if (error.status === 429) {
-      return "Enka rate limit reached. Please retry in 1-2 minutes.";
-    }
-    if (error.status >= 500) {
-      return "Enka service is temporarily unavailable. Please retry later.";
-    }
-  }
-  if (error instanceof Error && error.name === "AbortError") {
-    return "Enka request timed out. Please retry.";
-  }
-  return "Could not fetch showcase data. Please retry later.";
-}
-
-function retryAfterForEnkaError(error: unknown): number {
-  if (error instanceof EnkaHttpError) {
-    if (error.status === 429) {
-      return 90;
-    }
-    if (error.status === 403) {
-      return 120;
-    }
-    if (error.status >= 500) {
-      return 60;
-    }
-  }
-  if (error instanceof Error && error.name === "AbortError") {
-    return 30;
-  }
-  return 45;
-}
-
 async function resolveRuleset(repo: Repository, rulesetId?: string): Promise<Ruleset> {
   if (rulesetId) {
     return repo.findRuleset(rulesetId);
@@ -454,8 +280,6 @@ export async function registerRosterRoutes(
   repo: Repository,
   catalog: CatalogStore,
   rosterStore: PlayerAgentStateStore,
-  cache: CacheClient,
-  cacheTtlMs: number,
   auth: AuthContext
 ) {
   app.get("/players/:uid/roster", async (request, reply) => {
@@ -747,212 +571,6 @@ export async function registerRosterRoutes(
         summary,
         verification: updatedUser.verification
       });
-    } catch (error) {
-      sendError(reply, error);
-    }
-  });
-
-  app.post("/players/:uid/import/enka", async (request, reply) => {
-    try {
-      if (!legacyRosterImportEnabled) {
-        reply.code(410).send({
-          error:
-            "Enka import is deprecated. Use Verifier App OCR sync via /verifier/roster/import."
-        });
-        return;
-      }
-      const user = await getAuthUser(request, repo, auth);
-      if (!user) {
-        reply.code(401).send({ error: "Unauthorized" });
-        return;
-      }
-      const params = request.params as { uid?: string };
-      const uid = params.uid ?? "";
-      if (!validateUid(uid)) {
-        throw new Error("Invalid UID");
-      }
-      const canModerate =
-        user.roles.includes("MODER") || user.roles.includes("STAFF") || user.roles.includes("ADMIN");
-      if (user.verification.uid !== uid && !canModerate) {
-        reply.code(403).send({ error: "Forbidden" });
-        return;
-      }
-
-      const body = request.body as { region?: string; force?: boolean };
-      const region = parseRegion(body?.region);
-      if (!region) {
-        throw new Error("Invalid region");
-      }
-      const force = body?.force === true;
-
-      const rateLimitMs = Number(process.env.ENKA_RATE_LIMIT_MS ?? 30000);
-      const limitKey = `${region}:${uid}`;
-      const lastRequest = rateLimitMap.get(limitKey) ?? 0;
-      if (!force && Date.now() - lastRequest < rateLimitMs) {
-        reply.code(429).send({ error: "Too many requests, try again later." });
-        return;
-      }
-      rateLimitMap.set(limitKey, Date.now());
-
-      const cacheKey = `enka:${limitKey}`;
-      const cached = !force ? cache.get<{ payload: unknown; fetchedAt: string }>(cacheKey) : null;
-      let fetchedAt = cached?.fetchedAt ?? new Date().toISOString();
-      let payload: unknown = cached?.payload ?? null;
-      let fetchLatencyMs: number | undefined;
-      const usedCache = Boolean(payload);
-
-      if (!payload) {
-        const fetchStartedAt = Date.now();
-        fetchedAt = new Date().toISOString();
-        try {
-          payload = await fetchEnkaPayload(
-            uid,
-            region,
-            Number(process.env.ENKA_TIMEOUT_MS ?? 8000)
-          );
-          fetchLatencyMs = Date.now() - fetchStartedAt;
-          cache.set(cacheKey, { payload, fetchedAt }, cacheTtlMs);
-        } catch (error) {
-          fetchLatencyMs = Date.now() - fetchStartedAt;
-          const retryAfterSec = retryAfterForEnkaError(error);
-          const latestSnapshot = await rosterStore.getLatestSnapshot(uid, region);
-          const existingStates = await rosterStore.listStates(uid, region);
-          if (latestSnapshot && existingStates.length > 0) {
-            const summary: PlayerRosterImportSummary = {
-              source: "ENKA_SHOWCASE",
-              importedCount: existingStates.length,
-              skippedCount: 0,
-              unknownIds: [],
-              fetchedAt,
-              status: "DEGRADED",
-              retryAfterSec,
-              usedSnapshotAt: latestSnapshot.fetchedAt,
-              message: `${messageForEnkaError(error, region)} Using latest valid snapshot.`
-            };
-            await rosterStore.saveImportSummary(uid, region, summary);
-            recordEnkaImportEvent({
-              status: summary.status ?? "DEGRADED",
-              fromCache: false,
-              latencyMs: fetchLatencyMs,
-              error
-            });
-            reply.send(summary);
-            return;
-          }
-          const summary: PlayerRosterImportSummary = {
-            source: "ENKA_SHOWCASE",
-            importedCount: 0,
-            skippedCount: 0,
-            unknownIds: [],
-            fetchedAt,
-            status: "FAILED",
-            retryAfterSec,
-            message: messageForEnkaError(error, region)
-          };
-          await rosterStore.saveImportSummary(uid, region, summary);
-          recordEnkaImportEvent({
-            status: summary.status ?? "FAILED",
-            fromCache: false,
-            latencyMs: fetchLatencyMs,
-            error
-          });
-          reply.send(summary);
-          return;
-        }
-      }
-
-      const { agents, unknownIds } = normalizeEnkaPayload(
-        payload,
-        catalog.getMapping(),
-        fetchedAt,
-        catalog.getDiscSetMap()
-      );
-      const skippedCount = unknownIds.filter((id) => id.startsWith("character:")).length;
-      const summary: PlayerRosterImportSummary = {
-        source: "ENKA_SHOWCASE",
-        importedCount: agents.length,
-        skippedCount,
-        unknownIds,
-        fetchedAt,
-        status: "SUCCESS",
-        message: agents.length === 0 ? "No showcase data available." : undefined
-      };
-
-      if (agents.length > 0) {
-        if (accumulativeEnabled) {
-          const existingStates = await rosterStore.listStates(uid, region);
-          const existingMap = new Map(existingStates.map((state) => [state.agentId, state]));
-          let newAgentsCount = 0;
-          let updatedAgentsCount = 0;
-          let unchangedCount = 0;
-
-          const merged = agents.map((incoming) => {
-            const existing = existingMap.get(incoming.agentId);
-            const incomingWithFlags = {
-              ...incoming,
-              owned: true,
-              lastImportedAt: fetchedAt,
-              lastShowcaseSeenAt: fetchedAt,
-              updatedAt: fetchedAt
-            };
-            const mergedState = mergePlayerAgentDynamicAccumulative(existing, incomingWithFlags);
-
-            if (!existing) {
-              newAgentsCount += 1;
-            } else {
-              const stripTimestamps = (state: PlayerAgentDynamic) => {
-                const { lastImportedAt, lastShowcaseSeenAt, updatedAt, ...rest } = state;
-                return rest;
-              };
-              const existingComparable = JSON.stringify(stripTimestamps(existing));
-              const mergedComparable = JSON.stringify(stripTimestamps(mergedState));
-              if (existingComparable === mergedComparable) {
-                unchangedCount += 1;
-              } else {
-                updatedAgentsCount += 1;
-              }
-            }
-            return mergedState;
-          });
-
-          summary.newAgentsCount = newAgentsCount;
-          summary.updatedAgentsCount = updatedAgentsCount;
-          summary.unchangedCount = unchangedCount;
-          summary.ttlSeconds = storeRawEnka ? rawEnkaTtlSeconds : 0;
-
-          await rosterStore.upsertStates(uid, region, merged, { mergeStrategy: "DIRECT" });
-
-          const showcaseAgentIds = [
-            ...merged.map((item) => String(item.agentGameId ?? item.agentId)),
-            ...unknownIds
-              .filter((id) => id.startsWith("character:"))
-              .flatMap((id) => {
-                const [, rawId] = id.split(":");
-                return rawId ? [rawId] : [];
-              })
-          ];
-
-          await rosterStore.saveSnapshot({
-            snapshotId: `snap_${uid}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            uid,
-            region,
-            fetchedAt,
-            showcaseAgentIds,
-            rawEnkaJson: storeRawEnka ? payload : undefined,
-            ttlSeconds: storeRawEnka ? rawEnkaTtlSeconds : 0
-          });
-        } else {
-          await rosterStore.upsertStates(uid, region, agents);
-        }
-      }
-      await rosterStore.saveImportSummary(uid, region, summary);
-      recordEnkaImportEvent({
-        status: summary.status ?? "SUCCESS",
-        fromCache: usedCache,
-        latencyMs: fetchLatencyMs
-      });
-
-      reply.send(summary);
     } catch (error) {
       sendError(reply, error);
     }

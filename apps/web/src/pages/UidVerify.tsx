@@ -57,7 +57,7 @@ export default function UidVerify() {
         <div className="text-xs uppercase tracking-[0.2em] text-ink-500">Verifier onboarding</div>
         <h1 className="text-2xl font-display text-ink-900">UID and roster verification</h1>
         <p className="mt-2 text-sm text-ink-500">
-          Enka import and manual UID flow are replaced by Verifier App OCR visible-slice sync.
+          UID linking and roster sync now run through Verifier App OCR visible-slice scanning.
         </p>
       </div>
 
