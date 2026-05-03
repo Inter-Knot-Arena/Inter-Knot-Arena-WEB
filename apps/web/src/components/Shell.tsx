@@ -76,9 +76,9 @@ export default function Shell({ children }: ShellProps) {
   const { user } = useAuth();
   const [language, setLanguage] = useState(() => {
     if (typeof window === "undefined") {
-      return "ru";
+      return "en";
     }
-    return window.localStorage.getItem("ika:lang") ?? "ru";
+    return window.localStorage.getItem("ika:lang") ?? "en";
   });
   const [langOpen, setLangOpen] = useState(false);
   const langRef = useRef<HTMLDivElement | null>(null);

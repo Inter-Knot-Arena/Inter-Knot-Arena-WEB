@@ -76,8 +76,8 @@ label {
 
 .app-header {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 24px;
+  grid-template-columns: minmax(230px, 0.8fr) minmax(420px, 1.15fr) auto;
+  gap: clamp(12px, 1.4vw, 24px);
   align-items: center;
   padding: 20px 6vw;
   position: sticky;
@@ -122,8 +122,8 @@ label {
 
 .nav-links {
   display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
+  flex-wrap: nowrap;
+  gap: clamp(10px, 1.1vw, 20px);
   justify-content: center;
   padding: 0;
   border-radius: 0;
@@ -133,7 +133,7 @@ label {
 }
 
 .nav-link {
-  font-size: 16px;
+  font-size: clamp(13px, 0.95vw, 16px);
   font-weight: 600;
   text-transform: none;
   letter-spacing: 0.02em;
@@ -144,7 +144,8 @@ label {
   transition: border-color 0.2s ease, color 0.2s ease;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .nav-link-active {
@@ -169,8 +170,8 @@ label {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: clamp(8px, 0.8vw, 12px);
+  flex-wrap: nowrap;
 }
 
 .search {
@@ -1046,10 +1047,12 @@ input::placeholder {
   }
 
   .nav-links {
+    flex-wrap: wrap;
     justify-content: center;
   }
 
   .header-actions {
+    flex-wrap: wrap;
     justify-content: center;
   }
 
@@ -1194,6 +1197,16 @@ p {
 
 .brand-title {
   font-family: "Bebas Neue", sans-serif;
+  white-space: nowrap;
+}
+
+.brand-subtitle {
+  white-space: nowrap;
+}
+
+.brand-mark {
+  width: clamp(54px, 4.2vw, 72px);
+  height: clamp(54px, 4.2vw, 72px);
 }
 
 .search-trigger,
