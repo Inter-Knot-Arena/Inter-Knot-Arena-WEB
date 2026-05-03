@@ -428,7 +428,10 @@ export async function fetchPlayerRoster(options: {
   region?: string;
   rulesetId?: string;
 }): Promise<PlayerRosterView> {
-  const url = new URL(`${API_BASE}/players/${options.uid}/roster`, window.location.origin);
+  const url = new URL(
+    `${API_BASE}/players/${encodeURIComponent(options.uid)}/roster`,
+    window.location.origin
+  );
   if (options.region) {
     url.searchParams.set("region", options.region);
   }
@@ -489,17 +492,6 @@ export function submitVerifierRosterImport(payload: {
     summary: PlayerRosterImportSummary;
     verification: { status: string; uid?: string; region?: string };
   }>("/verifier/roster/import", jsonRequest(payload));
-}
-
-export function upsertManualRosterAgents(payload: {
-  uid: string;
-  region: string;
-  agentIds: string[];
-}): Promise<{ updatedCount: number; updatedAt: string }> {
-  return requestJson<{ updatedCount: number; updatedAt: string }>(
-    `/players/${payload.uid}/roster/manual`,
-    jsonRequest({ region: payload.region, agents: payload.agentIds.map((agentId) => ({ agentId })) })
-  );
 }
 
 export function fetchAdminRulesets(): Promise<Ruleset[]> {

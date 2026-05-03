@@ -31,6 +31,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../com
 import { fetchCurrentSeason, fetchLeagues, fetchProfile } from "../api";
 import { useAuth } from "../auth/AuthProvider";
 import { featureFlags } from "../flags";
+import { buildRosterPath } from "../lib/roster";
 import { isUidVerified, normalizedVerificationStatus, uidStatusLabel } from "../lib/verification";
 import { defaultEloConfig, resolveK, type League, type LeagueType, type ProfileSummary } from "@ika/shared";
 
@@ -351,6 +352,9 @@ export default function Profile() {
   const regionLabel = profileUser.region ?? "NA";
   const uidLabel = uidStatusLabel(verificationStatus);
   const rosterUid = profileUser.verification.uid;
+  const rosterPath = rosterUid
+    ? buildRosterPath(rosterUid, profileUser.verification.region ?? profileUser.region)
+    : null;
 
   return (
     <TooltipProvider>
@@ -613,10 +617,10 @@ export default function Profile() {
             {featureFlags.enableAgentCatalog ? (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-5">
                 <div className="text-sm text-ink-500">
-                  Showcase roster combines catalog data with imported agent states.
+                  Verifier roster combines catalog data with synced agent states.
                 </div>
-                {rosterUid ? (
-                  <Link className="text-sm text-accent-400" to={`/players/${rosterUid}/roster`}>
+                {rosterPath ? (
+                  <Link className="text-sm text-accent-400" to={rosterPath}>
                     View roster
                   </Link>
                 ) : (

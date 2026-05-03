@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
+import { buildRosterPath } from "../lib/roster";
 import { normalizedVerificationStatus, uidStatusLabel } from "../lib/verification";
 
 const verifierRepositoryUrl = "https://github.com/Inter-Knot-Arena/Inter-Knot-Arena-VerifierApp";
@@ -50,6 +51,9 @@ export default function UidVerify() {
   }
 
   const isVerified = verificationStatus === "VERIFIED";
+  const rosterPath = user.verification.uid
+    ? buildRosterPath(user.verification.uid, user.verification.region ?? user.region)
+    : null;
 
   return (
     <div className="mx-auto w-full max-w-[1200px] px-6 pb-16 pt-8">
@@ -87,9 +91,9 @@ export default function UidVerify() {
             <Button onClick={() => void handleRefreshStatus()} disabled={refreshing}>
               {refreshing ? "Refreshing..." : "Refresh status"}
             </Button>
-            {isVerified && user.verification.uid ? (
+            {isVerified && rosterPath ? (
               <Button variant="outline" asChild>
-                <Link to={`/players/${user.verification.uid}/roster`}>Open roster workspace</Link>
+                <Link to={rosterPath}>Open roster workspace</Link>
               </Button>
             ) : null}
           </div>

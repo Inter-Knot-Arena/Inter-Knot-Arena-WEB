@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { Challenge, League, ProfileSummary, QueueConfig } from "@ika/shared";
 import {
   cancelMatchSearch,
@@ -295,7 +295,12 @@ export default function Matchmaking() {
                   <span className="lobby-status">Sign in required for ranked matchmaking.</span>
                 ) : null}
                 {isQueueLocked && !status ? (
-                  <span className="lobby-status">UID verification required for this league.</span>
+                  <span className="lobby-status">
+                    UID verification required for this league.{" "}
+                    <Link className="text-accent-400" to="/uid-verify">
+                      Open Verifier setup
+                    </Link>
+                  </span>
                 ) : null}
               </div>
             </div>

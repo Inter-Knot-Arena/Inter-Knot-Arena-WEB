@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import type { PlayerRosterView, PlayerAgentSource } from "@ika/shared";
 import { fetchPlayerRoster } from "../api";
 import { featureFlags } from "../flags";
@@ -10,12 +10,19 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Skeleton } from "../components/ui/skeleton";
 import { TooltipProvider } from "../components/ui/tooltip";
+import { normalizeRosterRegion } from "../lib/roster";
 
 const regionOptions = ["NA", "EU", "ASIA", "SEA", "OTHER"];
 const sourceOptions: Array<"ALL" | PlayerAgentSource> = ["ALL", "VERIFIER_OCR", "MANUAL"];
+const sourceLabels: Record<"ALL" | PlayerAgentSource, string> = {
+  ALL: "All sources",
+  VERIFIER_OCR: "Verifier scan",
+  MANUAL: "Legacy import"
+};
 
 export default function PlayerRoster() {
   const { uid } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [roster, setRoster] = useState<PlayerRosterView | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,8 +35,15 @@ export default function PlayerRoster() {
     "ALL"
   );
   const [sourceFilter, setSourceFilter] = useState<"ALL" | PlayerAgentSource>("ALL");
-  const [region, setRegion] = useState("NA");
+  const [region, setRegion] = useState(() => normalizeRosterRegion(searchParams.get("region")) ?? "NA");
   const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    const queryRegion = normalizeRosterRegion(searchParams.get("region"));
+    if (queryRegion && queryRegion !== region) {
+      setRegion(queryRegion);
+    }
+  }, [region, searchParams]);
 
   useEffect(() => {
     if (!featureFlags.enableAgentCatalog) {
@@ -149,6 +163,14 @@ export default function PlayerRoster() {
     }
   };
 
+  const handleRegionChange = (nextRegion: string) => {
+    const normalized = normalizeRosterRegion(nextRegion) ?? "NA";
+    setRegion(normalized);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("region", normalized);
+    setSearchParams(nextParams, { replace: true });
+  };
+
   if (!featureFlags.enableAgentCatalog) {
     return (
       <div className="card">
@@ -177,7 +199,7 @@ export default function PlayerRoster() {
             <select
               className="rounded-md border border-border bg-ika-900/40 px-3 py-2 text-sm text-ink-700"
               value={region}
-              onChange={(event) => setRegion(event.target.value)}
+              onChange={(event) => handleRegionChange(event.target.value)}
             >
               {regionOptions.map((option) => (
                 <option key={option} value={option}>
@@ -290,7 +312,7 @@ export default function PlayerRoster() {
                 size="sm"
                 onClick={() => setSourceFilter(option)}
               >
-                {option === "ALL" ? "All sources" : option}
+                {sourceLabels[option]}
               </Button>
             ))}
           </div>

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../auth/AuthProvider";
+import { buildRosterPath } from "../lib/roster";
 
 export default function Roster() {
   const { user, isLoading } = useAuth();
@@ -42,6 +43,11 @@ export default function Roster() {
     );
   }
 
+  const rosterPath = buildRosterPath(
+    user.verification.uid,
+    user.verification.region ?? user.region
+  );
+
   return (
     <div className="page">
       <section className="section-header">
@@ -60,7 +66,7 @@ export default function Roster() {
           </div>
         </div>
         <div className="card-actions">
-          <Link className="primary-button" to={`/players/${user.verification.uid}/roster`}>
+          <Link className="primary-button" to={rosterPath}>
             Open roster workspace
           </Link>
           <Link className="ghost-button" to="/uid-verify">
